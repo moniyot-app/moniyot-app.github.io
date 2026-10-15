@@ -1,4 +1,4 @@
-<title>מי פנוי?</title>
+<title>מוניות</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Rubik:wght@500;700&display=swap">
@@ -265,7 +265,7 @@ td input{width:80px}
 </style>
 
 <div class="top"><div class="top-in">
-  <div class="brand"><span class="roof">TAXI</span>מי פנוי?</div><span id="syncst" class="syncst" hidden></span>
+  <div class="brand"><span class="roof">TAXI</span>מוניות</div><span id="syncst" class="syncst" hidden></span>
   <div class="switch" role="group" aria-label="בחירת עמוד">
     <button id="nav-guide" data-nav="guide">הוראות שימוש</button>
     <button id="nav-client" data-nav="client">מבצעים</button>
@@ -517,7 +517,7 @@ const setRole=r=>{if(ui.role==='admin')return;ui.role=r;try{sessionStorage.setIt
 function fullLogout(){ui.role=null;ui.cAuth=null;ui.authed=false;ui.admAuthed=false;ui.ceoAuthed=false;ui.mgrAuthed=[];ui.sub='orders';
   try{['taxi-role','taxi-client','taxi-disp','taxi-adm'].forEach(k=>sessionStorage.removeItem(k))}catch(_){}ui.page=ui.entry==='disp'?'dispatcher':ui.entry==='admin'?'admin':'client';render()}
 function loginChooser(){if(ui.entry)return '';const cur=ui.page==='dispatcher'?'disp':ui.page==='admin'?'admin':'ops';
-  return `<div class="panel gate" style="margin-bottom:0;padding-bottom:0"><h2>ברוכים הבאים ל"מי פנוי?"</h2><div class="note">בחרו מי אתם ונכנסים עם הסיסמה שקיבלתם. כל אחד רואה רק את מה ששייך לו.</div>
+  return `<div class="panel gate" style="margin-bottom:0;padding-bottom:0"><h2>ברוכים הבאים ל"מוניות"</h2><div class="note">בחרו מי אתם ונכנסים עם הסיסמה שקיבלתם. כל אחד רואה רק את מה ששייך לו.</div>
     <div class="tabs" role="tablist">${[['ops','מבצעים','client'],['disp','סדרן','dispatcher'],['admin','המנהלת','admin']].map(([k,l,pg])=>`<button role="tab" data-entrypg="${pg}" aria-selected="${cur===k}">${l}</button>`).join('')}</div></div>`}
 const app=document.getElementById('app');
 let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
@@ -1093,7 +1093,7 @@ function renderDispatcher(){
   const sug=suggestions();
   const hot=S.clients.map(c=>({c,p:used(c.id)/limit(c)})).filter(x=>x.p>=.9).sort((a,b)=>b.p-a.p);
   const awn=S.rides.filter(r=>r.status==='awaiting').length;
-  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','אישור נוסעים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','משתמשים',0]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo');
+  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','אישור נוסעים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',0]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo');
   if(ADM){const ORD=['calendar','paxreq','quotas','costs','ceo','users'];tabs.sort((a,b)=>ORD.indexOf(a[0])-ORD.indexOf(b[0]))}
   if(!tabs.some(([k])=>k===ui.tab))ui.tab=tabs[0][0];
   let body='';
@@ -1231,7 +1231,7 @@ function renderGuide(){const GR=ROLEG[ui.role]||['ops'];if(!GR.includes(ui.grole
     ${g.rules?`<section class="panel" id="grules"><h2>כללי זכאות בקצרה</h2>${RULES}</section>`:''}`;
 }
 /* ---------- production: real accounts (Supabase). Inactive when PROD is false ---------- */
-const AUTH={sb:null,member:null,user:null,state:'loading',mode:'login',msg:''};
+const AUTH={sb:null,member:null,user:null,state:'loading',mode:'role',msg:''};
 const ROLEL={ops:'מבצעים',boss:'בוס גדול',princess:'★ נסיכות',disp:'סדרן',ceo:'מנכ״ל',admin:'המנהלת'};
 function sbDb(sb){
   const T={app:['kv','key'],rides:['rides','id'],people:['people','id']};
@@ -1268,42 +1268,58 @@ async function loadMember(user){AUTH.user=user;
   else{ui.role='ops';const cid=R.includes('princess')?PID:data.cid;ui.cid=cid;ui.cAuth=cid;if(R.includes('boss'))ui.mgrAuthed=[cid]}
   ui.page={admin:'admin',ceo:'admin',disp:'dispatcher',ops:'client'}[ui.role];if(ui.role==='admin')ui.tab='calendar';if(ui.role==='disp')ui.tab='board';
   DB=sbDb(AUTH.sb);render();initDb()}
+const RMAIL=k=>'noampatishi+'+k+'@gmail.com'; /* role accounts: never emailed (confirmation is off) */
+const roleKeys=()=>[...S.clients.flatMap(c=>[{k:'ops-'+c.id,label:'מבצעים · '+c.name,roles:['ops'],cid:c.id},{k:'boss-'+c.id,label:'בוס גדול · '+c.name,roles:['ops','boss'],cid:c.id}]),
+  {k:'princess',label:'★ נסיכות',roles:['princess'],cid:null},{k:'disp',label:'סדרן',roles:['disp'],cid:null},{k:'ceo',label:'מנכ״ל',roles:['ceo'],cid:null}];
+let LOGINOPTS=null;
 function renderAuth(){
-  const box=inner=>`<div class="panel gate"><h2>מי פנוי?</h2>${inner}</div>`;
+  const box=inner=>`<div class="panel gate"><h2>מוניות</h2>${inner}</div>`;
   if(AUTH.state==='loading'){app.innerHTML=box('<div class="note">טוען…</div>');return}
   if(AUTH.state==='error'){app.innerHTML=box(`<div class="note" style="color:var(--bad)">${esc(AUTH.msg)}</div><button class="btn" onclick="location.reload()">לנסות שוב</button>`);return}
-  if(AUTH.state==='nomember'){app.innerHTML=box(`<div class="note">המייל <b>${esc(AUTH.user?.email||'')}</b> עוד לא קיבל הרשאה לאפליקציה. בקשו מהמנהלת להוסיף אותו, ואז היכנסו שוב.</div><button class="btn" id="authout">יציאה</button>`);return}
-  const m=AUTH.mode;
-  app.innerHTML=box(`<form id="authf" style="display:grid;gap:12px">
+  if(AUTH.state==='nomember'){app.innerHTML=box(`<div class="note">למשתמש הזה עוד אין הרשאה לאפליקציה. פנו למנהלת.</div><button class="btn" id="authout">יציאה</button>`);return}
+  const m=AUTH.mode,msg=`<div class="note" id="au-msg" style="color:var(--bad)">${esc(AUTH.msg||'')}</div>`;
+  if(m==='role'||m==='login'&&!AUTH.adminMode){
+    if(!LOGINOPTS){AUTH.sb.rpc('login_options').then(({data})=>{LOGINOPTS=data||[];renderAuth()});app.innerHTML=box('<div class="note">טוען…</div>');return}
+    const opts=[...LOGINOPTS.map(o=>`<option value="ops-${esc(o.id)}">מבצעים · ${esc(o.name)}</option>`),...LOGINOPTS.map(o=>`<option value="boss-${esc(o.id)}">בוס גדול · ${esc(o.name)}</option>`),
+      '<option value="princess">★ נסיכות</option>','<option value="disp">סדרן</option>','<option value="ceo">מנכ״ל</option>'].join('');
+    app.innerHTML=box(`<form id="authf" style="display:grid;gap:12px"><label>מי נכנס/ת?<select id="au-r">${opts}</select></label>
+      <label>סיסמה<input type="password" id="au-p" autocomplete="current-password" required></label>${msg}
+      <button class="btn primary">כניסה</button><div class="note">את הסיסמה מקבלים מהמנהלת.</div>
+      <button type="button" class="btn small" data-aumode="admin" style="justify-self:start">כניסת המנהלת (במייל)</button></form>`);return}
+  app.innerHTML=box(`<form id="authf" style="display:grid;gap:12px"><div class="note"><b>כניסת המנהלת</b></div>
     ${m==='newpw'?'<div class="note">בחרו סיסמה חדשה.</div>':`<label>מייל<input type="email" id="au-e" autocomplete="email" required dir="ltr"></label>`}
-    ${m==='reset'?'':`<label>${m==='login'?'סיסמה':'סיסמה חדשה (לפחות 8 תווים)'}<input type="password" id="au-p" autocomplete="${m==='login'?'current-password':'new-password'}" minlength="${m==='login'?1:8}" required></label>`}
-    ${m==='signup'||m==='newpw'?'<label>שוב את הסיסמה<input type="password" id="au-p2" autocomplete="new-password" required></label>':''}
-    <div class="note" id="au-msg" style="color:var(--bad)">${esc(AUTH.msg||'')}</div>
-    <button class="btn primary">${m==='login'?'כניסה':m==='signup'?'יצירת סיסמה וכניסה':m==='reset'?'שליחת קישור לאיפוס':'שמירת הסיסמה'}</button>
-    ${m==='login'?'<div class="row" style="justify-content:space-between"><button type="button" class="btn small" data-aumode="signup">פעם ראשונה? יצירת סיסמה</button><button type="button" class="btn small" data-aumode="reset">שכחתי סיסמה</button></div>':m==='newpw'?'':'<button type="button" class="btn small" data-aumode="login">חזרה לכניסה</button>'}
-    <div class="note">הכניסה רק למי שהמנהלת הוסיפה את המייל שלו.</div></form>`)}
+    ${m==='reset'?'':`<label>${m==='admin'?'סיסמה':'סיסמה חדשה (לפחות 8 תווים)'}<input type="password" id="au-p" autocomplete="${m==='admin'?'current-password':'new-password'}" minlength="${m==='admin'?1:8}" required></label>`}
+    ${m==='signup'||m==='newpw'?'<label>שוב את הסיסמה<input type="password" id="au-p2" autocomplete="new-password" required></label>':''}${msg}
+    <button class="btn primary">${m==='admin'?'כניסה':m==='signup'?'יצירת סיסמה וכניסה':m==='reset'?'שליחת קישור לאיפוס':'שמירת הסיסמה'}</button>
+    ${m==='admin'?'<div class="row" style="justify-content:space-between"><button type="button" class="btn small" data-aumode="signup">פעם ראשונה? יצירת סיסמה</button><button type="button" class="btn small" data-aumode="reset">שכחתי סיסמה</button></div>':''}
+    ${m==='newpw'?'':'<button type="button" class="btn small" data-aumode="role" style="justify-self:start">חזרה לכניסה רגילה</button>'}</form>`)}
 async function authSubmit(){const g=id=>(document.getElementById(id)?.value||'').trim(),m=AUTH.mode,sb=AUTH.sb;AUTH.msg='';
   const fail=t=>{AUTH.msg=t;renderAuth()};
+  if(m==='role'||m==='login'){const {data,error}=await sb.auth.signInWithPassword({email:RMAIL(g('au-r')),password:document.getElementById('au-p').value});if(error)return fail('הסיסמה לא נכונה');return loadMember(data.user)}
   if((m==='signup'||m==='newpw')&&g('au-p')!==g('au-p2'))return fail('הסיסמאות לא זהות');
-  if(m==='login'){const {data,error}=await sb.auth.signInWithPassword({email:g('au-e'),password:g('au-p')});if(error)return fail('המייל או הסיסמה לא נכונים');return loadMember(data.user)}
+  if(m==='admin'){const {data,error}=await sb.auth.signInWithPassword({email:g('au-e'),password:g('au-p')});if(error)return fail('המייל או הסיסמה לא נכונים');return loadMember(data.user)}
   if(m==='signup'){const {data,error}=await sb.auth.signUp({email:g('au-e'),password:g('au-p')});if(error)return fail(/registered/i.test(error.message)?'למייל הזה כבר יש סיסמה. היכנסו או לחצו "שכחתי סיסמה"':'לא הצלחנו ליצור סיסמה: '+error.message);
-    if(data.session)return loadMember(data.user);AUTH.mode='login';return fail('נשלח אליכם מייל אישור. אשרו אותו ואז היכנסו')}
-  if(m==='reset'){const {error}=await sb.auth.resetPasswordForEmail(g('au-e'),{redirectTo:location.origin+location.pathname});AUTH.mode='login';return fail(error?'לא הצלחנו לשלוח: '+error.message:'אם המייל קיים, נשלח אליו קישור לאיפוס הסיסמה')}
-  if(m==='newpw'){const {data,error}=await sb.auth.updateUser({password:g('au-p')});if(error)return fail('לא הצלחנו לשמור: '+error.message);AUTH.mode='login';history.replaceState(null,'',location.pathname);return loadMember(data.user)}}
+    if(data.session)return loadMember(data.user);AUTH.mode='admin';return fail('נשלח אליכם מייל אישור. אשרו אותו ואז היכנסו')}
+  if(m==='reset'){const {error}=await sb.auth.resetPasswordForEmail(g('au-e'),{redirectTo:location.origin+location.pathname});AUTH.mode='admin';return fail(error?'לא הצלחנו לשלוח: '+error.message:'אם המייל קיים, נשלח אליו קישור לאיפוס הסיסמה')}
+  if(m==='newpw'){const {data,error}=await sb.auth.updateUser({password:g('au-p')});if(error)return fail('לא הצלחנו לשמור: '+error.message);AUTH.mode='role';history.replaceState(null,'',location.pathname);return loadMember(data.user)}}
 let USERS=null;
 function renderUsers(){
   if(!USERS){AUTH.sb.from('members').select('*').order('email').then(({data})=>{USERS=data||[];render()});return '<div class="note">טוען…</div>'}
-  const lab=u=>{const R=u.roles||[];return R.includes('admin')?'המנהלת'+(R.includes('ceo')?' + מנכ״ל':''):R.includes('disp')?'סדרן':R.includes('princess')?'★ נסיכות':R.includes('boss')?'בוס גדול':R.includes('ops')?'מבצעים':R.includes('ceo')?'מנכ״ל':'—'};
-  return `<div class="note">רק מי שמופיע כאן יכול להיכנס לאפליקציה. בכניסה הראשונה כל אחד לוחץ "פעם ראשונה? יצירת סיסמה" ובוחר סיסמה לעצמו.</div>
-    <div class="tablewrap"><table><thead><tr><th>מייל</th><th>שם</th><th>תפקיד</th><th>מבצעים</th><th></th></tr></thead><tbody>${USERS.map(u=>`<tr><td dir="ltr" style="text-align:right">${esc(u.email)}</td><td>${esc(u.name||'')}</td><td>${lab(u)}</td><td>${u.cid&&client(u.cid)?opsLogo(u.cid,18)+esc(client(u.cid).name):''}</td><td>${u.email===AUTH.member.email?'<span class="note">את</span>':`<button class="btn small danger" data-udel="${esc(u.email)}">הסרה</button>`}</td></tr>`).join('')}</tbody></table></div>
-    <h3>הוספת משתמש</h3><form class="fields" id="uadd"><label>מייל<input type="email" id="ua-e" required dir="ltr"></label><label>שם<input id="ua-n" required></label>
-      <label>תפקיד<select id="ua-r">${[['ops','מבצעים'],['boss','בוס גדול'],['princess','★ נסיכות'],['disp','סדרן'],['ceo','מנכ״ל'],['admin','מנהלת']].map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></label>
-      <label>מבצעים (למבצעים ובוס גדול)<select id="ua-c">${S.clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label>
-      <button class="btn primary" style="align-self:end">הוספה</button></form>`}
-async function usersAdd(){const g=id=>document.getElementById(id).value.trim(),r=g('ua-r');
-  const roles=r==='boss'?['ops','boss']:[r],row={email:g('ua-e').toLowerCase(),name:g('ua-n'),roles,cid:(r==='ops'||r==='boss')?g('ua-c'):null};
-  const {error}=await AUTH.sb.from('members').upsert(row);if(error){toast('לא נשמר: '+error.message);return}toast('המשתמש נוסף. בכניסה הראשונה הוא ייצור לעצמו סיסמה');USERS=null;render()}
-async function usersDel(email){const {error}=await AUTH.sb.from('members').delete().eq('email',email);if(error){toast('לא נמחק: '+error.message);return}USERS=null;render()}
+  const by=e=>USERS.find(u=>u.email===e);
+  return `<div class="note">לכל תפקיד יש סיסמה אחת. מי שיודע/ת את הסיסמה נכנס/ת: בוחרים במסך הכניסה "מי נכנס/ת" ומקלידים אותה. סיסמה צריכה להיות לפחות 6 תווים. כדי לחסום מישהו, פשוט מחליפים את הסיסמה.</div>
+    <div class="tablewrap"><table><thead><tr><th>תפקיד</th><th>סיסמה</th><th></th></tr></thead><tbody>${roleKeys().map(r=>{const u=by(RMAIL(r.k));return `<tr><td>${r.cid?opsLogo(r.cid,18):''}${esc(r.label)}</td>
+      <td><input id="rp-${r.k}" class="num" value="${esc(u&&u.pw||'')}" placeholder="${u?'':'לא הוגדרה'}" minlength="6" autocomplete="off" style="width:140px" dir="ltr"></td>
+      <td><button class="btn small primary" data-rpsave="${r.k}">${u?'שמירה':'הפעלה'}</button>${u?' <span class="st st-active">פעיל</span>':''}</td></tr>`}).join('')}</tbody></table></div>`}
+async function rolePwSave(k){const r=roleKeys().find(x=>x.k===k),pw=(document.getElementById('rp-'+k)?.value||'').trim(),email=RMAIL(k);
+  if(pw.length<6){toast('הסיסמה צריכה להיות לפחות 6 תווים');return}
+  const u=(USERS||[]).find(x=>x.email===email);if(u&&u.pw===pw){toast('לא השתנה כלום');return}
+  if(USERS.some(x=>x.pw===pw&&x.email!==email)){toast('הסיסמה הזו כבר בשימוש לתפקיד אחר. בחרו סיסמה אחרת');return}
+  const tmp=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false,storageKey:'mp-tmp'}});
+  if(u&&u.pw){const a=await tmp.auth.signInWithPassword({email,password:u.pw});if(a.error){toast('לא הצלחנו לעדכן: '+a.error.message);return}
+    const b=await tmp.auth.updateUser({password:pw});if(b.error){toast('לא הצלחנו לעדכן: '+b.error.message);return}await tmp.auth.signOut()}
+  else{const a=await tmp.auth.signUp({email,password:pw});if(a.error){toast('לא הצלחנו ליצור: '+a.error.message);return}}
+  const {error}=await AUTH.sb.from('members').upsert({email,name:r.label,roles:r.roles,cid:r.cid,pw});if(error){toast('לא נשמר: '+error.message);return}
+  toast(u?'הסיסמה עודכנה':'התפקיד הופעל');USERS=null;render()}
 
 const confirmDel=t=>{if(t.dataset.sure){return true}t.dataset.sure='1';t.textContent='בטוח? ללחוץ שוב';setTimeout(()=>{if(t.isConnected){delete t.dataset.sure;t.textContent='הסרה'}},4000);return false};
 /* ---------- render + events ---------- */
@@ -1437,7 +1453,7 @@ document.addEventListener('click',e=>{
   if(t.id==='clogout'){ui.cAuth=null;ui.mgrAuthed=[];ui.sub='orders';try{sessionStorage.removeItem('taxi-client')}catch(_){}render();return}
   if(PROD&&(t.id==='admlogout'||t.id==='glogout'||t.id==='authout'||t.id==='logout'||t.id==='clogout'&&ui.role!=='admin')){AUTH.sb.auth.signOut().finally(()=>{try{localStorage.removeItem(KEY)}catch(_){}location.reload()});return}
   if(t.dataset.aumode){AUTH.mode=t.dataset.aumode;AUTH.msg='';renderAuth();return}
-  if(t.dataset.udel){if(confirmDel(t))usersDel(t.dataset.udel);return}
+  if(t.dataset.rpsave){rolePwSave(t.dataset.rpsave);return}
   if(t.id==='admlogout'||t.id==='glogout'){fullLogout();return}
   if(t.dataset.entrypg){ui.page=t.dataset.entrypg;render();return}
   if(t.id==='logout'){fullLogout();return}
@@ -1446,7 +1462,6 @@ document.addEventListener('click',e=>{
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
   if(f.id==='ceogate'||f.id==='ceogate2'){const v=document.getElementById(f.id==='ceogate'?'ceopw':'ceopw2').value;if(v==='9999'){ui.ceoAuthed=true;if(f.id==='ceogate')ui.ceoOnly=true;render()}else{const e=document.getElementById(f.id==='ceogate'?'ceoerr':'ceoerr2');if(e)e.hidden=false}return}
   if(f.id==='authf'){authSubmit();return}
-  if(f.id==='uadd'){usersAdd();return}
   if(f.id==='admgate'){if(document.getElementById('admpw').value===(S.adminPw||'2468')){setRole('admin');ui.admAuthed=true;ui.authed=true;ui.tab='calendar';try{sessionStorage.setItem('taxi-adm','1')}catch(_){}render()}else document.getElementById('admerr').hidden=false;return}
   if(f.id==='gate'){if(document.getElementById('pw').value==='1234'){setRole('disp');ui.authed=true;try{sessionStorage.setItem('taxi-disp','1')}catch(_){}render()}else document.getElementById('pwerr').hidden=false;return}
   if(f.id==='edit-pax'){const e=emp(f.dataset.emp),nm=document.getElementById('ex-n').value.trim(),ty=document.getElementById('ex-t').value,ph=document.getElementById('ex-p').value.replace(/\D/g,'');

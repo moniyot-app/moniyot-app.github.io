@@ -97,3 +97,11 @@ end $$;
 -- the first manager
 insert into public.members(email, name, roles) values ('noampatishi@gmail.com', 'המנהלת', array['admin','ceo'])
 on conflict (email) do update set roles = excluded.roles;
+
+-- גרסה 2: כניסה עם סיסמה לכל תפקיד
+alter table public.members add column if not exists pw text;
+create or replace function public.login_options() returns table(id text, name text)
+language sql stable security definer set search_path = public as $$
+  select c->>'id', c->>'name' from public.kv, jsonb_array_elements(v) c where key = 'clients'
+$$;
+grant execute on function public.login_options() to anon, authenticated;
