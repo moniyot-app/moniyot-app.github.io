@@ -187,7 +187,7 @@ input.bad,select.bad{border-color:var(--warn);background:var(--warn-soft)}
 .pc.ty-free{background:var(--taxi);border-color:var(--taxi-line);border-width:2px}
 .pc.ty-restricted{background:var(--air);border-color:var(--air-line)}
 .pc.auto.ty-restricted{background:color-mix(in srgb,var(--air) 70%,var(--surface))}
-.pc.past{background:var(--bg);color:var(--muted);opacity:.6}
+.pc.past{opacity:.55} .pc.past.x{background:var(--bg);color:var(--muted);opacity:.6}
 .pc .pd{font-size:.72rem;color:var(--muted)}.pc .pr{font-family:var(--font-display);font-size:1.15rem;line-height:1}
 .pc small{font-size:.66rem;color:var(--muted)}.pc.ty-free small{color:var(--taxi-ink);font-weight:700}.pc.ty-restricted small{color:var(--air-ink)}
 .ride{position:relative;overflow:hidden}
@@ -677,12 +677,12 @@ function renderPaxReq(c){
       <label>טלפון נייד<input id="ex-p" inputmode="tel" class="num" value="${esc(e.phone?fmtPh(e.phone):'')}" placeholder="050-1234567"></label></div>
       <div class="row" style="gap:6px"><button class="btn small primary">שליחת השינוי לאישור המנהלת</button><button type="button" class="btn small" data-editcancel="1">ביטול</button></div></form>`;
     return `<div class="emp-row"><span style="flex:1;min-width:0"><b>${esc(e.name)}</b> ${tag(e.type)}<br><span class="note num">${e.phone?fmtPh(e.phone):'אין טלפון'}${e.city||e.addr?' · '+esc([e.addr,e.city].filter(Boolean).join(', ')):''}</span></span>
-      ${pend?`<span class="st st-pending">${KIND[pend.kind||'add']} ממתינה לאישור</span>`:ui.rmEmp===e.id?`<span class="row" style="gap:6px"><span class="note">להסיר את ${esc(e.name)}?</span><button class="btn small danger" data-rmyes="${e.id}">כן, לבקש הסרה</button><button class="btn small" data-rmno="1">לא</button></span>`:
+      ${pend?`<span class="st st-pending">${KIND[pend.kind||'add']} ממתינה לאישור</span>`:ui.rmEmp===e.id?`<span class="row" style="gap:6px"><span class="note">להסיר את ${esc(e.name)}?</span><button class="btn small danger" data-rmyes="${e.id}">כן, להסיר</button><button class="btn small" data-rmno="1">לא</button></span>`:
       `<span class="row" style="gap:6px"><button class="btn small" data-editemp="${e.id}">עריכה</button><button class="btn small danger" data-rmemp="${e.id}">הסרה</button></span>`}</div>`};
   app.innerHTML=subTabs(c)+`
   <div class="grid2">
     <section class="panel"><h2>מאגר הנוסעים · ${emps.length}</h2>
-      <div class="note">נוסע עבר קטגוריה, החליף טלפון או עזב? לחצו "עריכה" או "הסרה". כל שינוי נכנס לתוקף רק אחרי אישור המנהלת.</div>
+      <div class="note">נוסע עבר קטגוריה, החליף טלפון או עזב? לחצו "עריכה" או "הסרה". עריכה נכנסת לתוקף אחרי אישור המנהלת. הסרה מתבצעת מיד.</div>
       <div style="display:grid;gap:6px">${emps.map(row).join('')}</div></section>
     <section class="panel"><h2>הוספת נוסע</h2>
       <div class="note">נוסע חדש נכנס למאגר רק אחרי שהמנהלת מאשרת אותו. עד אז אי אפשר להזמין לו מונית.</div>
@@ -734,13 +734,13 @@ function effTips(c,P,proj){const mine=S.rides.filter(r=>inMonth(r.ts)&&COUNTS.in
 function planAdvice(P,act,wk,myTot){const avg=k=>{const a=act.filter(x=>x.ty===k);return a.length?a.reduce((s,x)=>s+x.rec,0)/a.length:0};
   const alt=[P.airN?`${P.airN} ימים אוויריים (מענה בטיסה)`:'',P.grN?`${P.grN} ימים קרקעיים (מענה במיניבוסים)`:''].filter(Boolean).join(' ו־');
   return `${P.freeN?`<b>מתכננים מוניות רק בימי מוניות (${P.freeN}):</b> כ־${fmt(avg('free'))} מוניות ביום.`:'<b>אין החודש ימי מוניות</b>, ולכן אין צורך לתכנן מוניות מראש.'}${alt?` ב־${alt} יש מענה חלופי, ולכן לא מתכננים בהם מוניות. משאירים בצד רזרבה של ${P.R} מוניות לחריגים בלבד.`:''} לפי שבועות: ${wk.map(x=>`${x.from}–${x.to}: ${x.r}`).join(' · ')}.${myTot?` בתכנון שלכם כרגע ${myTot}${myTot>P.Q?`, יותר מהסל ב־${myTot-P.Q}`:''}.`:''}`}
-function renderPlan(c){const now=new Date(),curK=ymd(now).slice(0,7),nextK=ymd(new Date(now.getFullYear(),now.getMonth()+1,1)).slice(0,7),mk=ui.planMonth||nextK,mode='mine';
+function renderPlan(c){const now=new Date(),curK=ymd(now).slice(0,7),nextK=ymd(new Date(now.getFullYear(),now.getMonth()+1,1)).slice(0,7),mk=ui.planMonth||curK,mode='mine';
   const P=planFor(c,mk),act=P.days.filter(x=>!x.past),my=((S.plans||{})[c.id]||{})[mk]||{};
   const val=x=>mode==='mine'?(+my[x.ds]||0):x.rec,mx=Math.max(1,...act.map(val)),myTot=act.reduce((a,x)=>a+(+my[x.ds]||0),0);
   const cnt=k=>act.filter(x=>x.ty===k).length,TYN={free:'מוניות',normal:'קרקעי',restricted:'אווירי'};
   const dayN=now.getDate(),ndCur=new Date(now.getFullYear(),now.getMonth()+1,0).getDate(),proj=P.usedNow/Math.max(1,dayN)*ndCur;
   const lead=new Date(+mk.slice(0,4),+mk.slice(5)-1,1).getDay();
-  const cells=[...Array(lead).fill('<div aria-hidden="true"></div>'),...P.days.map(x=>x.past?`<div class="pc past"><span class="num">${x.d}</span></div>`:
+  const cells=[...Array(lead).fill('<div aria-hidden="true"></div>'),...P.days.map(x=>x.past?`<div class="pc cal-d past ty-${x.ty}${x.wd===5||x.wd===6?' wk':''}${isAuto(x.ds)?' auto':''}"><span class="num pd">${x.d}</span><small class="num">${x.ty==='free'?'מוניות':winsOf(x.ds).length?(x.ty==='normal'?'🚐 ':'')+winsOf(x.ds).map(winTxt).join('<br>'):x.ty==='restricted'?'אווירי':''}</small></div>`:
     `<div class="pc cal-d ty-${x.ty}${x.wd===5||x.wd===6?' wk':''}${isAuto(x.ds)?' auto':''}${x.ds===ymd(new Date())?' today':''}" data-tip="${dayLabel(x.ds)} · יום ${TYN[x.ty]}${winsOf(x.ds).length?' · '+WK(x.ds).ns+': '+winsOf(x.ds).map(winTxt).join(', '):''} · בתכנון: ${+my[x.ds]||0}"><span class="num pd">${x.d}</span>${mode==='mine'?`<input type="number" min="0" max="30" class="num pin" data-pday="${x.ds}" id="pd-${x.ds}" value="${my[x.ds]??''}" placeholder="0" aria-label="מוניות ב־${dayLabel(x.ds)}">`:`<b class="num pr">${x.rec}</b>`}<small class="num">${x.ty==='free'?'מוניות':winsOf(x.ds).length?(x.ty==='normal'?'🚐 ':'')+winsOf(x.ds).map(winTxt).join('<br>'):x.ty==='restricted'?'אווירי':''}</small></div>`)];
   const weeks=[];P.days.forEach(x=>{if(x.past)return;const k=Math.floor((x.d-1+lead)/7);(weeks[k]??={from:x.d,to:x.d,n:0,r:0});weeks[k].to=x.d;weeks[k].n+=val(x);weeks[k].r+=x.rec});
   const wk=weeks.filter(Boolean),wmx=Math.max(1,...wk.map(x=>Math.max(x.n,x.r)));
@@ -1156,7 +1156,7 @@ const G={
  ops:{title:'מבצעים',intro:'כאן רושמים נוסעים ומזמינים מוניות.',quick:['נכנסים: בוחרים את המבצעים שלכם ← סיסמה.','רושמים נוסעים: לשונית "נוסעים" ← "הוספת נוסע" ← הסדרן מאשר.','מזמינים: לשונית "הזמנות" ← תאריך, כיוון ושעה ← מסמנים נוסעים ← עיר וכתובת ← אחראי/ת ← "הזמנת מונית".','מחכים לאישור: תיבה ירוקה = המונית הוזמנה. פרטי הנהג מגיעים אליכם ולנוסעים.','חוסכים: "מי פנוי באלנבי" (איחוד עם אחרים) ו"תכנון חודשי" (פיזור הסל).'],sections:[
   {h:'כניסה',go:'ops',steps:['במסך הכניסה בוחרים "מי נכנס/ת" ומקלידים את הסיסמה שקיבלתם מהמנהלת.','בוחרים את המבצעים שלכם. האפליקציה נפתחת ישר בעמוד שלכם.']},
   {h:'רישום נוסע חדש',go:'ops-pax',steps:['עוברים ללשונית "נוסעים".','בטופס "הוספת נוסע" כותבים שם פרטי.','בוחרים סוג: ביזנס, פרימיום או תיירים.','מוסיפים טלפון נייד. בלעדיו הנוסע לא יקבל את סיכום הנסיעה.','לוחצים "שליחה לאישור המנהלת". הנוסע יופיע במאגר ובטופס ההזמנה רק אחרי שהמנהלת תאשר.'],tip:'הבקשה מופיעה מתחת לטופס עם הסטטוס "ממתין לאישור המנהלת".'},
-  {h:'עריכה או הסרה של נוסע',go:'ops-pax',steps:['בלשונית "נוסעים", במאגר הנוסעים, מוצאים את הנוסע.','לעדכון סוג, שם או טלפון: לוחצים "עריכה", משנים ולוחצים "שליחת השינוי לאישור המנהלת".','להסרה: לוחצים "הסרה" ומאשרים "כן, לבקש הסרה".','עד שהמנהלת מאשרת, ליד הנוסע כתוב "ממתינה לאישור" והפרטים הישנים בתוקף.']},
+  {h:'עריכה או הסרה של נוסע',go:'ops-pax',steps:['בלשונית "נוסעים", במאגר הנוסעים, מוצאים את הנוסע.','לעדכון סוג, שם או טלפון: לוחצים "עריכה", משנים ולוחצים "שליחת השינוי לאישור המנהלת".','להסרה: לוחצים "הסרה" ומאשרים. הנוסע יורד מהמאגר מיד, בלי צורך באישור.','עד שהמנהלת מאשרת עריכה, ליד הנוסע כתוב "ממתינה לאישור" והפרטים הישנים בתוקף.']},
   {h:'הזמנת מונית',go:'ops',steps:['בלשונית "הזמנות" בוחרים תאריך, ואם השעה היא שעת הגעה ליעד או שעת יציאה מהמוצא.','מזינים את השעה.','שלב 1: מסמנים את הנוסעים (עד 4).','שלב 2, מסלול: בוחרים תחנת מוצא ותחנת יעד. אחת מהן אפשר לבחור מהרשימה (למשל מחנה רמון) או לכתוב כל מקום. בתחנות האיסוף או ההורדה מקלידים עיר. מופיע ✓ אם היא מותרת, ✕ אם לא.','אחרי עיר מותרת, כותבים כתובת מדויקת (רחוב ומספר, או נקודת ציון). "בדיקה במפה" פותח את הכתובת בגוגל מפות.','ב"מי עולה כאן?" לוחצים על שמות הנוסעים שנאספים בנקודה הזו. צריך עוד נקודה? "+ הוספת נקודת איסוף".','נוסע שנאסף ממקום אחר: מוסיפים בשבילו תחנה ("+ הוספת נקודת איסוף") ולוחצים על השם שלו בתחנה החדשה. אין כתובת אישית לנוסע, כולם נאספים בכתובת של התחנה.','אם יש סדר תחנות קצר יותר, מופיעה הצעה "💡 סדר יעיל יותר" עם כמה דקות זה חוסך. לחיצה על "לסדר את התחנות כך" מסדרת אותן מחדש.','שלב 3: בוחרים אחראי/ת נסיעה.','בודקים את "בדיקת ההזמנה" בצד: ירוק תקין, כתום דורש תשומת לב, אדום חוסם. מתקנים את האדום ולוחצים "הזמנת מונית".'],tip:'שעות האיסוף המשוערות מחושבות אוטומטית ומופיעות ליד כל נקודה.'},
   {h:'מה קורה אחרי ששולחים',steps:['נסיעה עם נוסע בודד מחכה קודם לבוס הגדול. ב־4 נוסעים מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה. נסיעת לילה (23:00–06:00) מחכה לאישור המנכ״ל.','אחר כך היא מגיעה לסדרן, שמזמין מונית ומאשר.','כשהסדרן מאשר, קופצת למעלה תיבה ירוקה "המונית הוזמנה". כשהוא מוסיף פרטי נהג, תקבלו גם את שמו ואת הטלפון.','כל נוסע שיש לו טלפון מקבל סיכום: שעה, מסלול, מאיפה נאסף, פרטי הנהג והאחראי.']},
   {h:'🔒 אישור אבטחת מידע',go:'ops',steps:['כמעט כל נסיעה צריכה אישור אבטחת מידע. זה מעקב פנימי של המבצעים.','אם האישור כבר התקבל בזמן ההזמנה, מסמנים "כבר התקבל אישור אבטחת מידע" לפני השליחה.','ב"ההזמנות שלי" ליד כל נסיעה יש כפתור 🔒. לחיצה מחליפה בין: ממתין לאישור ← אושר ← לא נדרש.','למעלה מופיע כמה נסיעות קרובות עדיין בלי אישור, וכמה מהן ב־24 השעות הקרובות.']},
@@ -1360,7 +1360,9 @@ document.addEventListener('click',e=>{
   if(t.dataset.editcancel){ui.editEmp=null;render();return}
   if(t.dataset.rmemp){ui.rmEmp=t.dataset.rmemp;ui.editEmp=null;render();return}
   if(t.dataset.rmno){ui.rmEmp=null;render();return}
-  if(t.dataset.rmyes){const e=emp(t.dataset.rmyes);paxReq().push({id:'q'+Date.now(),cid:e.cid,kind:'remove',empId:e.id,name:e.name,type:e.type,status:'pending'});ui.rmEmp=null;save();toast('בקשת ההסרה נשלחה לסדרן');render();return}
+  if(t.dataset.rmyes){const e=emp(t.dataset.rmyes);ui.rmEmp=null;
+    if(PROD){AUTH.sb.rpc('remove_person',{pid:e.id}).then(({error})=>{if(error){toast('לא הצלחנו להסיר: '+error.message);return}e.removed=true;synced['people:'+e.id]=JSON.stringify(e);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(_){}toast(`${e.name} הוסר/ה מהמאגר`);render()});return}
+    e.removed=true;save();toast(`${e.name} הוסר/ה מהמאגר`);render();return}
   if(t.dataset.paxno){paxReq().find(x=>x.id===t.dataset.paxno).status='rejected';save();toast('הבקשה לא אושרה');render();return}
   if(t.dataset.addstop){const d=ui.draft;d.stops.push(S.destinations.find(x=>x!==d.dest&&!d.stops.includes(x))||S.destinations[0]);render();return}
   if(t.dataset.delstop){ui.draft.stops.splice(+t.dataset.delstop,1);(ui.draft.stopAddr||[]).splice(+t.dataset.delstop,1);render();return}

@@ -105,3 +105,14 @@ language sql stable security definer set search_path = public as $$
   select c->>'id', c->>'name' from public.kv, jsonb_array_elements(v) c where key = 'clients'
 $$;
 grant execute on function public.login_options() to anon, authenticated;
+
+-- גרסה 3: הסרת נוסע ע"י המבצעים בלי אישור
+create or replace function public.remove_person(pid text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.people set data = data || '{"removed": true}'::jsonb, updated_at = now()
+  where id = pid and (cid = public.my_cid() or public.is_staff());
+  if not found then raise exception 'not allowed'; end if;
+end $$;
+revoke execute on function public.remove_person(text) from anon;
+grant execute on function public.remove_person(text) to authenticated;
