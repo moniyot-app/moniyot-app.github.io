@@ -1254,6 +1254,7 @@ function sbDb(sb){
 async function prodBoot(){
   if(!window.supabase||!SB_URL.startsWith('http')){AUTH.state='error';AUTH.msg='לא ניתן להתחבר למאגר. בדקו את החיבור לאינטרנט ונסו שוב.';render();return}
   AUTH.sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  if(/type=(invite|recovery)/.test(location.hash))AUTH.mode='newpw'; /* link from an invitation or password-reset email: choose a password */
   AUTH.sb.auth.onAuthStateChange((ev,ses)=>{if(ev==='PASSWORD_RECOVERY'){AUTH.state='login';AUTH.mode='newpw';render()}});
   const {data}=await AUTH.sb.auth.getSession();
   if(data&&data.session&&AUTH.mode!=='newpw')await loadMember(data.session.user);else{AUTH.state='login';render()}}
