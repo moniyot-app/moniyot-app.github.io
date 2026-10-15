@@ -635,7 +635,14 @@ function reqDiff(q){const e=q.empId&&emp(q.empId);if((q.kind||'add')==='add')ret
   return `${esc(e?.name||q.name)} · ${ch.join(' · ')||'ללא שינוי'}`}
 function reqRow(q,mode){const[cl,lb]=REQST[q.status];const k=q.kind||'add';
   return `<div class="ride"><div class="t" style="font-size:.8rem">${KIND[k]}</div><div style="min-width:0"><div class="row" style="gap:8px"><span>${reqDiff(q)}</span><span class="st ${cl}">${lb}</span></div>${mode==='disp'?`<div class="who">${esc(client(q.cid).name)}</div>`:''}</div>
-  <div class="acts">${mode==='disp'&&q.status==='pending'?`<button class="btn small primary" data-paxok="${q.id}">אישור</button><button class="btn small danger" data-paxno="${q.id}">לא לאשר</button>`:''}</div></div>`}
+  <div class="acts">${mode==='disp'&&q.status==='pending'&&ui.paxEd!==q.id?`<button class="btn small primary" data-paxok="${q.id}">אישור</button><button class="btn small" data-paxed="${q.id}">עריכה ואישור</button><button class="btn small danger" data-paxno="${q.id}">לא לאשר</button>`:''}</div></div>${mode==='disp'&&q.status==='pending'&&ui.paxEd===q.id?paxEdForm(q):''}`}
+function paxEdForm(q){const k=q.kind||'add';
+  return `<div class="card" style="margin:6px 0 10px;padding:10px"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
+  <label class="field" style="flex:1 1 140px">שם<input id="pe-name" value="${esc(q.name||'')}"></label>
+  <label class="field" style="flex:0 1 120px">סוג<select id="pe-type">${Object.entries(TYPE).map(([v,l])=>`<option value="${v}"${q.type===v?' selected':''}>${l}</option>`).join('')}</select></label>
+  <label class="field" style="flex:0 1 130px">טלפון<input id="pe-phone" inputmode="tel" value="${esc(q.phone||'')}"></label>
+  ${k==='add'?`<label class="field" style="flex:0 1 130px">עיר<input id="pe-city" list="pe-cities" value="${esc(q.city||'')}"><datalist id="pe-cities">${S.destinations.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>`:''}
+  </div><div class="row" style="gap:8px;margin-top:8px"><button class="btn small primary" data-paxedok="${q.id}">שמירה ואישור</button><button class="btn small" data-paxedx="1">ביטול</button></div></div>`}
 const TYPEWORDS=[['business',/ביזנס|business/i],['premium',/פרימיום|premium/i],['regular',/תיירים|תייר/]];
 function parsePeople(text){
   const cities=[...new Set([...S.destinations,...Object.keys(GEO)])].sort((a,b)=>b.length-a.length);
@@ -1085,7 +1092,7 @@ function renderDispatcher(){
         <div class="split num">${cl.map(x=>`${esc(client(x).name)}: ${fmt2(share(m,x))} מונית`).join(' · ')}</div></div>`}).join(''):'<div class="empty">אין כרגע הזמנות שאפשר לאחד.</div>';
   }else if(ui.tab==='paxreq'){
     const pq=paxReq().filter(q=>q.status==='pending');
-    body=pq.length?`<div class="note">נוסע שתאשרו נכנס למאגר של המבצעים ואפשר להזמין לו מוניות.</div><div class="rides">${pq.map(q=>reqRow(q,'disp')).join('')}</div>`:'<div class="empty">אין נוסעים שממתינים לאישור.</div>';
+    body=pq.length?`<div class="note">נוסע שתאשרו נכנס למאגר של המבצעים ואפשר להזמין לו מוניות. אפשר לאשר כמו שהוא, לתקן פרטים ואז לאשר, או לא לאשר.</div><div class="rides">${pq.map(q=>reqRow(q,'disp')).join('')}</div>`:'<div class="empty">אין נוסעים שממתינים לאישור.</div>';
   }else if(ui.tab==='line'){body=renderLine();
   }else if(ui.tab==='calendar'){
     const today=ymd(new Date()),sel=ui.calSel||today;const sty=dayType(sel),sw=winsOf(sel);
@@ -1343,6 +1350,11 @@ document.addEventListener('click',e=>{
   if(t.dataset.nav){ui.page=t.dataset.nav;ui.confirm=null;render();return}
   if(t.dataset.openroutes){ui.openR=routeTips().map(r=>r.id)}
   if(t.dataset.tab){ui.tab=t.dataset.tab;render();return}
+  if(t.dataset.paxed){ui.paxEd=t.dataset.paxed;render();setTimeout(()=>{const i=document.getElementById('pe-name');i&&i.focus()});return}
+  if(t.dataset.paxedx){ui.paxEd=null;render();return}
+  if(t.dataset.paxedok){const q=paxReq().find(x=>x.id===t.dataset.paxedok),v=id=>{const el=document.getElementById(id);return el?el.value.trim():null};
+    const nm=v('pe-name');if(!nm){toast('צריך למלא שם');return}
+    q.name=nm;q.type=v('pe-type')||q.type;q.phone=(v('pe-phone')||'').replace(/[^\d+]/g,'');const c=v('pe-city');if(c!==null)q.city=c;q.edited=true;ui.paxEd=null;t.dataset.paxok=q.id}
   if(t.dataset.paxok){const q=paxReq().find(x=>x.id===t.dataset.paxok);q.status='approved';const k=q.kind||'add',e=q.empId&&emp(q.empId);
     if(k==='add'){S.employees.push({id:'e'+Date.now()+Math.random().toString(36).slice(2,5),cid:q.cid,name:q.name,phone:q.phone||'',type:q.type,city:q.city||'',addr:q.addr||''});toast(`${q.name} נכנס/ה למאגר`)}
     else if(k==='edit'&&e){Object.assign(e,{name:q.name,type:q.type,phone:q.phone||''});toast(`הפרטים של ${q.name} עודכנו`)}
