@@ -1,0 +1,35 @@
+import json,os,re
+cfg=json.load(open('tools/prod_config.json')) if os.path.exists('tools/prod_config.json') else {"url":"__SB_URL__","key":"__SB_KEY__"}
+s=open('src/app.html').read()
+def rep(o,n):
+    global s
+    assert s.count(o)==1,o[:60]; s=s.replace(o,n)
+rep("const PROD=false,SB_URL='',SB_KEY='';",f"const PROD=true,SB_URL={json.dumps(cfg['url'])},SB_KEY={json.dumps(cfg['key'])};")
+rep("const KEY='taxi-quota-proto-v1';","const KEY='mi-panui-prod-v1';")
+a=s.index('function seed(){');b=s.index('let S; try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}')
+s=s[:a]+"function seed(){return {clients:[],employees:[],destinations:[],rides:[],seq:1,paxReq:[],north:[],prices:{south:2000,north:2500},mins:{},freeDays:[],restricted:[],blocked:[],nightSamples:1,bigCities:1,bigCities2:1}}\n"+s[b:]
+for o,n in [("<span>· נתוני דוגמה</span>",""),('● ניסיון משותף · מסונכרן','● מסונכרן'),
+  ("S.rides.forEach(r=>{if(r.status==='pending'&&(r.needs||[]).includes&&(r.needs||[]).includes('night')&&!r.reason)r.reason='(דוגמה) '+R[i++%R.length]})",""),
+  ('<button class="btn danger" id="reset">איפוס לנתוני הדוגמה</button>','')]:
+    rep(o,n)
+
+LOGIN='נכנסים עם המייל והסיסמה שלכם. בפעם הראשונה לוחצים "פעם ראשונה? יצירת סיסמה" ובוחרים סיסמה.'
+for o,n in [("'לוחצים למעלה על \"מבצעים\".','בוחרים את המבצעים שלכם מהרשימה.','מקלידים את הסיסמה שקיבלתם מהסדרן ולוחצים \"כניסה\". הסיסמה אישית לכל אחד מהמבצעים.'","'"+LOGIN+"','האפליקציה פותחת ישר את המבצעים שלכם. רק מי שהמנהלת הוסיפה יכול להיכנס.'"),
+  ("'בעמוד \"מבצעים\" עוברים ללשונית \"בוס גדול\".','הסיסמה היא מספר הטלפון הנייד של הבוס הגדול. את הטלפון מזינה המנהלת בלשונית \"סלים\".'","'"+LOGIN+"','בעמוד \"מבצעים\" עוברים ללשונית \"בוס גדול\". הלשונית פתוחה רק למי שהמנהלת הגדירה כבוס גדול.'"),
+  ("'לוחצים למעלה על \"עמוד סדרן\" ומקלידים את סיסמת הסדרן.'","'"+LOGIN+"'"),
+  ("'לוחצים למעלה על \"המנהלת\" ומקלידים את הסיסמה.'","'"+LOGIN+"','בלשונית \"משתמשים\" מוסיפים ומסירים את מי שמורשה להיכנס, וקובעים לכל אחד תפקיד.'"),
+  ("'נכנסים: \"מבצעים\" ← בוחרים את המבצעים שלכם ← סיסמה.'","'נכנסים עם המייל והסיסמה.'"),
+  ("'נכנסים ל\"מבצעים\" ← לשונית \"בוס גדול\" (הסגולה) ← סיסמה.'","'נכנסים עם המייל והסיסמה ← לשונית \"בוס גדול\" (הסגולה).'"),
+  ("'נכנסים: \"עמוד סדרן\" ← סיסמה. השאירו את ההתראה הקולית פעילה.'","'נכנסים עם המייל והסיסמה. השאירו את ההתראה הקולית פעילה.'"),
+  ("'נכנסים: \"המנהלת\" ← סיסמה.'","'נכנסים עם המייל והסיסמה. בלשונית \"משתמשים\" מוסיפים את מי שמורשה להיכנס.'"),
+  ("'\"★ מנכ״ל\" (עם סיסמת מנכ״ל): ","'\"★ מנכ״ל\": "),
+  (" ← סיסמת מנכ״ל (בנתוני הדוגמה 9999).",".")]:
+    rep(o,n)
+
+# drop artifact-only meta, wrap as full document
+s=s.replace('<meta name="claude:viewport-fit-sides" content="cover">\n','')
+head='<!doctype html>\n<html lang="he" dir="rtl">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>\n</head>\n<body>\n'
+s=head+s+'\n</body>\n</html>\n'
+
+open('index.html','w').write(s)
+print('ok',len(s))
