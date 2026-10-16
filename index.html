@@ -37,7 +37,9 @@
   --accent:#f5c22c; --accent-ink:#15181c; --accent-soft:#3a3214;
   --ok:#55c78f; --ok-soft:#163327; --warn:#f0a640; --warn-soft:#3a2a12; --bad:#f07068; --bad-soft:#3d1c1a; color-scheme:dark}
 *{box-sizing:border-box}
-body{background:var(--page);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.5;direction:rtl}
+/* same width on every tab: always reserve the scrollbar, never scroll sideways */
+html{overflow-y:scroll;scrollbar-gutter:stable;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{overflow-x:clip;background:var(--page);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.5;direction:rtl}
 h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0}
 h2{font-size:1.15rem}
 h3{font-size:1rem}
@@ -218,6 +220,7 @@ details.gsec[open]{background:var(--surface)}
 .reason{margin-top:6px;background:var(--boss);border:1px solid var(--boss-line);border-radius:6px;padding:6px 10px;font-size:.88rem;color:var(--ink)}
 .logos{display:inline-flex;gap:2px}.logos .ologo{margin:0}
 .r2{line-height:1.45}
+.ride>div{min-width:0}.ride>div[style*=grid]{grid-template-columns:minmax(0,1fr)}.ride .paddr{min-width:0;flex-wrap:nowrap}.ride .paddr input{min-width:0;flex:1 1 0;width:auto}.ride .r2{overflow-wrap:anywhere}
 details.more>summary{cursor:pointer;font-size:.82rem;color:var(--muted);width:max-content}
 details.more[open]>summary{color:var(--ink)}
 .more-in{display:grid;gap:6px;margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:.88rem}
@@ -304,6 +307,8 @@ body.train{background:#fff7ed}body.train .top{background:#ffedd5;border-bottom:3
 @media (prefers-color-scheme:dark){body.train{background:#2a1608}body.train .top{background:#3b1d0a}body.train .brand{color:#fdba74}}
 body.train label:has(input[type=password]){display:none}
 .trainbar[hidden],.onl[hidden]{display:none!important}
+.ptime{margin-top:4px;padding:6px 10px;border-radius:8px;background:var(--bg);color:var(--ink);font-size:.95rem}.ptime b{font-size:1.05rem}.ptime.night{background:#ede9fe;color:#4c1d95}
+@media (prefers-color-scheme:dark){.ptime.night{background:#2e1065;color:#ddd6fe}}
 </style>
 
 <div id="trainbar" class="trainbar" hidden></div>
@@ -512,7 +517,7 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
   else if(dty==='restricted'){if(!types.some(t=>t==='business'||t==='premium'))add('block','יום אווירי: נוסע מסוג תיירים יכול לנסוע רק יחד עם נוסע ביזנס או פרימיום');else add('ok','יום אווירי: הרכב הנוסעים תקין');}
   else{if(!types.includes('business'))add('block','יום קרקעי: חייב להיות במונית לפחות נוסע ביזנס אחד. פרימיום ותיירים יכולים רק להצטרף אליו');else add('ok','יום קרקעי: יש במונית נוסע ביזנס');}
   if(isNight(d)&&!(d.reason||'').trim())add('block','נסיעת לילה: כתבו פירוט של הבקשה, כדי שהמאשר/ת יוכלו להחליט');
-  if(isNight(d))add('appr',deleg(ui.cid,sD)?'נסיעת לילה (23:00–06:00): דורש אישור של הבוס הגדול (בסמכות שהאציל המנכ״ל). ההזמנה תמתין לאישור':'נסיעת לילה (23:00–06:00): דורש אישור של המנכ״ל. ההזמנה תמתין לאישור');
+  if(isNight(d))add('appr',deleg(ui.cid,sD)?'נסיעת לילה (23:00–05:00): דורש אישור של הבוס הגדול (בסמכות שהאציל המנכ״ל). ההזמנה תמתין לאישור':'נסיעת לילה (23:00–05:00): דורש אישור של המנכ״ל. ההזמנה תמתין לאישור');
   {const g=!isNaN(ts)&&planGap(ui.cid,sD,d.pax);if(g)add('warn',g.none?'📅 עוד לא מילאתם תכנון חודשי לחודש הזה. ההזמנה תסומן "מחוץ לתכנון"':g.planned?`📅 מחוץ לתכנון: ב${dayLabel(sD)} תכננתם ${fmt(g.planned)} מוניות, וכבר הוזמנו ${fmt(g.used)}. ההזמנה תסומן "מחוץ לתכנון"`:`📅 מחוץ לתכנון: לא תכננתם מוניות ב${dayLabel(sD)}. ההזמנה תסומן "מחוץ לתכנון"`)}
   if(n===1)isP(ui.cid)&&d.house?add('ok','נוסע יחיד על חשבון הבית: לא נדרש אישור של הבוס הגדול'):add('appr','נוסע יחיד: דורש אישור של הבוס הגדול. ההזמנה תמתין לאישור');
   if(n===4)add('warn','4 נוסעים: נדרש אישור של המבצעים. סמנו את האישור למטה');
@@ -658,7 +663,7 @@ function sched(r){const T=r.ts!=null?r.ts:at(r.date,r.time),pts=points(r);if(isN
   if(r.dir==='to'){let t=T-(tmin(pts[pts.length-1],B,T)+SPARE)*MIN;for(let i=pts.length-1;i>=0;i--){out.unshift({pt:pts[i],t:dn(t)});if(i)t-=(tmin(pts[i-1],pts[i],t)+DWELL)*MIN}return {stops:out,start:out[0].t,end:T}}
   let t=T+(tmin(B,pts[0],T)+SPARE)*MIN;pts.forEach((pt,i)=>{if(i)t+=(DWELL+tmin(pts[i-1],pt,t))*MIN;out.push({pt,t:up(t)})});return {stops:out,start:T,end:out[out.length-1].t}}
 const startTs=r=>{const s=sched(r);return s?s.start:NaN};
-const isNight=r=>{const s=sched(r);return !!s&&[s.start,s.end].some(x=>{const h=new Date(x).getHours();return h>=23||h<6})};
+const isNight=r=>{const s=sched(r);return !!s&&[s.start,s.end].some(x=>{const h=new Date(x).getHours();return h>=23||h<5})}; /* night = 23:00–05:00: needs the CEO */
 const schedTxt=r=>{const s=sched(r);if(!s)return '';const p=s.stops.map(x=>`${esc(x.pt)} <b class="num">${hm(new Date(x.t))}</b>`).join(' · ');
   return r.dir==='to'?`איסוף: ${p} · הגעה ל${esc(baseOf(r))} <b class="num">${hm(new Date(s.end))}</b>`:`יציאה מ${esc(baseOf(r))} <b class="num">${hm(new Date(s.start))}</b> · הורדה: ${p}`};
 function paxTimes(r,p){const s=sched(r);if(!s)return null;const st=s.stops.find(x=>x.pt===ptOf(r,p));const t=st?st.t:s.start;
@@ -728,7 +733,7 @@ function renderManager(c){
     <div class="meter-top"><div class="big num" style="color:${col(pct)}">${P(pct)}%</div><div class="note num">${singles} מתוך ${done.length} נסיעות החודש · היעד: עד 25%</div></div>
     <div class="bar" role="img" aria-label="${P(pct)} אחוז נסיעות עם נוסע בודד"><i class="${pct>.25?'bad':pct>.2?'warn':''}" style="width:${Math.min(100,pct*100)}%"></i><b style="inset-inline-start:25%" title="25%"></b></div>
     ${pct>.25?`<div class="over" role="alert"><strong>חריגה מהיעד</strong><div>החודש ${P(pct)}% מהנסיעות היו עם נוסע בודד, מעל היעד של 25%. כדאי לצמצם אישורים של נוסע בודד.</div></div>`:''}</section>
-  ${(S.nightDeleg||{})[c.id]?`<div class="tip">★ המנכ״ל האציל לכם סמכות לאשר נסיעות לילה (23:00–06:00)${S.nightDeleg[c.id].until?' עד '+dayLabel(S.nightDeleg[c.id].until):''}. הן יופיעו כאן לאישור שלכם.</div>`:''}
+  ${(S.nightDeleg||{})[c.id]?`<div class="tip">★ המנכ״ל האציל לכם סמכות לאשר נסיעות לילה (23:00–05:00)${S.nightDeleg[c.id].until?' עד '+dayLabel(S.nightDeleg[c.id].until):''}. הן יופיעו כאן לאישור שלכם.</div>`:''}
   <section class="panel"><h2>בקשות שממתינות לאישור שלך</h2>
     <div class="note">נוסע יחיד דורש אישור של הבוס הגדול.</div>
     <div class="rides">${pend.length?pend.map(r=>rideRow(r,'mgr',c.id)+(r.pax.length===1?`<div class="note num" style="color:${col(after(r))}">אישור הבקשה יעלה את שיעור הנוסע הבודד ל־${P(after(r))}%${after(r)>.25?' · מעל היעד של 25%':''}</div>`:'')).join(''):'<div class="empty">אין בקשות שממתינות לך.</div>'}</div></section>`;
@@ -918,6 +923,33 @@ function smartPlan(items,o){const cap=o.allow4?4:3,MAXX=(MAXEXTRA+5)*MIN /* +5: 
   while(R.length){const x=R.shift();let placed=false;for(const t of out){if(t.grp.length>=cap)continue;const d2=fit(t.grp,t.d,x);if(d2){t.grp.push(x);t.d=d2;placed=true;break}}
     if(!placed)unplaced.push({x,why:ty==='normal'?'ביום קרקעי פרימיום ותיירים נוסעים רק עם נוסע ביזנס, ואין ביזנס בדרך שמתאימה בזמנים':'ביום אווירי תיירים נוסעים רק עם ביזנס או פרימיום, ואין כזה בדרך שמתאימה בזמנים'})}
   return {taxis:out.map(t=>t.d),unplaced,ty}}
+/* minibus: fixed stations, fixed times (ground days). The planner moves people to it when it saves taxis; tourists first */
+const BUSST=[{n:'תל אביב',g:[32.080,34.781]},{n:'דניאל פריש',g:[32.0775,34.787]},{n:'השלום',g:[32.0735,34.793]},{n:'בסיס חצור',g:[31.762,34.727]}],BUSKM=15,BUSWIN=60;
+const kmG=(a,b)=>{const R=6371,r=v=>v*Math.PI/180,dl=r(b[0]-a[0]),dg=r(b[1]-a[1]),h=Math.sin(dl/2)**2+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
+const busStop=city=>{const g=geoOf(city);if(!g)return null;let b=null;BUSST.forEach(x=>{const k=kmG(g,x.g);if(k<=BUSKM&&(!b||k<b.km))b={n:x.n,km:k}});return b};
+/* the run that fits: same direction, within an hour of the planned time */
+const busRun=o=>{if(dayType(o.date)!=='normal')return null;const want=o.dir==='to'?'הגעה':'יציאה',T=at(o.date,o.time);let b=null;
+  genFor(o.date).forEach(g=>{if(g.note!==want||!g.from)return;const df=Math.abs(at(o.date,g.from)-T);if(df<=BUSWIN*MIN&&(!b||df<b.df))b={t:g.from,df}});return b};
+function smartPlanBus(items,o){const R0=smartPlan(items,o),run=o.bus===false?null:busRun(o);if(!run)return {...R0,bus:null};
+  const no=o.noBus||{},el=items.filter(x=>!no[x.p]&&busStop(x.city));if(!el.length)return {...R0,bus:null};
+  /* score: a passenger left out or a taxi that can't be ordered weighs like many taxis */
+  const sc=R=>R.unplaced.length*100+R.taxis.filter(d=>check(d).some(z=>z.k==='block')).length*100+R.taxis.length;
+  const fx=o.fixBus&&o.fixBus[o.leg||'a'];
+  const B=new Set(fx?el.filter(x=>fx.includes(x.p)).map(x=>x.p):el.filter(x=>emp(x.p)?.type==='regular').map(x=>x.p)),plan=()=>smartPlan(items.filter(x=>!B.has(x.p)),o);let cur=plan(),cs=sc(cur);
+  const rk={premium:0,business:1};if(!fx)el.filter(x=>emp(x.p)?.type!=='regular').sort((a,b)=>(rk[emp(a.p)?.type]??0)-(rk[emp(b.p)?.type]??0)).forEach(x=>{B.add(x.p);const t=plan(),ts=sc(t);if(ts<cs){cur=t;cs=ts}else B.delete(x.p)});
+  /* anyone left without a taxi who can reach a station goes on the minibus */
+  for(let k=0;k<items.length;k++){const u=cur.unplaced.find(u=>!B.has(u.x.p)&&el.some(x=>x.p===u.x.p));if(!u)break;B.add(u.x.p);cur=plan()}
+  if(!B.size)return {...R0,bus:null};
+  return {...cur,bus:{t:run.t,dir:o.dir,date:o.date,pax:items.filter(x=>B.has(x.p)).map(x=>({p:x.p,city:x.city,stop:busStop(x.city).n})),saved:Math.max(0,R0.taxis.length-cur.taxis.length)}}}
+const busMsg=(b,p)=>{const e=emp(p)||{},x=b.pax.find(y=>y.p===p);return `שלום ${(e.name||'').split(' ')[0]}, שובצת למיניבוס ב־${dmy(at(b.date,'12:00'))}: ${b.dir==='to'?`עלייה בתחנת ${x.stop}, הגעה ל${BASE} ב־${b.t}`:`יציאה מ${BASE} ב־${b.t}, ירידה בתחנת ${x.stop}`}.`};
+function busCard(b,leg){const by={};b.pax.forEach(x=>(by[x.stop]??=[]).push(x));
+  return `<div class="ride" style="border-color:var(--ok-line,#9bd3b5);background:var(--ok-bg,#ecfdf3)"><div class="t num">🚐</div><div style="min-width:0;display:grid;gap:4px">
+    <div class="row" style="gap:6px;flex-wrap:wrap"><b>מיניבוס · ${b.dir==='to'?`הגעה ל${esc(BASE)} ב־${esc(b.t)}`:`יציאה מ${esc(BASE)} ב־${esc(b.t)}`}</b><span class="st st-new">${b.pax.length===1?'נוסע 1':b.pax.length+' נוסעים'}</span>${b.saved?`<span class="st st-active">חוסך ${b.saved} מוניות</span>`:''}</div>
+    ${Object.entries(by).map(([st,xs])=>`<div class="note r2">📍 תחנת ${esc(st)}: ${xs.map(x=>{const e=emp(x.p)||{},ph=intlPh(e.phone);return `<span class="row" style="display:inline-flex;gap:4px;align-items:center;margin-inline-end:8px">${esc(e.name||'')} ${tag(e.type||'regular')}${ph?`<a class="btn small" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(busMsg(b,x.p))}">וואטסאפ</a>`:''}<button class="btn small" data-smtaxi="${x.p}" title="להוציא מהמיניבוס ולשבץ במונית">במונית</button></span>`}).join('')}</div>`).join('')}
+    <div class="note">המיניבוס לא נכנס לסל המוניות. שולחים לנוסעים את פרטי התחנה והשעה.</div></div><div class="acts"></div></div>`}
+function smRun(sm){const items=Object.entries(sm.sel).map(([p,city])=>({p,city:(city||'').trim(),addr:lastAddr(p)}));
+  const RS=smartPlanBus(items,{...sm,leg:'a'});sm.plan=RS.taxis.map(d=>smCheck({d,leg:'a'}));sm.unplaced=RS.unplaced.map(u=>({...u,leg:'a'}));sm.ty=RS.ty;sm.buses=RS.bus?[{...RS.bus,leg:'a'}]:[];
+  if(sm.dir==='to'&&sm.back){const RB=smartPlanBus(items,{...sm,dir:'from',time:sm.end,leg:'b'});sm.plan.push(...RB.taxis.map(d=>smCheck({d,leg:'b'})));sm.unplaced.push(...RB.unplaced.map(u=>({...u,leg:'b'})));if(RB.bus)sm.buses.push({...RB.bus,leg:'b'})}}
 function smCheck(x){const res=check(x.d);x.issues=res.filter(z=>z.k!=='ok');x.block=res.some(z=>z.k==='block');x.appr=res.some(z=>z.k==='appr');return x}
 function renderSmart(c){const sm=ui.smart||(ui.smart={date:ymd(new Date(Date.now()+DAY)),time:(()=>{try{return localStorage.getItem('smart-time-'+c.id)||'08:30'}catch(_){return '08:30'}})(),dir:'to',sel:{},allow4:false,plan:null,back:false,end:(()=>{try{return localStorage.getItem('smart-end-'+c.id)||'17:00'}catch(_){return '17:00'}})()});
   const P=isP(c.id),emps=S.employees.filter(e=>(P||e.cid===c.id)&&!e.removed).sort((a,b)=>a.name.localeCompare(b.name,'he'));
@@ -929,22 +961,23 @@ function renderSmart(c){const sm=ui.smart||(ui.smart={date:ymd(new Date(Date.now
       <label>לפי מה קובעים את השעה<select id="sm-dir"><option value="to" ${sm.dir==='to'?'selected':''}>שעת הגעה ל${esc(BASE)}</option><option value="from" ${sm.dir==='from'?'selected':''}>שעת יציאה מ${esc(BASE)}</option></select></label>
       <label>שעה<input type="time" id="sm-time" value="${sm.time}" step="300"></label>
       <label class="row" style="gap:6px;font-weight:400;align-self:end"><input type="checkbox" id="sm-4" ${sm.allow4?'checked':''}> לאפשר 4 נוסעים במונית</label>
+      ${dayType(sm.date)==='normal'?`<label class="row" style="gap:6px;font-weight:400;align-self:end"><input type="checkbox" id="sm-bus" ${sm.bus!==false?'checked':''}> 🚐 לשבץ במיניבוס כשזה חוסך מוניות</label>`:''}
       ${P?`<label class="row" style="gap:6px;font-weight:600;color:var(--ink);align-self:end"><input type="checkbox" id="sm-house" ${sm.house?'checked':''}> 🏠 על חשבון הבית</label>`:''}
     </div>
     ${sm.dir==='to'?`<div class="row" style="gap:10px;flex-wrap:wrap;align-items:end;background:var(--bg);border-radius:10px;padding:10px 12px"><label class="row" style="gap:6px;font-weight:600;color:var(--ink)"><input type="checkbox" id="sm-back" ${sm.back?'checked':''}> גם חזרה הביתה בסיום יום העבודה</label>${sm.back?`<label>שעת סיום משותפת (יציאה מ${esc(BASE)})<input type="time" id="sm-end" value="${sm.end}" step="300"></label>`:''}</div>`:''}
-    <label>פירוט לנסיעות לילה (איסוף לפני 06:00 או אחרי 23:00 דורש אישור מנכ״ל)<input id="sm-reason" value="${esc(sm.reason||'')}" placeholder="למשל: תחילת משמרת ב־08:30" maxlength="200"></label>
+    <label>פירוט לנסיעות לילה (איסוף לפני 05:00 או אחרי 23:00 דורש אישור מנכ״ל)<input id="sm-reason" value="${esc(sm.reason||'')}" placeholder="למשל: תחילת משמרת ב־08:30" maxlength="200"></label>
     <h3 style="margin-bottom:4px">נוסעים <span class="count">${Object.keys(sm.sel).length}</span></h3>
     <div class="row" style="gap:6px;margin-bottom:6px"><button class="btn small" data-small="1">סימון הכל</button><button class="btn small" data-smnone="1">ניקוי</button><span class="note">ליד כל נוסע מסומן: העיר שממנה הוא יוצא (או אליה הוא חוזר).</span></div>
     <datalist id="sm-cities">${S.destinations.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px">${emps.map(e=>{const on=e.id in sm.sel;return `<div class="emp-row" style="gap:8px"><label class="row" style="gap:6px;font-weight:400;color:var(--ink);flex:1;min-width:0"><input type="checkbox" data-smp="${e.id}" ${on?'checked':''}>${P?opsDot(e.cid):''}<b>${esc(e.name)}</b> ${tag(e.type)}</label>${on?`<input list="sm-cities" data-smc="${e.id}" value="${esc(sm.sel[e.id])}" placeholder="עיר" style="width:110px" class="${S.destinations.includes(sm.sel[e.id])?'':'bad'}" aria-label="העיר של ${esc(e.name)}">`:''}</div>`}).join('')||'<div class="empty">אין נוסעים במאגר.</div>'}</div>
     <div class="row" style="gap:8px;margin-top:12px"><button class="btn primary" data-smgo="1" ${Object.keys(sm.sel).length?'':'disabled'}>⚡ תכנון המוניות</button>${plan?'<button class="btn small" data-smclear="1">ניקוי התוצאה</button>':''}</div>
   </section>
-  ${plan?`<section class="panel"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>התוצאה: ${plan.some(x=>x.leg==='b')?`${plan.filter(x=>x.leg==='a').length} מוניות בהלוך · ${plan.filter(x=>x.leg==='b').length} בחזור`:`${plan.length} מוניות ל־${plan.reduce((a,x)=>a+x.d.pax.length,0)} נוסעים`}</h2>
+  ${plan?`<section class="panel"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>התוצאה: ${plan.some(x=>x.leg==='b')?`${plan.filter(x=>x.leg==='a').length} מוניות בהלוך · ${plan.filter(x=>x.leg==='b').length} בחזור`:plan.length?`${plan.length} מוניות ל־${plan.reduce((a,x)=>a+x.d.pax.length,0)} נוסעים`:'בלי מוניות'}${(sm.buses||[]).length?` · 🚐 ${sm.buses.reduce((a,b)=>a+b.pax.length,0)} במיניבוס`:''}</h2>
       ${plan.some(x=>!x.booked&&!x.block)?`<button class="btn primary" data-smbook="1">הזמנת כל המוניות התקינות (${plan.filter(x=>!x.booked&&!x.block).length})</button>`:''}</div>
     ${sm.ty==='normal'?'<div class="tip">יום קרקעי: יש מענה במיניבוסים, ובמונית חייב להיות לפחות נוסע ביזנס אחד. לכן המוניות נבנו סביב נוסעי הביזנס, ופרימיום ותיירים שובצו איתם.</div>':sm.ty==='restricted'?'<div class="tip">יום אווירי: יש מענה בטיסה. תיירים נוסעים רק עם ביזנס או פרימיום, ולכן המוניות נבנו סביבם. מוניות לא יכולות לנסוע 45 דקות לפני ואחרי טיסה.</div>':`<div class="tip">${isP(ui.cid)&&sm.house&&dayType(sm.date)!=='free'?'על חשבון הבית: כל סוגי הנוסעים זכאים, גם כשיש טיסה או מיניבוס.':'יום מוניות: כל סוגי הנוסעים זכאים.'}</div>`}
     ${(sm.unplaced||[]).length?`<div class="over" role="alert"><strong>${sm.unplaced.length} שיבוצים חסרים</strong>${sm.unplaced.map(u=>`<div>${plan.some(x=>x.leg==='b')?(u.leg==='b'?'חזור · ':'הלוך · '):''}${esc(emp(u.x.p)?.name||'')} ${tag(emp(u.x.p)?.type||'regular')} · ${esc(u.x.city)}: ${esc(u.why)}</div>`).join('')}</div>`:''}
     <div class="note">כל מונית עוברת את אותה בדיקה כמו הזמנה רגילה. מונית עם נוסע בודד תמתין לאישור הבוס הגדול. מונית עם בעיה (אדום) אפשר להעביר לטופס ההזמנה ולתקן.${booked?` · <b>הוזמנו ${booked}</b>`:''}</div>
-    ${['a','b'].filter(L=>plan.some(x=>x.leg===L)).map(L=>`${plan.some(x=>x.leg==='b')?`<h3 style="margin:10px 0 4px">${L==='a'?`הלוך · הגעה ל${esc(BASE)} ב־${esc(sm.time)}`:`חזור · יציאה מ${esc(BASE)} ב־${esc(sm.end)}`}</h3>`:''}<div class="rides">${plan.map((x,i)=>{if(x.leg!==L)return '';const s2=sched(x.d);return `<div class="ride${x.booked?' dim':''}"><div class="t num">${i+1}</div><div style="min-width:0;display:grid;gap:4px">
+    ${['a','b'].filter(L=>plan.some(x=>x.leg===L)||(sm.buses||[]).some(b=>b.leg===L)).map(L=>`${plan.some(x=>x.leg==='b')?`<h3 style="margin:10px 0 4px">${L==='a'?`הלוך · הגעה ל${esc(BASE)} ב־${esc(sm.time)}`:`חזור · יציאה מ${esc(BASE)} ב־${esc(sm.end)}`}</h3>`:''}<div class="rides">${(sm.buses||[]).filter(b=>b.leg===L).map(b=>busCard(b,L)).join('')}${plan.map((x,i)=>{if(x.leg!==L)return '';const s2=sched(x.d);return `<div class="ride${x.booked?' dim':''}"><div class="t num">${i+1}</div><div style="min-width:0;display:grid;gap:4px">
       <div class="row" style="gap:6px;flex-wrap:wrap"><b>${(x.d.dir==='to'?[...points(x.d),BASE]:[BASE,...points(x.d)]).map(esc).join(' ← ')}</b>${x.booked?'<span class="st st-active">הוזמנה</span>':x.block?'<span class="st st-late">צריך תיקון</span>':x.appr?'<span class="st st-pending">תמתין לאישור</span>':'<span class="st st-new">מוכנה להזמנה</span>'}</div>
       <div class="note r2">👥 ${x.d.pax.map(p=>`${x.d.lead===p?'★':''}${esc(emp(p)?.name||'')}`).join(', ')}${s2?` · ${schedTxt(x.d)}`:''}</div>
       ${x.booked?'':`<div style="display:grid;gap:4px">${x.d.pts.map((pt,j)=>`<label class="row paddr" style="gap:6px;font-weight:400"><span>📍 ${esc(pt.city)}</span><input data-smaddr="${i}|${j}" value="${esc(pt.addr||'')}" placeholder="רחוב ומספר, או נקודת ציון" aria-label="כתובת בתחנה ${esc(pt.city)}"></label>`).join('')}</div>`}
@@ -1030,8 +1063,8 @@ function renderRoute(){const box=document.getElementById('routebox');if(!box)ret
   const rows=P.map((pt,i)=>{const ok=S.destinations.includes(pt.city),here=d.pax.filter(p=>idxOf(d,p)===i);
     const lbl=d.dir==='to'?(i===0?'תחנת מוצא':'תחנת איסוף נוספת'):(i===P.length-1?'תחנת יעד':'תחנת הורדה בדרך');
     return `<div class="rp"><span class="dot num">${i+1}</span><div class="rp-body"><b>${lbl}</b>
-      <div class="row" style="gap:8px"><input class="city" list="dest-list" id="pc-${i}" data-pcity="${i}" value="${esc(pt.city)}" placeholder="עיר" autocomplete="off" aria-label="עיר בנקודה ${i+1}"><span id="pch-${i}">${destHint(pt.city)}</span>${ok&&timeOf(pt.city)?`<span class="note num">⏱ ${d.dir==='to'?'איסוף':'הורדה'} ${timeOf(pt.city)}</span>`:''}${P.length>1?`<button type="button" class="btn small danger" data-delpt="${i}" style="margin-inline-start:auto">הסרה</button>`:''}</div>
-      <input id="pa-${i}" data-paddr="${i}" value="${esc(pt.addr||'')}" placeholder="${ok?'כתובת מדויקת: רחוב ומספר, או נקודת ציון':'קודם הזינו עיר מותרת'}" ${ok?'':'disabled'} autocomplete="off" maxlength="80" aria-label="כתובת מדויקת בנקודה ${i+1}"><span id="pah-${i}">${ok?addrHint(pt.addr,pt.city):''}</span>
+      <div class="row" style="gap:8px"><input class="city" list="dest-list" id="pc-${i}" data-pcity="${i}" value="${esc(pt.city)}" placeholder="עיר" autocomplete="off" aria-label="עיר בנקודה ${i+1}"><span id="pch-${i}">${destHint(pt.city)}</span>${P.length>1?`<button type="button" class="btn small danger" data-delpt="${i}" style="margin-inline-start:auto">הסרה</button>`:''}</div>
+      <input id="pa-${i}" data-paddr="${i}" value="${esc(pt.addr||'')}" placeholder="${ok?'כתובת מדויקת: רחוב ומספר, או נקודת ציון':'קודם הזינו עיר מותרת'}" ${ok?'':'disabled'} autocomplete="off" maxlength="80" aria-label="כתובת מדויקת בנקודה ${i+1}"><span id="pah-${i}">${ok?addrHint(pt.addr,pt.city):''}</span>${ok&&timeOf(pt.city)?(()=>{const st=s.stops.find(y=>y.pt===pt.city),hh=new Date(st.t).getHours(),nt=hh>=23||hh<5;return `<div class="ptime${nt?' night':''}">⏱ ${d.dir==='to'?'שעת איסוף משוערת':'שעת הורדה משוערת'}: <b class="num">${timeOf(pt.city)}</b>${nt?' · 🌙 בשעות הלילה, דורש אישור מנכ״ל':''}</div>`})():''}
       ${d.pax.length?`<div class="note">${d.dir==='to'?'מי עולה כאן?':'מי יורד כאן?'} (לחיצה על שם מעבירה אותו לנקודה הזו)</div><div class="row" style="gap:6px">${d.pax.map(p=>`<button type="button" class="pchip" data-assign="${p}|${i}" aria-pressed="${idxOf(d,p)===i}">${esc(emp(p).name)}</button>`).join('')}</div>
         <div class="note">כולם נאספים בכתובת של התחנה. נוסע שנאסף ממקום אחר? מוסיפים בשבילו תחנה.</div>`:''}
     </div></div>`}).join('');
@@ -1142,7 +1175,8 @@ function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
 const GEO={'רעננה':[32.184,34.871],'כפר סבא':[32.175,34.907],'הרצליה':[32.166,34.843],'נתניה':[32.332,34.860],'תל אביב – מרכז':[32.080,34.781],'תל אביב':[32.080,34.781],'רכבת הרצליה':[32.164,34.818],'חדרה':[32.434,34.919],
   'הוד השרון':[32.150,34.888],'רמת השרון':[32.146,34.839],'פתח תקווה':[32.087,34.887],'ראש העין':[32.096,34.957],'כפר יונה':[32.316,34.935],'אבן יהודה':[32.270,34.888],'קדימה':[32.278,34.912],'צורן':[32.281,34.934],
   'רמת גן':[32.068,34.824],'גבעתיים':[32.072,34.811],'בני ברק':[32.083,34.833],'חולון':[32.011,34.774],'בת ים':[32.017,34.745],'ראשון לציון':[31.964,34.804],'רחובות':[31.894,34.811],'מודיעין':[31.898,35.010],
-  'ירושלים':[31.778,35.235],'חיפה':[32.794,34.990],'זכרון יעקב':[32.571,34.952],'פרדס חנה':[32.473,34.973],'כוכב יאיר':[32.223,34.998],'טייבה':[32.266,35.009],'אור יהודה':[32.029,34.857],'יהוד':[32.033,34.889]};
+  'ירושלים':[31.778,35.235],'חיפה':[32.794,34.990],'זכרון יעקב':[32.571,34.952],'פרדס חנה':[32.473,34.973],'כוכב יאיר':[32.223,34.998],'טייבה':[32.266,35.009],'אור יהודה':[32.029,34.857],'יהוד':[32.033,34.889],
+  'אשדוד':[31.804,34.655],'גדרה':[31.813,34.779],'יבנה':[31.878,34.739],'גן יבנה':[31.786,34.706],'קריית מלאכי':[31.731,34.746],'נס ציונה':[31.930,34.799],'מזכרת בתיה':[31.853,34.846],'קריית אונו':[32.063,34.855],'גבעת שמואל':[32.078,34.849],'לוד':[31.951,34.888],'רמלה':[31.929,34.866],'אשקלון':[31.669,34.571],'שוהם':[31.999,34.946],'קריית גת':[31.610,34.771]};
 const MAXKM=10,MAXEXTRA=15;
 BIGCITIES.forEach(([n,a,b])=>{GEO[n]??=[a,b]});
 const distKm=(x,y)=>{if(x===y)return 0;const A=GEO[x],B=GEO[y];if(!A||!B)return Math.abs(minsOf(x)-minsOf(y));
@@ -1258,7 +1292,7 @@ const ceoPending=()=>S.rides.filter(r=>r.status==='pending'&&r.ts>Date.now()&&ne
 function renderCeo(){const list=ceoPending(),mon=S.rides.filter(r=>inMonth(r.ts)&&COUNTS.includes(r.status)&&needsOf(r).includes('night')&&r.ceoOk);
   const per=S.clients.map(c=>({c,n:mon.filter(r=>clientsOf(r).includes(c.id)).length})).filter(x=>x.n),mx=Math.max(1,...per.map(x=>x.n));
   return `<section class="panel ceo-panel"><div class="row" style="justify-content:space-between"><h2>★ אישורי מנכ״ל · נסיעות לילה</h2></div>
-    <div class="note">נסיעה שהאיסוף או ההגעה שלה בין 23:00 ל־06:00 דורשת אישור של המנכ״ל. אחרי האישור (ואישור הבוס הגדול, אם נדרש גם הוא) ההזמנה עוברת לסדרן.</div>
+    <div class="note">נסיעה שהאיסוף או ההגעה שלה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל. אחרי האישור (ואישור הבוס הגדול, אם נדרש גם הוא) ההזמנה עוברת לסדרן.</div>
     <div class="rides">${list.length?groupByDay(list).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}</div>`+rs.map(r=>rideRow(r,'ceo')).join('')).join(''):'<div class="empty">אין נסיעות לילה שממתינות לאישור.</div>'}</div></section>
     <section class="panel"><h3>האצלת סמכות לבוסים גדולים</h3><div class="note">אפשר לתת לבוס הגדול של מבצעים מסוימים לאשר בעצמו נסיעות לילה, לתמיד או עד תאריך מסוים. אפשר לבטל בכל רגע.</div>
       <div style="display:grid;gap:6px">${S.clients.map(c=>{const g=(S.nightDeleg||{})[c.id];return `<div class="emp-row"><span style="flex:1;min-width:0">${opsDot(c.id)}<b>${esc(c.name)}</b>${g?`<br><span class="note">${g.until?'עד '+dayLabel(g.until):'ללא הגבלת זמן'}</span>`:''}</span>${g?`<span class="st st-active">הבוס הגדול מאשר נסיעות לילה</span><button class="btn small danger" data-delegoff="${c.id}">ביטול ההאצלה</button>`:`<label class="note" style="display:flex;gap:6px;align-items:center">עד תאריך (לא חובה)<input type="date" id="dg-${c.id}"></label><button class="btn small primary" data-delegon="${c.id}">האצלת סמכות</button>`}</div>`}).join('')}</div></section>
@@ -1315,7 +1349,7 @@ function renderDispatcher(){
   }else if(ui.tab==='approvals'){
     const pb=pend.filter(needBoss),pc=pend.filter(needCeo),sec=(h,l,em)=>`<h3 style="margin-top:6px">${h} <span class="count">${l.length}</span></h3>${l.length?`<div class="rides">${l.map(r=>rideRow(r,ADM&&pBossOf(r).length&&needBoss(r)?'pboss':'disp')).join('')}</div>`:`<div class="empty">${em}</div>`}`;
     body=pend.length?`<div class="note">למעקב בלבד: כל הנסיעות שמחכות להחרגה. ${ADM?(ui.role==='princess'?'נסיעות של יבא עם נוסע בודד הנסיכות מאשרת כאן. את השאר מאשרים הבוס הגדול או המנכ״ל.':'האישור עצמו נעשה אצל הבוס הגדול או בלשונית המנכ״ל. נסיעות של יבא עם נוסע בודד יכולה לאשר גם הנסיכות.'):'הסדרן לא מאשר כאן.'} נסיעה שצריכה גם בוס גדול וגם מנכ״ל מופיעה בשתי הרשימות, ועוברת לסדרן אחרי ששניהם אישרו.</div>
-      ${sec('★ ממתין לבוס גדול (נוסע בודד)',pb,'אין נסיעות שממתינות לבוס גדול.')}${sec('★ ממתין למנכ״ל (נסיעות לילה 23:00–06:00)',pc,'אין נסיעות שממתינות למנכ״ל.')}`:'<div class="empty">אין נסיעות שממתינות להחרגה.</div>';
+      ${sec('★ ממתין לבוס גדול (נוסע בודד)',pb,'אין נסיעות שממתינות לבוס גדול.')}${sec('★ ממתין למנכ״ל (נסיעות לילה 23:00–05:00)',pc,'אין נסיעות שממתינות למנכ״ל.')}`:'<div class="empty">אין נסיעות שממתינות להחרגה.</div>';
   }else if(ui.tab==='optimize'){
     body=sug.length?`<div class="note">הצעות בלבד. שום דבר לא מתאחד לבד. הזמנות לאותו יעד ובאותו כיוון, בהפרש של עד 15 דקות, שאפשר לאחד למונית אחת (עד 3 נוסעים). מאחדים רק אחרי שהמבצעים אישרו. אם לא אישרו, הנסיעות נשארות כפי שהוזמנו. המונית המאוחדת מתחלקת בין הסלים לפי מספר הנוסעים.</div>`+sug.map(({a,b})=>{
       const m={pax:[...a.pax,...b.pax],dir:a.dir,dest:a.dest,stops:mergedStops(a,b)};const cl=clientsOf(m);const multi=cl.length>1;
@@ -1402,8 +1436,8 @@ const G={
    {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','את "מבצעים" ואת השם של המבצעים שלכם'),'נפתח העמוד של המבצעים שלכם בלבד. בראשו רואים כמה מוניות נוצלו החודש ומה נשאר בסל.']},
    {h:'🔔 התראות למכשיר',steps:['בסרגל העליון לוחצים על הפעמון 🔕 ומאשרים בחלון שקופץ. כשההתראות פעילות הוא מתחלף ל־🔔.','מעכשיו כל דבר שמחכה לפעולה שלכם מקפיץ התראה בטלפון או במחשב, גם כשהאפליקציה ברקע.','האפליקציה צריכה להישאר פתוחה (אפשר ברקע). באייפון: קודם מוסיפים את האתר למסך הבית ופותחים משם.']},
    {h:'הזמנת מונית',go:'ops',steps:['בלשונית "הזמנות" בוחרים תאריך, ואם השעה היא שעת הגעה ליעד או שעת יציאה מהמוצא, ומזינים שעה.','שלב 1: מסמנים עד 4 נוסעים.','שלב 2, מסלול: בוחרים תחנת מוצא ותחנת יעד. בכל תחנת איסוף או הורדה מקלידים עיר: ✓ מותרת, ✕ לא מותרת. אחר כך כותבים כתובת מדויקת.','ב"מי עולה כאן?" לוחצים על הנוסעים שנאספים בתחנה. נוסע שנאסף ממקום אחר מקבל תחנה משלו ("+ הוספת נקודת איסוף").','אם יש סדר תחנות קצר יותר, תופיע הצעה "💡 סדר יעיל יותר". לחיצה אחת מסדרת מחדש.','שלב 3: בוחרים אחראי/ת נסיעה.','בודקים את "בדיקת ההזמנה" בצד: ירוק תקין, כתום דורש תשומת לב, אדום חוסם. מתקנים ולוחצים "הזמנת מונית".'],tip:'העיר שמופיעה ליד נוסע היא העיר שממנה נסע בפעם האחרונה. שעות האיסוף המשוערות מחושבות לבד.'},
-   {h:'⚡ תכנון חכם: הרבה נוסעים, שעה אחת',go:'ops-smart',steps:['בלשונית "⚡ תכנון חכם" בוחרים תאריך ושעה (למשל שעת תחילת העבודה), ומסמנים את הנוסעים. "סימון הכל" מסמן את כולם.','ליד כל נוסע מופיעה העיר שממנה נסע בפעם האחרונה. אפשר לשנות.','רוצים גם את החזרה? מסמנים "גם חזרה הביתה בסיום יום העבודה" ובוחרים שעת סיום משותפת. המערכת מתכננת גם את מוניות החזור, ומזמינה הלוך וחזור יחד.','לוחצים "⚡ תכנון המוניות". המערכת מחלקת למספר המוניות הקטן ביותר: נוסעים מאותה עיר או מעיר שעד 10 ק״מ מהמסלול נוסעים יחד, בלי להאריך לאף אחד את הנסיעה ביותר מכ־15 דקות, ובסדר התחנות הקצר ביותר.','המערכת מתחשבת בסוג היום: ביום קרקעי כל מונית נבנית סביב נוסע ביזנס, וביום אווירי תיירים משובצים רק עם ביזנס או פרימיום. נוסע שאין איתו מי שיכול לנסוע, מופיע ב"לא שובצו" עם הסיבה. גם כשאיחוד מאריך למישהו את הנסיעה יותר מדי, המערכת מפצלת למוניות נפרדות.','בכל מונית בודקים את הכתובות בתחנות ומשלימים מה שחסר. נסיעה שמתחילה לפני 06:00 צריכה פירוט לנסיעת לילה.','"הזמנת כל המוניות התקינות" מזמין הכל בלחיצה. מונית שצריכה תיקון אפשר לפתוח ב"עריכה בטופס".']},
-   {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–06:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
+   {h:'⚡ תכנון חכם: הרבה נוסעים, שעה אחת',go:'ops-smart',steps:['בלשונית "⚡ תכנון חכם" בוחרים תאריך ושעה (למשל שעת תחילת העבודה), ומסמנים את הנוסעים. "סימון הכל" מסמן את כולם.','ליד כל נוסע מופיעה העיר שממנה נסע בפעם האחרונה. אפשר לשנות.','רוצים גם את החזרה? מסמנים "גם חזרה הביתה בסיום יום העבודה" ובוחרים שעת סיום משותפת. המערכת מתכננת גם את מוניות החזור, ומזמינה הלוך וחזור יחד.','לוחצים "⚡ תכנון המוניות". המערכת מחלקת למספר המוניות הקטן ביותר: נוסעים מאותה עיר או מעיר שעד 10 ק״מ מהמסלול נוסעים יחד, בלי להאריך לאף אחד את הנסיעה ביותר מכ־15 דקות, ובסדר התחנות הקצר ביותר.','המערכת מתחשבת בסוג היום: ביום קרקעי כל מונית נבנית סביב נוסע ביזנס, וביום אווירי תיירים משובצים רק עם ביזנס או פרימיום. נוסע שאין איתו מי שיכול לנסוע, מופיע ב"לא שובצו" עם הסיבה. גם כשאיחוד מאריך למישהו את הנסיעה יותר מדי, המערכת מפצלת למוניות נפרדות.','🚐 ביום קרקעי, כשיש מיניבוס בכיוון הנכון עד שעה מהשעה שבחרתם, המערכת משבצת בו נוסעים שגרים עד 15 ק״מ מתחנה קבועה (תל אביב, דניאל פריש, השלום, בסיס חצור). תיירים קודם. פרימיום וביזנס עוברים למיניבוס רק כשזה חוסך מונית. "במונית" מחזיר נוסע למונית, ו"וואטסאפ" שולח לו את התחנה והשעה. אפשר לכבות בתיבה "לשבץ במיניבוס".','בכל מונית בודקים את הכתובות בתחנות ומשלימים מה שחסר. נסיעה שמתחילה לפני 05:00 צריכה פירוט לנסיעת לילה.','"הזמנת כל המוניות התקינות" מזמין הכל בלחיצה. מונית שצריכה תיקון אפשר לפתוח ב"עריכה בטופס".']},
+   {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–05:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
    {h:'📱 שליחת פרטי הנסיעה לנוסעים',go:'ops',steps:['כשמגיעים פרטי הנהג, בהתראה למעלה מופיע "📱 שליחה לנוסעים". אפשר גם לפתוח "פרטים" ליד הנסיעה.','ב"הודעה לנוסעים" לוחצים ליד כל נוסע "וואטסאפ" או "SMS".','ההודעה נפתחת מוכנה בטלפון שלכם: שעה, מסלול, מאיפה נאסף, פרטי הנהג, האחראי/ת וקישור קצר להוספה ליומן. לוחצים "שליחה".','ליד מי שקיבל מופיע ✓ נשלח, ולמעלה כמה נשלחו מתוך כמה.'],tip:'נוסע בלי טלפון במאגר לא יופיע ברשימה. עדכנו לו טלפון בלשונית "נוסעים".'},
    {h:'שינוי הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "שינוי" ליד הנסיעה. ההזמנה נטענת לטופס.','אפשר: להזיז את השעה עד שעה, להוסיף, להסיר או להחליף נוסע אחד, ולעדכן תחנות וכתובות. התאריך והכיוון לא משתנים.','לוחצים "שמירת השינוי". גם הזמנה שכבר אושרה חוזרת לסדרן לאישור מחדש. אם השינוי יוצר החרגה חדשה (למשל נוסע בודד), היא תחכה קודם לאישור.','אפשר לשנות עד 3 שעות לפני הנסיעה. שינוי גדול יותר: מבטלים ומזמינים מחדש.']},
    {h:'ביטול הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "ביטול" ליד הנסיעה.','לא נספר בסל: ביטול לפני שהסדרן הזמין מונית, ויותר מ־3 שעות לפני הנסיעה.','נספר בסל: ביטול אחרי שהמונית כבר הוזמנה, או פחות מ־3 שעות לפני הנסיעה. המערכת תבקש אישור לפני כן.','קנס: ביטול אחרי שהסדרן אישר את ההזמנה (המונית כבר הוזמנה) הוא גם קנס בגובה עלות המונית, שהמבצעים חייבים למנכ״ל. ביטול לפני אישור הסדרן אינו קנס.','ליד כל ביטול כתוב מי ביטל.']},
@@ -1440,7 +1474,7 @@ const G={
    {h:'אישור נוסעים',go:'adm-paxreq',steps:['כאן מופיעות בקשות של המבצעים להוסיף נוסע או לערוך נוסע. בעריכה רואים בדיוק מה משתנה.','"אישור": הנוסע נכנס למאגר כמו שהוא.','"עריכה ואישור": מתקנים שם, סוג, טלפון או עיר ולוחצים "שמירה ואישור".','"לא לאשר": הבקשה נדחית והמבצעים רואים זאת.','הסרת נוסע לא צריכה אישור.']},
    {h:'סלים',go:'adm-quotas',steps:[PROD?'לכל אחד מהמבצעים קובעים שם, לוגו, צבע וסל חודשי.':'לכל אחד מהמבצעים קובעים שם, לוגו, צבע, סיסמה, טלפון בוס גדול וסל חודשי.','רואים כמה כל אחד ניצל. מעל 90% מופיעה התראה.','בעמודה "המבצעים רואים את הסל" אפשר להסתיר את הסל ממבצעים מסוימים (כרגע מגדל ויבא). הם לא יראו כמה מוניות יש להם ומה נשאר, ויתכננו ויזמינו כרגיל.']},
    {h:'מעקב, היסטוריה ותחקיר',go:'adm-costs',steps:['בוחרים חודש ורואים לכל המבצעים: מוניות, צפון ומרכז, נוסע בודד וההוצאה. חריגות מהסל מופיעות בבירור למעלה.','בתחתית, "היסטוריית מוניות": לכל נסיעה מתי הוזמנה, לאיזה מועד, מי הזמין, מי נסע, אם נדרשה החרגה ואיזו, הסטטוס והנהג.','"הורדה לאקסל" מוריד את החודש כקובץ.','"קנסות ביטול": כל ביטול אחרי שהסדרן אישר את ההזמנה הוא קנס בגובה עלות המונית. ביטול לפני האישור אינו קנס. רואים סכום לכל אחד מהמבצעים, מה פתוח, ומסמנים "שולם".','ליד נסיעה שכבר יצאה, "📝 הוספת תחקיר" שומר הערות לשימור. הן נכנסות גם לקובץ.']},
-   {h:'★ מנכ״ל: נסיעות לילה',go:'adm-ceo',steps:['נסיעה בין 23:00 ל־06:00 צריכה אישור מנכ״ל.',PROD?'בלשונית "★ מנכ״ל" לוחצים "אישור" או "דחייה". אחרי האישור (ושל הבוס הגדול, אם נדרש) ההזמנה עוברת לסדרן.':'בלשונית "★ מנכ״ל" (בנתוני הדוגמה הסיסמה 9999) לוחצים "אישור" או "דחייה".','האצלת סמכות: אפשר לתת לבוס הגדול של מבצעים מסוימים לאשר נסיעות לילה בעצמו, לתמיד או עד תאריך, ולבטל בכל רגע.']},
+   {h:'★ מנכ״ל: נסיעות לילה',go:'adm-ceo',steps:['נסיעה בין 23:00 ל־05:00 צריכה אישור מנכ״ל.',PROD?'בלשונית "★ מנכ״ל" לוחצים "אישור" או "דחייה". אחרי האישור (ושל הבוס הגדול, אם נדרש) ההזמנה עוברת לסדרן.':'בלשונית "★ מנכ״ל" (בנתוני הדוגמה הסיסמה 9999) לוחצים "אישור" או "דחייה".','האצלת סמכות: אפשר לתת לבוס הגדול של מבצעים מסוימים לאשר נסיעות לילה בעצמו, לתמיד או עד תאריך, ולבטל בכל רגע.']},
    {h:'מי מחובר עכשיו',steps:['בשורה שמתחת לסרגל העליון, בכל העמודים, רואים מי האפליקציה פתוחה אצלו ברגע זה, עם הסמל של המבצעים שלו.','השורה מתעדכנת לבד. רק המנהלת רואה אותה.']},
    {h:'צפייה בעמודים אחרים',steps:['בתפריט למעלה עוברים ל"מבצעים" או ל"עמוד סדרן".','כמנהלת נכנסים לכל אחד מהמבצעים בלי סיסמה, ורואים בדיוק מה שהם רואים. "החלפת מבצעים" עובר לאחרים.']},
    {h:'איפוס נתונים',go:'adm-quotas',steps:['בתחתית לשונית "סלים". "מחיקת הזמנות" מוחק את כל ההזמנות וההיסטוריה ומשאיר את הנוסעים. "איפוס מלא" מוחק גם את הנוסעים ובקשות הנוסעים.','נשארים: המבצעים והסלים, לוח השנה, ההגדרות והסיסמאות.','אי אפשר לבטל. מורידים קודם את ההיסטוריה לאקסל, מקלידים "איפוס" ולוחצים על הכפתור. רק המנהלת רואה אותו.']}
@@ -1454,17 +1488,17 @@ const G={
    {h:'הזמנה לכל הנוסעים',go:'ops',steps:['🏠 על חשבון הבית: לפני השליחה מסמנים "על חשבון הבית". המונית לא יורדת מאף סל, ובמעקב היא מופיעה בנפרד. אפשר גם בתכנון החכם.','אחרי הכניסה נפתח ישר עמוד ההזמנות של הנסיכות. מכל עמוד אחר חוזרים אליו ב"מבצעים" בתפריט למעלה.','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','נסיעה עם נוסע יחיד על חשבון הבית לא צריכה אישור של הבוס הגדול, והיא עוברת ישר לסדרן. בלי "על חשבון הבית" היא מחכה לבוס הגדול כרגיל. נסיעת לילה תמיד צריכה אישור מנכ״ל.','על חשבון הבית אין הגבלה של ימים אוויריים וקרקעיים: אפשר להזמין גם בשעות של טיסה או מיניבוס, ולכל סוג נוסע. בלי "על חשבון הבית" חלות כל המגבלות הרגילות.','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
   ]},
   ceo:{title:'מנכ״ל',intro:'המנכ״ל מאשר נסיעות לילה ויכול להאציל את הסמכות לבוסים גדולים.',
-   quick:['נכנסים כ"מנכ״ל".','"אישור" או "דחייה" לכל נסיעה בין 23:00 ל־06:00.','רוצים שבוס גדול יאשר בעצמו? "האצלת סמכות".'],
+   quick:['נכנסים כ"מנכ״ל".','"אישור" או "דחייה" לכל נסיעה בין 23:00 ל־05:00.','רוצים שבוס גדול יאשר בעצמו? "האצלת סמכות".'],
    sections:[
    {h:'כניסה',go:'adm-ceo',steps:[LOGIN('המנהלת','"מנכ״ל"'),'נפתח עמוד אישורי המנכ״ל.']},
-   {h:'אישור נסיעות לילה',go:'adm-ceo',steps:['ברשימה מופיעות נסיעות שהאיסוף או ההגעה שלהן בין 23:00 ל־06:00, עם הסיבה שכתבו המבצעים.','"אישור" מעביר לסדרן (אחרי אישור הבוס הגדול, אם נדרש גם הוא). "דחייה" מבטלת, והמבצעים מקבלים התראה.']},
+   {h:'אישור נסיעות לילה',go:'adm-ceo',steps:['ברשימה מופיעות נסיעות שהאיסוף או ההגעה שלהן בין 23:00 ל־05:00, עם הסיבה שכתבו המבצעים.','"אישור" מעביר לסדרן (אחרי אישור הבוס הגדול, אם נדרש גם הוא). "דחייה" מבטלת, והמבצעים מקבלים התראה.']},
    {h:'האצלת סמכות',go:'adm-ceo',steps:['ב"האצלת סמכות לבוסים גדולים" בוחרים מבצעים ונותנים לבוס הגדול שלהם לאשר נסיעות לילה בעצמו.','לתמיד או עד תאריך. אפשר לבטל בכל רגע.']}
   ]}};
 const RULES=`<div class="tablewrap"><table style="min-width:420px"><thead><tr><th>סוג נוסע</th><th>יום קרקעי</th><th>יום אווירי</th><th>יום מוניות</th></tr></thead><tbody>
   <tr><td>${tag('business')}</td><td>✓</td><td>✓ (לא סמוך לטיסה)</td><td>✓</td></tr>
   <tr><td>${tag('premium')}</td><td>רק יחד עם ביזנס</td><td>✓</td><td>✓</td></tr>
   <tr><td>${tag('regular')}</td><td>רק יחד עם ביזנס</td><td>רק יחד עם ביזנס או פרימיום</td><td>✓</td></tr></tbody></table></div>
-  <ul class="note" style="margin:0;padding-inline-start:18px;display:grid;gap:2px"><li>מזמינים לפחות 3 שעות לפני האיסוף הראשון.</li><li>נוסע בודד דורש אישור של הבוס הגדול. 4 נוסעים דורשים אישור של המבצעים בזמן ההזמנה. נסיעה בין 23:00 ל־06:00 דורשת אישור של המנכ״ל.</li><li>עד 4 נוסעים במונית, ורק לערים המותרות.</li><li>ביום אווירי וביום קרקעי אי אפשר להזמין 45 דקות לפני ואחרי טיסה או מיניבוס.</li><li>ביטול אחרי שהמונית הוזמנה, או פחות מ־3 שעות לפני, נספר בסל.</li></ul>`;
+  <ul class="note" style="margin:0;padding-inline-start:18px;display:grid;gap:2px"><li>מזמינים לפחות 3 שעות לפני האיסוף הראשון.</li><li>נוסע בודד דורש אישור של הבוס הגדול. 4 נוסעים דורשים אישור של המבצעים בזמן ההזמנה. נסיעה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל.</li><li>עד 4 נוסעים במונית, ורק לערים המותרות.</li><li>ביום אווירי וביום קרקעי אי אפשר להזמין 45 דקות לפני ואחרי טיסה או מיניבוס.</li><li>ביטול אחרי שהמונית הוזמנה, או פחות מ־3 שעות לפני, נספר בסל.</li></ul>`;
 function renderGuide(){const GR=ROLEG[ui.role]||['ops'];if(!GR.includes(ui.grole))ui.grole=GR[0];const r=ui.grole,g=G[r];
   app.innerHTML=`<section class="panel"><h1 style="font-size:1.4rem">הוראות שימוש</h1><div class="note">${GR.length>1?'בחרו תפקיד. ':''}למעלה סיכום קצר, ולמטה הסבר לכל פעולה עם כפתור "לנסות עכשיו" שמעביר ישר למקום.</div>
     <div class="tabs" role="tablist">${[['adm',ui.role==='princess'?'ניהול':'המנהלת'],['princess','★ נסיכות'],['ops','מבצעים'],['boss','בוס גדול'],['disp','סדרן'],['ceo','מנכ״ל']].filter(([k])=>GR.includes(k)).sort((a,b)=>GR.indexOf(a[0])-GR.indexOf(b[0])).map(([k,l])=>`<button role="tab" data-grole="${k}" aria-selected="${r===k}">${l}</button>`).join('')}</div>
@@ -1700,10 +1734,10 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
     const bad=items.find(x=>!S.destinations.includes(x.city));if(bad){toast(`חסרה עיר מותרת ל${emp(bad.p)?.name||''}`);return}
     if(at(sm.date,sm.time)<Date.now()+3*H){toast('חייבים לתכנן לפחות 3 שעות לפני הנסיעה');return}
     try{localStorage.setItem('smart-time-'+ui.cid,sm.time)}catch(_){}
-    const RS=smartPlan(items,sm);sm.plan=RS.taxis.map(d=>smCheck({d,leg:'a'}));sm.unplaced=RS.unplaced.map(u=>({...u,leg:'a'}));sm.ty=RS.ty;const ds=[...RS.taxis];
-    if(sm.dir==='to'&&sm.back){if(at(sm.date,sm.end)<=at(sm.date,sm.time)){toast('שעת הסיום חייבת להיות אחרי שעת ההגעה');sm.plan=null;return}try{localStorage.setItem('smart-end-'+ui.cid,sm.end)}catch(_){}
-      const RB=smartPlan(items,{...sm,dir:'from',time:sm.end});sm.plan.push(...RB.taxis.map(d=>smCheck({d,leg:'b'})));sm.unplaced.push(...RB.unplaced.map(u=>({...u,leg:'b'})));ds.push(...RB.taxis)}
-    toast(`${ds.length} מוניות${sm.back&&sm.dir==='to'?' (הלוך וחזור)':''}${sm.unplaced.length?` · ${sm.unplaced.length} לא שובצו`:''}`);render();return}
+    if(sm.dir==='to'&&sm.back){if(at(sm.date,sm.end)<=at(sm.date,sm.time)){toast('שעת הסיום חייבת להיות אחרי שעת ההגעה');sm.plan=null;return}try{localStorage.setItem('smart-end-'+ui.cid,sm.end)}catch(_){}}
+    smRun(sm);const ds=sm.plan,nb=sm.buses.reduce((a,b)=>a+b.pax.length,0);
+    toast(`${ds.length} מוניות${sm.back&&sm.dir==='to'?' (הלוך וחזור)':''}${nb?` · 🚐 ${nb} במיניבוס`:''}${sm.unplaced.length?` · ${sm.unplaced.length} לא שובצו`:''}`);render();return}
+  if(t.dataset.smtaxi){const sm=ui.smart;(sm.noBus??={})[t.dataset.smtaxi]=true;/* keep everyone else where they were */sm.fixBus={};(sm.buses||[]).forEach(b=>sm.fixBus[b.leg]=b.pax.map(x=>x.p));smRun(sm);sm.fixBus=null;render();toast('הנוסע הועבר למונית');return}
   if(t.dataset.smedit){const x=ui.smart.plan[+t.dataset.smedit];ui.editRide=null;ui.draft={...ui.draft,...JSON.parse(JSON.stringify(x.d))};ui.sub='orders';render();scrollTo(0,0);toast('המונית נטענה לטופס ההזמנה. תקנו ושלחו');return}
   if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;createRide(x.d,c);x.booked=true;n++});
     save();toast(n?`הוזמנו ${n} מוניות. אפשר לראות אותן ב"הזמנות"`:'אין מוניות תקינות להזמנה');render();return}
@@ -1860,9 +1894,10 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
 });
 document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
   if(t.id==='au-r'){const p=document.getElementById('au-p'),tr=t.value==='train';if(p){p.required=!tr;p.closest('label').hidden=tr}AUTH.forgotSent=false;paintForgot();return}
+  if(t.dataset.pcity&&ui.draft&&document.getElementById('routebox')){renderRoute();renderCheck();return}
   if(ui.smart&&ui.sub==='smart'&&ui.page==='client'){const sm=ui.smart;
     if(t.id==='sm-date'){sm.date=t.value;sm.plan=null;render();return}if(t.id==='sm-dir'){sm.dir=t.value;sm.plan=null;render();return}
-    if(t.id==='sm-time'){sm.time=t.value;sm.plan=null;render();return}if(t.id==='sm-4'){sm.allow4=t.checked;sm.plan=null;render();return}if(t.id==='sm-house'){sm.house=t.checked;sm.plan=null;render();return}if(t.id==='sm-back'){sm.back=t.checked;sm.plan=null;render();return}if(t.id==='sm-end'){sm.end=t.value;sm.plan=null;render();return}
+    if(t.id==='sm-time'){sm.time=t.value;sm.plan=null;render();return}if(t.id==='sm-4'){sm.allow4=t.checked;sm.plan=null;render();return}if(t.id==='sm-bus'){sm.bus=t.checked;sm.noBus={};sm.plan=null;render();return}if(t.id==='sm-house'){sm.house=t.checked;sm.plan=null;render();return}if(t.id==='sm-back'){sm.back=t.checked;sm.plan=null;render();return}if(t.id==='sm-end'){sm.end=t.value;sm.plan=null;render();return}
     if(t.dataset.smp){const p=t.dataset.smp;if(t.checked)sm.sel[p]=lastCity(p)||emp(p)?.city||'';else delete sm.sel[p];sm.plan=null;render();return}
     if(t.dataset.smc){sm.sel[t.dataset.smc]=t.value.trim();sm.plan=null;render();return}
     if(t.id==='sm-reason'){sm.reason=t.value;if(sm.plan)sm.plan.forEach(x=>{x.d.reason=t.value;smCheck(x)});render();return}
