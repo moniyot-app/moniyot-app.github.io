@@ -895,16 +895,24 @@ function smartDraft(grp,o){const cs0=[...new Set(grp.map(x=>x.city))];let cs=cs0
   const lead=(grp.find(x=>emp(x.p)?.type==='business')||grp[0]).p;
   const d={date:o.date,time:o.time,dir:o.dir,base:BASE,baseOn:false,reason:o.reason||'',pts,pidx,pax:grp.map(x=>x.p),lead,stops:[],ppt:{},addr:{}};syncDraft(d);return d}
 const pDur=(d,p)=>{const t=paxTimes(d,p);return t?t.end-t.start:0};
-function smartPlan(items,o){const cap=o.allow4?4:3,MAXX=(MAXEXTRA+5)*MIN /* +5: times are rounded to 5 minutes */,left=[...items].sort((a,b)=>kmBase(b.city)-kmBase(a.city)),out=[];
-  const solo=Object.fromEntries(items.map(x=>[x.p,pDur(smartDraft([x],o),x.p)]));
-  while(left.length){const grp=[left.shift()];let d=smartDraft(grp,o);
-    while(grp.length<cap){let best=null;
-      left.forEach((x,i)=>{if(!grp.some(g=>g.city===x.city)&&kmToRoute(x.city,d)>MAXKM)return;const g2=[...grp,x];if(new Set(g2.map(y=>y.city)).size>4)return;const d2=smartDraft(g2,o);
-        if(g2.some(y=>pDur(d2,y.p)-solo[y.p]>MAXX))return;const s1=sched(d),s2=sched(d2),cost=(s2.end-s2.start)-(s1.end-s1.start)+(grp.some(g=>g.city===x.city)?-1e9:0);
-        if(!best||cost<best.cost)best={i,cost,d2}});
-      if(!best)break;grp.push(left.splice(best.i,1)[0]);d=best.d2}
-    out.push(d)}
-  return out}
+/* who may ride without a companion on this kind of day: taxi day everyone; air day business/premium; ground day business only */
+const canAnchor=(p,ty)=>{const t=emp(p)?.type;return ty==='free'||t==='business'||(ty==='restricted'&&t==='premium')};
+function smartPlan(items,o){const cap=o.allow4?4:3,MAXX=(MAXEXTRA+5)*MIN /* +5: times are rounded to 5 minutes */,ty=dayType(o.date);
+  const byFar=(a,b)=>kmBase(b.city)-kmBase(a.city),solo=Object.fromEntries(items.map(x=>[x.p,pDur(smartDraft([x],o),x.p)]));
+  const A=items.filter(x=>canAnchor(x.p,ty)).sort(byFar),R=items.filter(x=>!canAnchor(x.p,ty)).sort(byFar),out=[],unplaced=[];
+  /* can x join this taxi? same city, or within 10 km of its route, max 4 stations, nobody's ride grows by more than ~15 min */
+  const fit=(grp,d,x)=>{if(!grp.some(g=>g.city===x.city)&&kmToRoute(x.city,d)>MAXKM)return null;const g2=[...grp,x];if(new Set(g2.map(y=>y.city)).size>4)return null;
+    const d2=smartDraft(g2,o);if(g2.some(y=>pDur(d2,y.p)-solo[y.p]>MAXX))return null;return d2};
+  const grow=(grp,d)=>{while(grp.length<cap){let best=null;
+      [[R,true],[A,false]].forEach(([pool,rider])=>pool.forEach((x,i)=>{const d2=fit(grp,d,x);if(!d2)return;const s1=sched(d),s2=sched(d2);
+        /* riders first (they can't travel without an anchor), then same city, then the smallest detour */
+        const cost=(s2.end-s2.start)-(s1.end-s1.start)-(rider?1e8:0)-(grp.some(g=>g.city===x.city)?1e9:0);if(!best||cost<best.cost)best={pool,i,cost,d2}}));
+      if(!best)break;grp.push(best.pool.splice(best.i,1)[0]);d=best.d2}return d};
+  while(A.length){const grp=[A.shift()];out.push({grp,d:grow(grp,smartDraft(grp,o))})}
+  /* riders left: squeeze into a taxi that still has room, else they can't ride alone today */
+  while(R.length){const x=R.shift();let placed=false;for(const t of out){if(t.grp.length>=cap)continue;const d2=fit(t.grp,t.d,x);if(d2){t.grp.push(x);t.d=d2;placed=true;break}}
+    if(!placed)unplaced.push({x,why:ty==='normal'?'ביום קרקעי פרימיום ותיירים נוסעים רק עם נוסע ביזנס, ואין ביזנס בדרך שמתאימה בזמנים':'ביום אווירי תיירים נוסעים רק עם ביזנס או פרימיום, ואין כזה בדרך שמתאימה בזמנים'})}
+  return {taxis:out.map(t=>t.d),unplaced,ty}}
 function smCheck(x){const res=check(x.d);x.issues=res.filter(z=>z.k!=='ok');x.block=res.some(z=>z.k==='block');x.appr=res.some(z=>z.k==='appr');return x}
 function renderSmart(c){const sm=ui.smart||(ui.smart={date:ymd(new Date(Date.now()+DAY)),time:(()=>{try{return localStorage.getItem('smart-time-'+c.id)||'08:30'}catch(_){return '08:30'}})(),dir:'to',sel:{},allow4:false,plan:null});
   const P=isP(c.id),emps=S.employees.filter(e=>(P||e.cid===c.id)&&!e.removed).sort((a,b)=>a.name.localeCompare(b.name,'he'));
@@ -912,7 +920,7 @@ function renderSmart(c){const sm=ui.smart||(ui.smart={date:ymd(new Date(Date.now
   app.innerHTML=subTabs(c)+`<section class="panel"><h2>⚡ תכנון חכם</h2>
     <div class="note">בוחרים תאריך, שעה ונוסעים. המערכת מחלקת אותם למספר המוניות הקטן ביותר: נוסעים מאותה עיר או מעיר שעד ${MAXKM} ק״מ מהמסלול נוסעים יחד, בלי להאריך לאף אחד את הנסיעה ביותר מ־${MAXEXTRA} דקות, וסדר התחנות הוא הקצר ביותר. בודקים ומזמינים בלחיצה.</div>
     <div class="fields">
-      <label>תאריך<input type="date" id="sm-date" value="${sm.date}"></label>
+      <label>תאריך · ${{free:'יום מוניות',normal:'יום קרקעי',restricted:'יום אווירי'}[dayType(sm.date)]||''}<input type="date" id="sm-date" value="${sm.date}"></label>
       <label>לפי מה קובעים את השעה<select id="sm-dir"><option value="to" ${sm.dir==='to'?'selected':''}>שעת הגעה ל${esc(BASE)}</option><option value="from" ${sm.dir==='from'?'selected':''}>שעת יציאה מ${esc(BASE)}</option></select></label>
       <label>שעה<input type="time" id="sm-time" value="${sm.time}" step="300"></label>
       <label class="row" style="gap:6px;font-weight:400;align-self:end"><input type="checkbox" id="sm-4" ${sm.allow4?'checked':''}> לאפשר 4 נוסעים במונית</label>
@@ -926,6 +934,8 @@ function renderSmart(c){const sm=ui.smart||(ui.smart={date:ymd(new Date(Date.now
   </section>
   ${plan?`<section class="panel"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>התוצאה: ${plan.length} מוניות ל־${plan.reduce((a,x)=>a+x.d.pax.length,0)} נוסעים</h2>
       ${plan.some(x=>!x.booked&&!x.block)?`<button class="btn primary" data-smbook="1">הזמנת כל המוניות התקינות (${plan.filter(x=>!x.booked&&!x.block).length})</button>`:''}</div>
+    ${sm.ty==='normal'?'<div class="tip">יום קרקעי: יש מענה במיניבוסים, ובמונית חייב להיות לפחות נוסע ביזנס אחד. לכן המוניות נבנו סביב נוסעי הביזנס, ופרימיום ותיירים שובצו איתם.</div>':sm.ty==='restricted'?'<div class="tip">יום אווירי: יש מענה בטיסה. תיירים נוסעים רק עם ביזנס או פרימיום, ולכן המוניות נבנו סביבם. מוניות לא יכולות לנסוע 45 דקות לפני ואחרי טיסה.</div>':'<div class="tip">יום מוניות: כל סוגי הנוסעים זכאים.</div>'}
+    ${(sm.unplaced||[]).length?`<div class="over" role="alert"><strong>${sm.unplaced.length} נוסעים לא שובצו</strong>${sm.unplaced.map(u=>`<div>${esc(emp(u.x.p)?.name||'')} ${tag(emp(u.x.p)?.type||'regular')} · ${esc(u.x.city)}: ${esc(u.why)}</div>`).join('')}</div>`:''}
     <div class="note">כל מונית עוברת את אותה בדיקה כמו הזמנה רגילה. מונית עם נוסע בודד תמתין לאישור הבוס הגדול. מונית עם בעיה (אדום) אפשר להעביר לטופס ההזמנה ולתקן.${booked?` · <b>הוזמנו ${booked}</b>`:''}</div>
     <div class="rides">${plan.map((x,i)=>{const s2=sched(x.d);return `<div class="ride${x.booked?' dim':''}"><div class="t num">${i+1}</div><div style="min-width:0;display:grid;gap:4px">
       <div class="row" style="gap:6px;flex-wrap:wrap"><b>${(x.d.dir==='to'?[...points(x.d),BASE]:[BASE,...points(x.d)]).map(esc).join(' ← ')}</b>${x.booked?'<span class="st st-active">הוזמנה</span>':x.block?'<span class="st st-late">צריך תיקון</span>':x.appr?'<span class="st st-pending">תמתין לאישור</span>':'<span class="st st-new">מוכנה להזמנה</span>'}</div>
@@ -1367,7 +1377,7 @@ const G={
    sections:[
    {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','את "מבצעים" ואת השם של המבצעים שלכם'),'נפתח העמוד של המבצעים שלכם בלבד. בראשו רואים כמה מוניות נוצלו החודש ומה נשאר בסל.']},
    {h:'הזמנת מונית',go:'ops',steps:['בלשונית "הזמנות" בוחרים תאריך, ואם השעה היא שעת הגעה ליעד או שעת יציאה מהמוצא, ומזינים שעה.','שלב 1: מסמנים עד 4 נוסעים.','שלב 2, מסלול: בוחרים תחנת מוצא ותחנת יעד. בכל תחנת איסוף או הורדה מקלידים עיר: ✓ מותרת, ✕ לא מותרת. אחר כך כותבים כתובת מדויקת.','ב"מי עולה כאן?" לוחצים על הנוסעים שנאספים בתחנה. נוסע שנאסף ממקום אחר מקבל תחנה משלו ("+ הוספת נקודת איסוף").','אם יש סדר תחנות קצר יותר, תופיע הצעה "💡 סדר יעיל יותר". לחיצה אחת מסדרת מחדש.','שלב 3: בוחרים אחראי/ת נסיעה.','בודקים את "בדיקת ההזמנה" בצד: ירוק תקין, כתום דורש תשומת לב, אדום חוסם. מתקנים ולוחצים "הזמנת מונית".'],tip:'העיר שמופיעה ליד נוסע היא העיר שממנה נסע בפעם האחרונה. שעות האיסוף המשוערות מחושבות לבד.'},
-   {h:'⚡ תכנון חכם: הרבה נוסעים, שעה אחת',go:'ops-smart',steps:['בלשונית "⚡ תכנון חכם" בוחרים תאריך ושעה (למשל שעת תחילת העבודה), ומסמנים את הנוסעים. "סימון הכל" מסמן את כולם.','ליד כל נוסע מופיעה העיר שממנה נסע בפעם האחרונה. אפשר לשנות.','לוחצים "⚡ תכנון המוניות". המערכת מחלקת למספר המוניות הקטן ביותר: נוסעים מאותה עיר או מעיר שעד 10 ק״מ מהמסלול נוסעים יחד, בלי להאריך לאף אחד את הנסיעה ביותר מכ־15 דקות, ובסדר התחנות הקצר ביותר.','בכל מונית בודקים את הכתובות בתחנות ומשלימים מה שחסר. נסיעה שמתחילה לפני 06:00 צריכה פירוט לנסיעת לילה.','"הזמנת כל המוניות התקינות" מזמין הכל בלחיצה. מונית שצריכה תיקון אפשר לפתוח ב"עריכה בטופס".']},
+   {h:'⚡ תכנון חכם: הרבה נוסעים, שעה אחת',go:'ops-smart',steps:['בלשונית "⚡ תכנון חכם" בוחרים תאריך ושעה (למשל שעת תחילת העבודה), ומסמנים את הנוסעים. "סימון הכל" מסמן את כולם.','ליד כל נוסע מופיעה העיר שממנה נסע בפעם האחרונה. אפשר לשנות.','לוחצים "⚡ תכנון המוניות". המערכת מחלקת למספר המוניות הקטן ביותר: נוסעים מאותה עיר או מעיר שעד 10 ק״מ מהמסלול נוסעים יחד, בלי להאריך לאף אחד את הנסיעה ביותר מכ־15 דקות, ובסדר התחנות הקצר ביותר.','המערכת מתחשבת בסוג היום: ביום קרקעי כל מונית נבנית סביב נוסע ביזנס, וביום אווירי תיירים משובצים רק עם ביזנס או פרימיום. נוסע שאין איתו מי שיכול לנסוע, מופיע ב"לא שובצו" עם הסיבה. גם כשאיחוד מאריך למישהו את הנסיעה יותר מדי, המערכת מפצלת למוניות נפרדות.','בכל מונית בודקים את הכתובות בתחנות ומשלימים מה שחסר. נסיעה שמתחילה לפני 06:00 צריכה פירוט לנסיעת לילה.','"הזמנת כל המוניות התקינות" מזמין הכל בלחיצה. מונית שצריכה תיקון אפשר לפתוח ב"עריכה בטופס".']},
    {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–06:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
    {h:'📱 שליחת פרטי הנסיעה לנוסעים',go:'ops',steps:['כשמגיעים פרטי הנהג, בהתראה למעלה מופיע "📱 שליחה לנוסעים". אפשר גם לפתוח "פרטים" ליד הנסיעה.','ב"הודעה לנוסעים" לוחצים ליד כל נוסע "וואטסאפ" או "SMS".','ההודעה נפתחת מוכנה בטלפון שלכם: שעה, מסלול, מאיפה נאסף, פרטי הנהג, האחראי/ת וקישור קצר להוספה ליומן. לוחצים "שליחה".','ליד מי שקיבל מופיע ✓ נשלח, ולמעלה כמה נשלחו מתוך כמה.'],tip:'נוסע בלי טלפון במאגר לא יופיע ברשימה. עדכנו לו טלפון בלשונית "נוסעים".'},
    {h:'שינוי הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "שינוי" ליד הנסיעה. ההזמנה נטענת לטופס.','אפשר: להזיז את השעה עד שעה, להוסיף, להסיר או להחליף נוסע אחד, ולעדכן תחנות וכתובות. התאריך והכיוון לא משתנים.','לוחצים "שמירת השינוי". גם הזמנה שכבר אושרה חוזרת לסדרן לאישור מחדש. אם השינוי יוצר החרגה חדשה (למשל נוסע בודד), היא תחכה קודם לאישור.','אפשר לשנות עד 3 שעות לפני הנסיעה. שינוי גדול יותר: מבטלים ומזמינים מחדש.']},
@@ -1614,8 +1624,8 @@ document.addEventListener('click',e=>{
     const bad=items.find(x=>!S.destinations.includes(x.city));if(bad){toast(`חסרה עיר מותרת ל${emp(bad.p)?.name||''}`);return}
     if(at(sm.date,sm.time)<Date.now()+3*H){toast('חייבים לתכנן לפחות 3 שעות לפני הנסיעה');return}
     try{localStorage.setItem('smart-time-'+ui.cid,sm.time)}catch(_){}
-    const ds=smartPlan(items,sm);sm.plan=ds.map(d=>smCheck({d}));
-    toast(`${items.length} נוסעים ב־${ds.length} מוניות`);render();return}
+    const RS=smartPlan(items,sm),ds=RS.taxis;sm.plan=ds.map(d=>smCheck({d}));sm.unplaced=RS.unplaced;sm.ty=RS.ty;
+    toast(`${items.length-RS.unplaced.length} נוסעים ב־${ds.length} מוניות${RS.unplaced.length?` · ${RS.unplaced.length} לא שובצו`:''}`);render();return}
   if(t.dataset.smedit){const x=ui.smart.plan[+t.dataset.smedit];ui.editRide=null;ui.draft={...ui.draft,...JSON.parse(JSON.stringify(x.d))};ui.sub='orders';render();scrollTo(0,0);toast('המונית נטענה לטופס ההזמנה. תקנו ושלחו');return}
   if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;createRide(x.d,c);x.booked=true;n++});
     save();toast(n?`הוזמנו ${n} מוניות. אפשר לראות אותן ב"הזמנות"`:'אין מוניות תקינות להזמנה');render();return}
