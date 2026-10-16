@@ -278,6 +278,9 @@ td input{width:80px}
 @media (prefers-reduced-motion:no-preference){.bar>i{transition:width .3s}}
 /* phones: 16px fields so iPhone doesn't zoom in when typing (e.g. passwords) */
 @media (hover:none) and (pointer:coarse){input,select,textarea{font-size:16px!important}}
+.onl{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;max-width:1100px;margin:8px auto 0;padding:6px 16px;font-size:.85rem}
+.onl-h{color:var(--ok);font-weight:700}.onl-p{display:inline-flex;gap:5px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 10px 2px 3px}
+.onav{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:.8rem}
 </style>
 
 <div class="top"><div class="top-in">
@@ -290,6 +293,7 @@ td input{width:80px}
     <button id="glogout" hidden>יציאה</button>
   </div>
 </div></div>
+<div id="onl" class="onl" hidden></div>
 <main class="wrap" id="app"></main>
 <div class="toast" id="toast" hidden></div>
 <div id="tip" hidden></div>
@@ -1350,14 +1354,19 @@ async function prodBoot(){
   if(data&&data.session&&AUTH.mode!=='newpw')await loadMember(data.session.user);else{AUTH.state='login';render()}}
 /* who is connected right now (Supabase realtime presence; nothing is stored) */
 let ONLINE={};
-function joinPresence(){try{if(AUTH.pres)return;const ch=AUTH.sb.channel('online',{config:{presence:{key:AUTH.user.id}}});AUTH.pres=ch;
-  const me={who:AUTH.member?.name||ROLEL[ui.role]||'',role:ui.role,at:Date.now(),dev:/Mobi|Android|iPhone/i.test(navigator.userAgent)?'טלפון':'מחשב'};
-  ch.on('presence',{event:'sync'},()=>{ONLINE=ch.presenceState();if(ui.page==='admin'&&!typing())render()})
+function joinPresence(){try{if(AUTH.pres)return;const ch=AUTH.sb.channel('online',{config:{presence:{key:AUTH.user.id||AUTH.user.email}}});AUTH.pres=ch;
+  const me={who:AUTH.member?.name||ROLEL[ui.role]||'',role:ui.role,cid:ui.role==='princess'?PID:(AUTH.member?.cid||null),at:Date.now(),dev:/Mobi|Android|iPhone/i.test(navigator.userAgent)?'טלפון':'מחשב'};
+  ch.on('presence',{event:'sync'},()=>{ONLINE=ch.presenceState();paintOnline();if(ui.page==='admin'&&!typing())render()})
     .subscribe(st=>{if(st==='SUBSCRIBED')ch.track(me)})}catch(e){}}
-const onlineList=()=>Object.values(ONLINE).map(a=>a&&a[0]).filter(Boolean).sort((a,b)=>(a.who||'').localeCompare(b.who||'','he'));
+const onlineList=(notMe)=>Object.entries(ONLINE).filter(([k])=>!notMe||k!==(AUTH.user?.id||AUTH.user?.email)).flatMap(([,a])=>a||[]).filter(Boolean).sort((a,b)=>(a.who||'').localeCompare(b.who||'','he'));
+const onAv=x=>x.cid&&client(x.cid)?opsLogo(x.cid,26):`<span class="onav">${x.role==='disp'?'ס':x.role==='ceo'?'מ':x.role==='admin'?'★':'?'}</span>`;
+/* manager only: a strip under the top bar on every page with who is connected now */
+function paintOnline(){const el=document.getElementById('onl');if(!el)return;const show=PROD&&AUTH.state==='in'&&ui.role==='admin';
+  const L=show?onlineList(true):[];el.hidden=!show;if(!show)return;
+  el.innerHTML=`<span class="onl-h">● מחוברים עכשיו${L.length?` (${L.length})`:''}:</span>${L.length?L.map(x=>`<span class="onl-p" title="${esc((x.who||'')+' · '+(x.dev||''))}">${onAv(x)}<span>${esc((x.who||'').replace(/^מבצעים · /,''))}</span></span>`).join(''):'<span class="note">אף אחד חוץ ממך</span>'}`}
 function renderOnline(){const L=onlineList(),ago=t=>{const m=Math.max(0,Math.round((Date.now()-t)/60000));return m<1?'עכשיו':m<60?`לפני ${m} דק׳`:`לפני ${Math.floor(m/60)} שע׳`};
   return `<div class="note">מי שהאפליקציה פתוחה אצלו ברגע זה. הרשימה מתעדכנת לבד. מי שסגר את האפליקציה יורד מהרשימה תוך כחצי דקה.</div>
-  ${L.length?`<div style="display:grid;gap:6px;margin-top:8px">${L.map(x=>`<div class="emp-row"><span style="flex:1"><span style="color:var(--ok)">●</span> <b>${esc(x.who||'')}</b></span><span class="note">${esc(x.dev||'')} · נכנס/ה ${ago(x.at)}</span></div>`).join('')}</div>`:'<div class="empty">אין כרגע אף אחד מחובר.</div>'}`}
+  ${L.length?`<div style="display:grid;gap:6px;margin-top:8px">${L.map(x=>`<div class="emp-row"><span style="flex:1;display:flex;gap:8px;align-items:center">${onAv(x)}<b>${esc(x.who||'')}</b></span><span class="note">${esc(x.dev||'')} · נכנס/ה ${ago(x.at)}</span></div>`).join('')}</div>`:'<div class="empty">אין כרגע אף אחד מחובר.</div>'}`}
 async function loadMember(user){AUTH.user=user;
   const {data,error}=await AUTH.sb.from('members').select('*').eq('email',(user.email||'').toLowerCase()).maybeSingle();
   if(error||!data){AUTH.state='nomember';render();return}
@@ -1440,7 +1449,7 @@ function render(){
   document.getElementById('nav-adm').setAttribute('aria-pressed',ui.page==='admin');
   ui.page==='guide'?renderGuide():ui.page==='client'?renderClient():renderDispatcher();
   if(!ui.role)app.insertAdjacentHTML('afterbegin',loginChooser());
-  checkArrivals();
+  checkArrivals();paintOnline();
 }
 function beep(){try{const ac=ui.ac;if(!ac)return;if(ac.state==='suspended')ac.resume();
   [[0,784],[.2,1046],[.4,784]].forEach(([d,f])=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);const t=ac.currentTime+d;
