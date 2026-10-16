@@ -1498,12 +1498,19 @@ function sbDb(sb){
           const type=p.eventType==='DELETE'?'removed':p.eventType==='INSERT'?'added':'modified',row=type==='removed'?p.old:p.new;
           if(!row||row[k]==null)return;next({docChanges:()=>[{type,doc:type==='removed'?{id:row[k],exists:false,data:()=>undefined}:snap(col,row)}],docs:[]})}).subscribe();
         return()=>sb.removeChannel(ch)}}}}}
+/* stay signed in on this device (default yes). If not: the sign-in lasts until the app/browser is closed */
+const STAYK='ramoniyot-stay',stayOn=()=>{try{return localStorage.getItem(STAYK)!=='0'}catch(_){return true}};
+const markLive=()=>{try{sessionStorage.setItem('ramoniyot-live','1')}catch(_){}};
+const saveStay=()=>{const c=document.getElementById('au-stay');if(c){try{localStorage.setItem(STAYK,c.checked?'1':'0')}catch(_){}}markLive()};
+/* remember the last page/tab used on this device, to reopen there */
+const LASTPG='ramoniyot-lastpage',savePage=()=>{if(!PROD||AUTH.state!=='in'||!ui.role)return;try{localStorage.setItem(LASTPG,JSON.stringify({role:ui.role,email:AUTH.user?.email,page:ui.page,tab:ui.tab,sub:ui.sub}))}catch(_){}};
 async function prodBoot(){
   if(!window.supabase||!SB_URL.startsWith('http')){AUTH.state='error';AUTH.msg='לא ניתן להתחבר למאגר. בדקו את החיבור לאינטרנט ונסו שוב.';render();return}
   AUTH.sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   if(/type=(invite|recovery)/.test(location.hash))AUTH.mode='newpw'; /* link from an invitation or password-reset email: choose a password */
   AUTH.sb.auth.onAuthStateChange((ev,ses)=>{if(ev==='PASSWORD_RECOVERY'){AUTH.state='login';AUTH.mode='newpw';render()}});
-  const {data}=await AUTH.sb.auth.getSession();
+  let {data}=await AUTH.sb.auth.getSession();
+  if(data&&data.session&&!stayOn()&&(()=>{try{return sessionStorage.getItem('ramoniyot-live')!=='1'}catch(_){return false}})()){await AUTH.sb.auth.signOut();data=null}
   if(data&&data.session&&AUTH.mode!=='newpw')await loadMember(data.session.user);else{AUTH.state='login';render()}}
 /* who is connected right now (Supabase realtime presence; nothing is stored) */
 let ONLINE={};
@@ -1531,6 +1538,7 @@ async function loadMember(user){AUTH.user=user;
   else if(R.includes('ceo')&&!R.includes('ops')&&!R.includes('princess')){ui.role='ceo';ui.admAuthed=true;ui.tab='ceo'}
   else{ui.role='ops';const cid=R.includes('princess')?PID:data.cid;ui.cid=cid;ui.cAuth=cid;if(R.includes('boss'))ui.mgrAuthed=[cid]}
   ui.page={admin:'admin',princess:'client',ceo:'admin',disp:'dispatcher',ops:'client'}[ui.role];if(MGR())ui.tab='calendar';if(ui.role==='princess')ui.sub='orders';if(ui.role==='disp')ui.tab='board';
+  try{const L=JSON.parse(localStorage.getItem(LASTPG)||'null');if(L&&L.role===ui.role&&L.email===user.email&&(ROLEP[ui.role]||[]).includes(L.page)){ui.page=L.page;if(L.tab)ui.tab=L.tab;if(L.sub)ui.sub=L.sub}}catch(_){}
   DB=sbDb(AUTH.sb);render();initDb();joinPresence();pushSync();
   if(ui.role==='admin')AUTH.sb.from('pw_help').select('*').eq('done',false).order('at',{ascending:false}).then(({data,error})=>{if(!error){PW_HELP=data||[];render()}})}
 const RMAIL=k=>'noampatishi+'+k+'@gmail.com'; /* role accounts: never emailed (confirmation is off) */
@@ -1553,6 +1561,7 @@ function renderAuth(){
     const opts=all.map((o,i)=>i===0&&li>=0?o.replace('<option ','<option selected '):o).join('');
     app.innerHTML=box(`<form id="authf" style="display:grid;gap:12px"><label>מי נכנס/ת?<select id="au-r">${opts}</select></label>
       <label>סיסמה<input type="password" id="au-p" autocomplete="current-password" required></label>${msg}
+      <label class="row" style="gap:8px;font-weight:400;color:var(--ink)"><input type="checkbox" id="au-stay" ${stayOn()?'checked':''}> להישאר מחובר/ת במכשיר הזה</label>
       <button class="btn primary">כניסה</button><div class="note">את הסיסמה מקבלים מהמנהלת.</div>
       <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn small" id="forgot">שכחתי את הסיסמה</button><button type="button" class="btn small" data-aumode="admin">כניסת המנהלת (במייל)</button></div>
       <div id="forgotbox" ${AUTH.forgot?'':'hidden'} style="display:grid;gap:8px;background:var(--bg);border-radius:10px;padding:10px 12px"></div></form>`);paintForgot();return}
@@ -1560,6 +1569,7 @@ function renderAuth(){
     ${m==='newpw'?'<div class="note">בחרו סיסמה חדשה.</div>':`<label>מייל<input type="email" id="au-e" autocomplete="email" required dir="ltr" value="${esc(AUTH.tryEmail||(lastGet().startsWith('admin:')?lastGet().slice(6):''))}"></label>`}
     ${m==='reset'?'':`<label>${m==='admin'?'סיסמה':'סיסמה חדשה (לפחות 8 תווים)'}<input type="password" id="au-p" autocomplete="${m==='admin'?'current-password':'new-password'}" minlength="${m==='admin'?1:8}" required></label>`}
     ${m==='signup'||m==='newpw'?'<label>שוב את הסיסמה<input type="password" id="au-p2" autocomplete="new-password" required></label>':''}${msg}
+    ${m==='admin'||m==='signup'?`<label class="row" style="gap:8px;font-weight:400;color:var(--ink)"><input type="checkbox" id="au-stay" ${stayOn()?'checked':''}> להישאר מחובר/ת במכשיר הזה</label>`:''}
     <button class="btn primary">${m==='admin'?'כניסה':m==='signup'?'יצירת סיסמה וכניסה':m==='reset'?'שליחת קישור לאיפוס':'שמירת הסיסמה'}</button>
     ${m==='admin'?'<div class="row" style="justify-content:space-between"><button type="button" class="btn small" data-aumode="signup">פעם ראשונה? יצירת סיסמה</button><button type="button" class="btn small" data-aumode="reset">שכחתי סיסמה</button></div>':''}
     ${m==='newpw'?'':'<button type="button" class="btn small" data-aumode="role" style="justify-self:start">חזרה לכניסה רגילה</button>'}</form>`)}
@@ -1573,9 +1583,9 @@ function paintForgot(){const b=document.getElementById('forgotbox');if(!b||!AUTH
 async function authSubmit(){const g=id=>(document.getElementById(id)?.value||'').trim(),m=AUTH.mode,sb=AUTH.sb;AUTH.msg='';
   const fail=t=>{AUTH.msg=t;renderAuth();setTimeout(()=>{const p=document.getElementById('au-p');if(p){p.value='';p.focus()}})};if(document.getElementById('au-e'))AUTH.tryEmail=g('au-e');
   if((m==='role'||m==='login')&&g('au-r')==='train'){location.href='train.html';return}
-  if(m==='role'||m==='login'){AUTH.tryRole=g('au-r');const {data,error}=await sb.auth.signInWithPassword({email:RMAIL(g('au-r')),password:document.getElementById('au-p').value});if(error)return fail('הסיסמה לא נכונה');lastSet(g('au-r'));return loadMember(data.user)}
+  if(m==='role'||m==='login'){AUTH.tryRole=g('au-r');const {data,error}=await sb.auth.signInWithPassword({email:RMAIL(g('au-r')),password:document.getElementById('au-p').value});if(error)return fail('הסיסמה לא נכונה');lastSet(g('au-r'));saveStay();return loadMember(data.user)}
   if((m==='signup'||m==='newpw')&&g('au-p')!==g('au-p2'))return fail('הסיסמאות לא זהות');
-  if(m==='admin'){const {data,error}=await sb.auth.signInWithPassword({email:g('au-e'),password:g('au-p')});if(error)return fail('המייל או הסיסמה לא נכונים');lastSet('admin:'+g('au-e'));return loadMember(data.user)}
+  if(m==='admin'){const {data,error}=await sb.auth.signInWithPassword({email:g('au-e'),password:g('au-p')});if(error)return fail('המייל או הסיסמה לא נכונים');lastSet('admin:'+g('au-e'));saveStay();return loadMember(data.user)}
   if(m==='signup'){const {data,error}=await sb.auth.signUp({email:g('au-e'),password:g('au-p')});if(error)return fail(/registered/i.test(error.message)?'למייל הזה כבר יש סיסמה. היכנסו או לחצו "שכחתי סיסמה"':'לא הצלחנו ליצור סיסמה: '+error.message);
     if(data.session)return loadMember(data.user);AUTH.mode='admin';return fail('נשלח אליכם מייל אישור. אשרו אותו ואז היכנסו')}
   if(m==='reset'){const {error}=await sb.auth.resetPasswordForEmail(g('au-e'),{redirectTo:location.origin+location.pathname});AUTH.mode='admin';return fail(error?'לא הצלחנו לשלוח: '+error.message:'אם המייל קיים, נשלח אליו קישור לאיפוס הסיסמה')}
@@ -1615,7 +1625,7 @@ function render(){if(TRAIN){if(ui.page==='admin')ui.page='client';const na=docum
   document.getElementById('nav-adm').setAttribute('aria-pressed',ui.page==='admin');document.getElementById('nav-adm').textContent=ui.role==='princess'?'ניהול':'המנהלת';
   ui.page==='guide'?renderGuide():ui.page==='client'?renderClient():renderDispatcher();
   if(!ui.role)app.insertAdjacentHTML('afterbegin',loginChooser());
-  checkArrivals();paintOnline();checkActions();paintNotifBtn();
+  checkArrivals();paintOnline();checkActions();paintNotifBtn();savePage();
 }
 function beep(){try{const ac=ui.ac;if(!ac)return;if(ac.state==='suspended')ac.resume();
   [[0,784],[.2,1046],[.4,784]].forEach(([d,f])=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);const t=ac.currentTime+d;
