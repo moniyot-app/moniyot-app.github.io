@@ -1,6 +1,7 @@
 import json,os,re
 cfg=json.load(open('tools/prod_config.json')) if os.path.exists('tools/prod_config.json') else {"url":"__SB_URL__","key":"__SB_KEY__"}
 s=open('src/app.html').read()
+SRC=s
 def rep(o,n):
     global s
     assert s.count(o)==1,o[:60]; s=s.replace(o,n)
@@ -24,3 +25,15 @@ open('index.html','w').write(s)
 c=open('src/c.html').read().replace('__SB_URL__',cfg['url']).replace('__SB_KEY__',cfg['key'])
 open('c.html','w').write(c)
 print('ok',len(s))
+
+# training sandbox: the prototype build (fictional seed, local storage only) with no passwords
+t=SRC
+for o,n in [("const TRAIN=false;","const TRAIN=true;"),("const KEY='taxi-quota-proto-v1';","const KEY='ramoniyot-train-v1';"),
+            ("name:`${first[(ci*3+k)%16]} ${last[(ci*5+k)%12]}`","name:`${first[(ci*3+k)%16]} ${last[(ci*5+k)%12][0]}.`"),
+            ('⚠ מצב מקומי: השינויים לא נשמרים לכולם','🎯 מצב אימון · נשמר רק במכשיר הזה'),
+            ('<title>רמוניות</title>','<title>רמוניות · אימון</title>')]:
+    assert t.count(o)==1,o[:50]; t=t.replace(o,n)
+t=t.replace('<meta name="claude:viewport-fit-sides" content="cover">\n','')
+thead=head.replace('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>\n','').replace('<link rel="manifest" href="manifest.webmanifest">\n','')
+open('train.html','w').write(thead+t+'\n</body>\n</html>\n')
+print('train ok',len(t))

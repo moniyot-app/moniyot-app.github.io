@@ -282,6 +282,8 @@ td input{width:80px}
   .auth-hero h1{font-size:1.4rem;margin:0}.auth-hero p{font-size:.9rem}.auth-hero ul{display:none}.auth-form{padding:22px 20px}}
 .chgbox{border:2px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:8px 12px;display:grid;gap:6px;margin:4px 0}
 .chgt{border-collapse:collapse;font-size:.9rem;width:100%}.chgt th{text-align:start;font-weight:600;color:var(--muted);padding:2px 6px}.chgt td{padding:3px 6px;border-top:1px solid var(--line);vertical-align:top}.chgt .was{text-decoration:line-through;color:var(--muted)}.chgt .now{font-weight:700;color:var(--ink)}
+.trainbar{max-width:1100px;margin:10px auto 0;padding:10px 16px;border:2px dashed var(--accent);background:var(--accent-soft);border-radius:12px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;font-size:.95rem}
+body.train label:has(input[type=password]){display:none}
 </style>
 
 <div class="top"><div class="top-in">
@@ -295,6 +297,7 @@ td input{width:80px}
   </div>
 </div></div>
 <div id="onl" class="onl" hidden></div>
+<div id="trainbar" class="trainbar" hidden></div>
 <main class="wrap" id="app"></main>
 <div class="toast" id="toast" hidden></div>
 <div id="tip" hidden></div>
@@ -315,6 +318,7 @@ const dayLabel=ds=>{const d=new Date(ds+'T12:00');const t=ymd(new Date());const 
 const TYPE={business:'ביזנס',premium:'פרימיום',regular:'תיירים'};
 const KEY='taxi-quota-proto-v1';
 const PROD=false,SB_URL='',SB_KEY='';
+const TRAIN=false; /* training sandbox (train.html): fictional data on this device only, no passwords */
 
 /* ---------- sample data ---------- */
 const DEFMINS={'רעננה':15,'כפר סבא':20,'הרצליה':20,'נתניה':30,'תל אביב – מרכז':35,'רכבת הרצליה':20,'חדרה':45};
@@ -1554,7 +1558,7 @@ function renderAuth(){
   if(m==='role'||m==='login'&&!AUTH.adminMode){
     if(!LOGINOPTS){AUTH.sb.rpc('login_options').then(({data})=>{LOGINOPTS=data||[];renderAuth()});app.innerHTML=box('<div class="note">טוען…</div>');return}
     const all=[...LOGINOPTS.map(o=>`<option value="ops-${esc(o.id)}">מבצעים · ${esc(o.name)}</option>`),...LOGINOPTS.map(o=>`<option value="boss-${esc(o.id)}">בוס גדול · ${esc(o.name)}</option>`),
-      '<option value="princess">★ נסיכות</option>','<option value="disp">סדרן</option>','<option value="ceo">מנכ״ל</option>'];
+      '<option value="princess">★ נסיכות</option>','<option value="disp">סדרן</option>','<option value="ceo">מנכ״ל</option>','<option value="train">🎯 קשה באימונים קל בקרב (אימון, בלי סיסמה)</option>'];
     const lv=AUTH.tryRole||lastGet(),li=all.findIndex(o=>o.startsWith(`<option value="${lv}"`));if(li>0)all.unshift(all.splice(li,1)[0]);
     const opts=all.map((o,i)=>i===0&&li>=0?o.replace('<option ','<option selected '):o).join('');
     app.innerHTML=box(`<form id="authf" style="display:grid;gap:12px"><label>מי נכנס/ת?<select id="au-r">${opts}</select></label>
@@ -1570,6 +1574,7 @@ function renderAuth(){
     ${m==='newpw'?'':'<button type="button" class="btn small" data-aumode="role" style="justify-self:start">חזרה לכניסה רגילה</button>'}</form>`)}
 async function authSubmit(){const g=id=>(document.getElementById(id)?.value||'').trim(),m=AUTH.mode,sb=AUTH.sb;AUTH.msg='';
   const fail=t=>{AUTH.msg=t;renderAuth();setTimeout(()=>{const p=document.getElementById('au-p');if(p){p.value='';p.focus()}})};if(document.getElementById('au-e'))AUTH.tryEmail=g('au-e');
+  if((m==='role'||m==='login')&&g('au-r')==='train'){location.href='train.html';return}
   if(m==='role'||m==='login'){AUTH.tryRole=g('au-r');const {data,error}=await sb.auth.signInWithPassword({email:RMAIL(g('au-r')),password:document.getElementById('au-p').value});if(error)return fail('הסיסמה לא נכונה');lastSet(g('au-r'));return loadMember(data.user)}
   if((m==='signup'||m==='newpw')&&g('au-p')!==g('au-p2'))return fail('הסיסמאות לא זהות');
   if(m==='admin'){const {data,error}=await sb.auth.signInWithPassword({email:g('au-e'),password:g('au-p')});if(error)return fail('המייל או הסיסמה לא נכונים');lastSet('admin:'+g('au-e'));return loadMember(data.user)}
@@ -1598,7 +1603,7 @@ async function rolePwSave(k){const r=roleKeys().find(x=>x.k===k),pw=(document.ge
 
 const confirmDel=t=>{if(t.dataset.sure){return true}t.dataset.sure='1';t.textContent='בטוח? ללחוץ שוב';setTimeout(()=>{if(t.isConnected){delete t.dataset.sure;t.textContent='הסרה'}},4000);return false};
 /* ---------- render + events ---------- */
-function render(){
+function render(){if(TRAIN){document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 <b>קשה באימונים, קל בקרב</b> · מצב אימון: חברות ונוסעים פיקטיביים, בלי סיסמאות. מה שעושים כאן נשמר רק במכשיר הזה ולא מגיע לאף אחד.</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
   if(PROD&&AUTH.state!=='in'){['nav-guide','nav-client','nav-disp','nav-adm','glogout'].forEach(id=>{document.getElementById(id).hidden=true});renderAuth();return}
   const allowed=ui.role?ROLEP[ui.role]:[];
   if(!ui.role){if(!['client','dispatcher','admin'].includes(ui.page))ui.page='client'}
@@ -1630,7 +1635,7 @@ document.addEventListener('toggle',e=>{const dd=e.target;if(!dd.dataset||!dd.dat
 document.addEventListener('keydown',e=>{const el=e.target;if(e.key==='Enter'&&el&&el.dataset&&el.dataset.drventer){e.preventDefault();document.querySelector(`[data-phone="${el.dataset.drventer}"]`)?.click()}});
 document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a[data-smsgo]');if(!a)return;const[rid,p]=a.dataset.smsgo.split('|'),r=S.rides.find(x=>x.id===rid);
   if(r&&r.sms){r.sms.sent={...(r.sms.sent||{}),[p]:Date.now()};save();setTimeout(render,400)}});
-document.addEventListener('click',e=>{
+document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{localStorage.removeItem(KEY);sessionStorage.clear()}catch(_){}location.reload();return}
   try{ui.ac??=new (window.AudioContext||window.webkitAudioContext)()}catch(_){}
   const t=e.target.closest('button');if(!t)return;
   if(RO()&&t.closest('#app')&&!(t.dataset.tab||t.dataset.nav||t.id==='sound'||t.id==='logout'||t.tagName==='SUMMARY')){toast('לנסיכות יש צפייה בלבד בעמוד הסדרן');return}
@@ -1783,10 +1788,10 @@ document.addEventListener('click',e=>{
   if(t.id==='reset'){S=seed();migrate();save();toast('הנתונים אופסו');render();return}
 });
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
-  if(f.id==='ceogate'||f.id==='ceogate2'){const v=document.getElementById(f.id==='ceogate'?'ceopw':'ceopw2').value;if(v==='9999'){ui.ceoAuthed=true;if(f.id==='ceogate')ui.ceoOnly=true;render()}else{const e=document.getElementById(f.id==='ceogate'?'ceoerr':'ceoerr2');if(e)e.hidden=false}return}
+  if(f.id==='ceogate'||f.id==='ceogate2'){const v=document.getElementById(f.id==='ceogate'?'ceopw':'ceopw2').value;if(TRAIN||v==='9999'){ui.ceoAuthed=true;if(f.id==='ceogate')ui.ceoOnly=true;render()}else{const e=document.getElementById(f.id==='ceogate'?'ceoerr':'ceoerr2');if(e)e.hidden=false}return}
   if(f.id==='authf'){authSubmit();return}
-  if(f.id==='admgate'){if(document.getElementById('admpw').value===(S.adminPw||'2468')){setRole('admin');ui.admAuthed=true;ui.authed=true;ui.tab='calendar';try{sessionStorage.setItem('taxi-adm','1')}catch(_){}render()}else document.getElementById('admerr').hidden=false;return}
-  if(f.id==='gate'){if(document.getElementById('pw').value==='1234'){setRole('disp');ui.authed=true;try{sessionStorage.setItem('taxi-disp','1')}catch(_){}render()}else document.getElementById('pwerr').hidden=false;return}
+  if(f.id==='admgate'){if(TRAIN||document.getElementById('admpw').value===(S.adminPw||'2468')){setRole('admin');ui.admAuthed=true;ui.authed=true;ui.tab='calendar';try{sessionStorage.setItem('taxi-adm','1')}catch(_){}render()}else document.getElementById('admerr').hidden=false;return}
+  if(f.id==='gate'){if(TRAIN||document.getElementById('pw').value==='1234'){setRole('disp');ui.authed=true;try{sessionStorage.setItem('taxi-disp','1')}catch(_){}render()}else document.getElementById('pwerr').hidden=false;return}
   if(f.id==='edit-pax'){const e=emp(f.dataset.emp),sn0=shortName(document.getElementById('ex-n').value,{skipEmp:e.id});if(sn0.err){toast(sn0.err);return}const nm=sn0.name,ty=document.getElementById('ex-t').value,ph=document.getElementById('ex-p').value.replace(/\D/g,'');
     if(!nm)return;if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר טלפון לא תקין. למשל 050-1234567');return}
     if(nm===e.name&&ty===e.type&&ph===(e.phone||'')){toast('לא שונה דבר');return}
@@ -1796,10 +1801,10 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
     const qc=isP(ui.cid)?document.getElementById('pxc')?.value:ui.cid;if(!qc){toast('בחרו לאיזה מבצעים הנוסע שייך');return}
     paxReq().push({id:'q'+Date.now(),cid:qc,by:ui.cid,name:n,phone:ph,type:document.getElementById('pxt').value,status:'pending'});save();toast(`${n} נשלח/ה לאישור המנהלת`);render();return}
   if(f.id==='clogin'){const id=document.getElementById('lcid').value,c=client(id);
-    if(c&&isP(id)&&!MGR()&&document.getElementById('lpw').value===(S.princessPw||'7777')){ui.role='princess';try{sessionStorage.setItem('taxi-role','princess');sessionStorage.setItem('taxi-adm','1')}catch(_){}ui.admAuthed=true;ui.authed=true;ui.cid=PID;ui.cAuth=PID;ui.knownNt=ntIds(PID);ui.sub='orders';ui.page='client';ui.tab='calendar';render();return}
-    if(c&&(MGR()||document.getElementById('lpw').value===(isP(id)?(S.princessPw||'7777'):c.pw))){setRole('ops');ui.cid=id;ui.cAuth=id;ui.knownNt=ntIds(id);ui.draft.pax=[];ui.sub='orders';try{sessionStorage.setItem('taxi-client',id)}catch(_){}render()}
+    if(c&&isP(id)&&!MGR()&&(TRAIN||document.getElementById('lpw').value===(S.princessPw||'7777'))){ui.role='princess';try{sessionStorage.setItem('taxi-role','princess');sessionStorage.setItem('taxi-adm','1')}catch(_){}ui.admAuthed=true;ui.authed=true;ui.cid=PID;ui.cAuth=PID;ui.knownNt=ntIds(PID);ui.sub='orders';ui.page='client';ui.tab='calendar';render();return}
+    if(c&&(MGR()||TRAIN||document.getElementById('lpw').value===(isP(id)?(S.princessPw||'7777'):c.pw))){setRole('ops');ui.cid=id;ui.cAuth=id;ui.knownNt=ntIds(id);ui.draft.pax=[];ui.sub='orders';try{sessionStorage.setItem('taxi-client',id)}catch(_){}render()}
     else document.getElementById('lerr').hidden=false;return}
-  if(f.id==='mgate'){const c=client(ui.cid),v=document.getElementById('mpw').value;if(c.bossPhone?v.replace(/\D/g,'')===c.bossPhone:v==='5678'){ui.mgrAuthed.push(ui.cid);render()}else document.getElementById('mpwerr').hidden=false;return}
+  if(f.id==='mgate'){const c=client(ui.cid),v=document.getElementById('mpw').value;if(TRAIN||(c.bossPhone?v.replace(/\D/g,'')===c.bossPhone:v==='5678')){ui.mgrAuthed.push(ui.cid);render()}else document.getElementById('mpwerr').hidden=false;return}
   if(f.id==='add-dest'){const v=document.getElementById('nd').value.trim();if(v&&!S.destinations.includes(v)){S.destinations.push(v);if(document.getElementById('nr').value==='north')S.north.push(v)}save();render();return}
   if(f.id==='add-free'){const v=document.getElementById('nf').value;if(v&&!S.freeDays.includes(v))S.freeDays.push(v);save();render();return}
   if(f.id==='gen-f'||f.id==='gen-b'){const kk=f.id.slice(4);(kk==='b'?S.genBus:S.genFlights).forEach((g,i)=>{const v=document.getElementById(kk+'f-'+i).value,w=document.getElementById(kk+'w-'+i).value;if(v){g.from=v;g.to=v}if(w)g.winter=w});save();toast('השעות הקבועות עודכנו');render();return}
@@ -1809,6 +1814,7 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
     S.blocked.push({id:'b'+Date.now(),date:g('bd'),from:g('bf'),to:g('bt'),note:g('bn').trim()||'הסעה חלופית'});save();render();return}
 });
 document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
+  if(t.id==='au-r'){const p=document.getElementById('au-p'),tr=t.value==='train';if(p){p.required=!tr;p.closest('label').hidden=tr}return}
   if(ui.smart&&ui.sub==='smart'&&ui.page==='client'){const sm=ui.smart;
     if(t.id==='sm-date'){sm.date=t.value;sm.plan=null;render();return}if(t.id==='sm-dir'){sm.dir=t.value;sm.plan=null;render();return}
     if(t.id==='sm-time'){sm.time=t.value;sm.plan=null;render();return}if(t.id==='sm-4'){sm.allow4=t.checked;sm.plan=null;render();return}if(t.id==='sm-house'){sm.house=t.checked;sm.plan=null;render();return}if(t.id==='sm-back'){sm.back=t.checked;sm.plan=null;render();return}if(t.id==='sm-end'){sm.end=t.value;sm.plan=null;render();return}
