@@ -603,24 +603,31 @@ const schedTxt=r=>{const s=sched(r);if(!s)return '';const p=s.stops.map(x=>`${es
 function paxTimes(r,p){const s=sched(r);if(!s)return null;const st=s.stops.find(x=>x.pt===ptOf(r,p));const t=st?st.t:s.start;
   return r.dir==='to'?{start:t,end:s.end}:{start:s.start,end:t}}
 const gUTC=ms=>new Date(ms).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
-function gcalUrl(r,p){const tt=paxTimes(r,p);if(!tt)return '';const a=(r.addr||{})[p]||'',city=ptOf(r,p)||'';
+function calData(r,p){const tt=paxTimes(r,p);if(!tt)return null;const a=(r.addr||{})[p]||'',city=ptOf(r,p)||'';
   const title=r.dir==='to'?`מונית ל${baseOf(r)} · איסוף ${hm(new Date(tt.start))}`:`מונית מ${baseOf(r)} · יציאה ${hm(new Date(tt.start))}`;
   const det=`${r.driverName||r.driverPhone?'נהג: '+[r.driverName,r.driverPhone&&fmtPh(r.driverPhone)].filter(Boolean).join(' '):'פרטי הנהג יעודכנו בהמשך'}\nאחראי/ת: ${emp(leadOf(r))?.name||''} ${emp(leadOf(r))?.phone?fmtPh(emp(leadOf(r)).phone):''}`;
-  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(title)+'&dates='+gUTC(tt.start)+'/'+gUTC(tt.end)+'&details='+encodeURIComponent(det)+'&location='+encodeURIComponent((r.dir==='to'?[a,city]:[baseOf(r)]).filter(Boolean).join(', '))+'&ctz=Asia/Jerusalem'}
+  return {title,t:tt.start,e:tt.end,det,loc:(r.dir==='to'?[a,city]:[baseOf(r)]).filter(Boolean).join(', ')}}
+function gcalUrl(r,p){const c=calData(r,p);if(!c)return '';
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(c.title)+'&dates='+gUTC(c.t)+'/'+gUTC(c.e)+'&details='+encodeURIComponent(c.det)+'&location='+encodeURIComponent(c.loc)+'&ctz=Asia/Jerusalem'}
+/* short calendar link for passengers: stored in the links table, opened by c.html (no login) */
+const calLink=(r,p)=>PROD&&r.cal&&r.cal[p]?location.origin+location.pathname.replace(/[^/]*$/,'')+'c?'+r.cal[p]:gcalUrl(r,p);
+function makeCalLinks(r){if(!PROD)return;const rk=()=>Array.from(crypto.getRandomValues(new Uint8Array(7)),b=>'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b%56]).join('');
+  r.cal=r.cal||{};const rows=r.pax.map(p=>{const c=calData(r,p);if(!c)return null;r.cal[p]=r.cal[p]||rk();return {k:r.cal[p],data:c}}).filter(Boolean);
+  if(rows.length)AUTH.sb.from('links').upsert(rows).then(({error})=>{if(error){r.cal=null;save();render()}})}
 const intlPh=p=>{p=String(p||'').replace(/\D/g,'');return p.startsWith('0')?'972'+p.slice(1):p};
-function smsBox(r,mode){const sent=r.sms.sent||{},list=r.pax.filter(p=>emp(p)?.phone),left=list.filter(p=>!sent[p]).length;
+function smsBox(r,mode,cid){const can=mode==='client',sent=r.sms.sent||{},list=r.pax.filter(p=>emp(p)?.phone&&(!can||isP(cid)||emp(p).cid===cid)),left=list.filter(p=>!sent[p]).length;
   const rows=list.map(p=>{const e=emp(p),m=encodeURIComponent(tripMsg(r,p));
     return `<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0"><span style="min-width:90px;color:var(--ink)">${esc(e.name)}</span><span class="num note">${fmtPh(e.phone)}</span>
-    ${mode==='disp'?`<a class="btn small primary" target="_blank" rel="noopener" href="https://wa.me/${intlPh(e.phone)}?text=${m}" data-smsgo="${r.id}|${p}">וואטסאפ</a><a class="btn small" href="sms:${e.phone}?&body=${m}" data-smsgo="${r.id}|${p}">SMS</a>`:''}
-    ${sent[p]?'<span style="color:var(--ok);font-weight:700">✓ נשלח</span>':mode==='disp'?'':'<span class="note">טרם נשלח</span>'}</div>`}).join('');
-  return `<details class="note"${mode==='disp'&&left?' open':''}><summary>📱 הודעה לנוסעים ${list.length?`(נשלחה ל־${list.length-left} מתוך ${list.length})`:''}${r.sms.missing.length?` · ללא טלפון: ${r.sms.missing.map(p=>esc(emp(p)?.name||'')).join(', ')}`:''}</summary>
-  ${mode==='disp'&&left?'<div class="note">לחצו על וואטסאפ או SMS ליד כל נוסע. ההודעה נפתחת מוכנה בטלפון, ונשאר רק ללחוץ "שליחה".</div>':''}${rows}
+    ${can?`<a class="btn small primary" target="_blank" rel="noopener" href="https://wa.me/${intlPh(e.phone)}?text=${m}" data-smsgo="${r.id}|${p}">וואטסאפ</a><a class="btn small" href="sms:${e.phone}?&body=${m}" data-smsgo="${r.id}|${p}">SMS</a>`:''}
+    ${sent[p]?'<span style="color:var(--ok);font-weight:700">✓ נשלח</span>':can?'':'<span class="note">טרם נשלח</span>'}</div>`}).join('');
+  return `<details class="note"${can&&left?' open':''}><summary>📱 הודעה לנוסעים ${list.length?`(נשלחה ל־${list.length-left} מתוך ${list.length})`:''}${r.sms.missing.length?` · ללא טלפון: ${r.sms.missing.map(p=>esc(emp(p)?.name||'')).join(', ')}`:''}</summary>
+  ${!can&&left?'<div class="note">המבצעים שולחים את ההודעה לנוסעים.</div>':''}${can&&left?'<div class="note">לחצו על וואטסאפ או SMS ליד כל נוסע. ההודעה נפתחת מוכנה בטלפון, ונשאר רק ללחוץ "שליחה".</div>':''}${rows}
   <details><summary>תוכן ההודעה</summary><pre style="white-space:pre-wrap;font-family:inherit;color:var(--ink);background:var(--bg);padding:8px 10px;border-radius:6px;margin:4px 0">${esc(tripMsg(r,leadOf(r)))}</pre></details></details>`}
 function tripMsg(r,forP){const pts=points(r),s=sched(r),tOf=pt=>s?hm(new Date(s.stops.find(x=>x.pt===pt).t)):'';
   const lines=pts.map((pt,i)=>{const w=r.pax.filter(p=>ptOf(r,p)===pt).map(p=>emp(p)?.name+((r.addr||{})[p]?` (${r.addr[p]})`:''));return w.length?`${i+1}. ${tOf(pt)} · ${pt}: ${w.join(', ')}`:null}).filter(Boolean);
   const L=emp(leadOf(r));
   return [`מונית · ${dayLabel(ymd(new Date(r.ts)))}`,r.dir==='to'?`הגעה משוערת ל${baseOf(r)}: ${hm(new Date(r.ts))}`:`יציאה מ${baseOf(r)}: ${hm(new Date(r.ts))}`,`מסלול: ${(r.dir==='to'?[...pts,baseOf(r)]:[baseOf(r),...pts]).join(' ← ')}`,r.dir==='to'?'איסוף (שעה משוערת):':'הורדה (שעה משוערת):',...lines,
-    `נהג: ${[r.driverName,r.driverPhone&&fmtPh(r.driverPhone)].filter(Boolean).join(' · ')||'יעודכן בהמשך'}`,`אחראי/ת הנסיעה: ${L?.name||''}${L?.phone?' · '+fmtPh(L.phone):''}`,...(forP?['',`📅 להוספה ליומן: ${gcalUrl(r,forP)}`]:[])].join('\n')}
+    `נהג: ${[r.driverName,r.driverPhone&&fmtPh(r.driverPhone)].filter(Boolean).join(' · ')||'יעודכן בהמשך'}`,`אחראי/ת הנסיעה: ${L?.name||''}${L?.phone?' · '+fmtPh(L.phone):''}`,...(forP?['',`📅 להוספה ליומן: ${calLink(r,forP)}`]:[])].join('\n')}
 const destHint=v=>!v?'':S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':'<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>';
 function driverMsg(r){const s=sched(r),pts=points(r),L=emp(leadOf(r));
   const lines=pts.map((pt,i)=>{const ws=r.pax.filter(p=>ptOf(r,p)===pt);if(!ws.length)return null;const tt=s?hm(new Date(s.stops.find(x=>x.pt===pt).t)):'';
@@ -639,7 +646,7 @@ const updOf=r=>r.upd?.k||(r.status==='active'&&r.confirmedAt?'confirmed':(r.driv
 function notices(cid){return S.rides.filter(r=>{const k=updOf(r);if(!k||!UPD[k])return false;if(r.upd&&r.upd.by===cid)return false;
   return r.ts>Date.now()-DAY&&(isP(cid)?r.by===PID:clientsOf(r).includes(cid)||r.by===cid)&&!(r.seenBy||[]).includes(cid)}).sort((a,b)=>(b.upd?.at||0)-(a.upd?.at||0))}
 function noticeBox(cid){const n=notices(cid);if(!n.length)return '';
-  return `<div class="nbox" role="status"><div class="row" style="justify-content:space-between"><strong>🔔 עדכונים על ההזמנות שלכם</strong>${n.length>1?`<button class="btn small" data-seenall="1">הבנתי את כולם</button>`:''}</div>${n.map(r=>{const[cls,txt]=UPD[updOf(r)];return `<div class="nrow n-${cls}"><span><b>${txt}</b> · ${dayLabel(ymd(new Date(r.ts)))} · <b class="num">${hm(new Date(r.ts))}</b> · ${route(r)}${(r.driverPhone||r.driverName)&&!['cancelled','late'].includes(r.status)?` · נהג: ${driverTxt(r)}`:''}${r.upd?.at?` <span class="note">(${hm(new Date(r.upd.at))})</span>`:''}</span><button class="btn small" data-seen="${r.id}">הבנתי</button></div>`}).join('')}</div>`}
+  return `<div class="nbox" role="status"><div class="row" style="justify-content:space-between"><strong>🔔 עדכונים על ההזמנות שלכם</strong>${n.length>1?`<button class="btn small" data-seenall="1">הבנתי את כולם</button>`:''}</div>${n.map(r=>{const[cls,txt]=UPD[updOf(r)];return `<div class="nrow n-${cls}"><span><b>${txt}</b> · ${dayLabel(ymd(new Date(r.ts)))} · <b class="num">${hm(new Date(r.ts))}</b> · ${route(r)}${(r.driverPhone||r.driverName)&&!['cancelled','late'].includes(r.status)?` · נהג: ${driverTxt(r)}`:''}${r.upd?.at?` <span class="note">(${hm(new Date(r.upd.at))})</span>`:''}</span><span class="row" style="gap:6px">${r.sms&&!['cancelled','late'].includes(r.status)&&r.pax.some(p=>emp(p)?.phone&&!(r.sms.sent||{})[p]&&(isP(cid)||emp(p).cid===cid))?`<button class="btn small primary" data-opensms="${r.id}">📱 שליחה לנוסעים</button>`:''}<button class="btn small" data-seen="${r.id}">הבנתי</button></span></div>`}).join('')}</div>`}
 const mgrPending=cid=>S.rides.filter(r=>r.status==='pending'&&r.ts>Date.now()&&clientsOf(r).includes(cid)&&needBoss(r)&&!(r.approvedBy||[]).includes(cid));
 function renderManager(c){
   if(!ui.mgrAuthed.includes(c.id)&&PROD){app.innerHTML=subTabs(c)+'<div class="panel empty">אישור החרגות שמור לבוס הגדול של המבצעים. המשתמש שלך לא מוגדר כבוס גדול.</div>';return}
@@ -953,7 +960,7 @@ function rideRow(r,mode,cid){
     ${mode==='disp'&&live&&(r.status==='awaiting'||r.status==='active')?`<div class="row" style="gap:4px"><input id="dn-${r.id}" placeholder="שם הנהג" value="${esc(r.driverName||'')}" style="width:110px" aria-label="שם הנהג" maxlength="30"><input id="ph-${r.id}" inputmode="tel" placeholder="טלפון הנהג" value="${esc(r.driverPhone||'')}" style="width:120px" aria-label="טלפון הנהג" class="num"><button class="btn small" data-phone="${r.id}">${drv?'עדכון פרטי נהג':'שליחת פרטי נהג'}</button></div>`:''}
     ${cls.length>1&&mode==='disp'?`<div class="split num">${cls.map(x=>`${opsLogo(x,16)}${fmt2(share(r,x))}`).join(' · ')}</div>`:''}
     ${live&&mode!=='mgr'&&mode!=='ceo'?`<div class="note cal-links">הוספה ליומן: ${r.pax.filter(p=>mode!=='client'||isP(cid)||emp(p)?.cid===cid).map(p=>`<span class="calp">${esc(emp(p)?.name||'')}<a class="calic" href="${gcalUrl(r,p)}" target="_blank" rel="noopener" title="הוספה ליומן של ${esc(emp(p)?.name||'')}" aria-label="הוספה ליומן של ${esc(emp(p)?.name||'')}">📅</a></span>`).join(' ')}</div>`:''}
-    ${r.sms?smsBox(r,mode):''}
+    ${r.sms?smsBox(r,mode,cid):''}
     ${mode==='disp'&&live?`<details class="note"><summary>🚕 סיכום לנהג</summary><pre id="dm-${r.id}" style="white-space:pre-wrap;font-family:inherit;color:var(--ink);background:var(--bg);padding:8px 10px;border-radius:6px;margin:4px 0">${esc(driverMsg(r))}</pre><button class="btn small" data-copy="dm-${r.id}">העתקה</button></details>`:''}
   </div></details>`;
   return `<div class="ride ${dead||past?'dim':''}">${stripe(cls)}<div class="t num">${hm(new Date(r.ts))}<div class="note" style="font-family:var(--font-body);font-weight:400;font-size:.72rem">${r.dir==='to'?'הגעה':'יציאה'}</div></div>
@@ -1210,11 +1217,12 @@ function renderDispatcher(){
 const LOGIN=(who,pick)=>PROD?`במסך הכניסה, ב"מי נכנס/ת?", בוחרים ${pick}, מקלידים את הסיסמה שקיבלתם מהמנהלת ולוחצים "כניסה".`:`בוחרים למעלה "${who}" ומקלידים את הסיסמה.`;
 const G={
   ops:{title:'מבצעים',intro:'כאן מזמינים מוניות לנוסעים שלכם, עוקבים אחרי ההזמנות ומנהלים את הסל החודשי.',
-   quick:['נכנסים עם הסיסמה של המבצעים שלכם.','"הזמנות": תאריך ושעה ← נוסעים ← מסלול ← אחראי/ת ← "הזמנת מונית". מזמינים לפחות 3 שעות לפני האיסוף הראשון.','מחכים לעדכון: 🔔 בראש העמוד מודיע כשהמונית הוזמנה, כשהגיעו פרטי הנהג או כשבקשה נדחתה.','מסמנים 🔒 אבטחת מידע ליד כל נסיעה.','צריך נוסע חדש? "נוסעים" ← "הוספת נוסע". הוא יופיע בהזמנה אחרי שהמנהלת תאשר.'],
+   quick:['נכנסים עם הסיסמה של המבצעים שלכם.','"הזמנות": תאריך ושעה ← נוסעים ← מסלול ← אחראי/ת ← "הזמנת מונית". מזמינים לפחות 3 שעות לפני האיסוף הראשון.','מחכים לעדכון: 🔔 בראש העמוד מודיע כשהמונית הוזמנה, כשהגיעו פרטי הנהג או כשבקשה נדחתה.','הגיעו פרטי נהג? "📱 שליחה לנוסעים" ← וואטסאפ או SMS לכל נוסע.','מסמנים 🔒 אבטחת מידע ליד כל נסיעה.','צריך נוסע חדש? "נוסעים" ← "הוספת נוסע". הוא יופיע בהזמנה אחרי שהמנהלת תאשר.'],
    sections:[
    {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','את "מבצעים" ואת השם של המבצעים שלכם'),'נפתח העמוד של המבצעים שלכם בלבד. בראשו רואים כמה מוניות נוצלו החודש ומה נשאר בסל.']},
    {h:'הזמנת מונית',go:'ops',steps:['בלשונית "הזמנות" בוחרים תאריך, ואם השעה היא שעת הגעה ליעד או שעת יציאה מהמוצא, ומזינים שעה.','שלב 1: מסמנים עד 4 נוסעים.','שלב 2, מסלול: בוחרים תחנת מוצא ותחנת יעד. בכל תחנת איסוף או הורדה מקלידים עיר: ✓ מותרת, ✕ לא מותרת. אחר כך כותבים כתובת מדויקת.','ב"מי עולה כאן?" לוחצים על הנוסעים שנאספים בתחנה. נוסע שנאסף ממקום אחר מקבל תחנה משלו ("+ הוספת נקודת איסוף").','אם יש סדר תחנות קצר יותר, תופיע הצעה "💡 סדר יעיל יותר". לחיצה אחת מסדרת מחדש.','שלב 3: בוחרים אחראי/ת נסיעה.','בודקים את "בדיקת ההזמנה" בצד: ירוק תקין, כתום דורש תשומת לב, אדום חוסם. מתקנים ולוחצים "הזמנת מונית".'],tip:'העיר שמופיעה ליד נוסע היא העיר שממנה נסע בפעם האחרונה. שעות האיסוף המשוערות מחושבות לבד.'},
-   {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–06:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו, והסדרן ישלח לכל נוסע הודעה עם השעה, המסלול ופרטי הנהג.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
+   {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–06:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
+   {h:'📱 שליחת פרטי הנסיעה לנוסעים',go:'ops',steps:['כשמגיעים פרטי הנהג, בהתראה למעלה מופיע "📱 שליחה לנוסעים". אפשר גם לפתוח "פרטים" ליד הנסיעה.','ב"הודעה לנוסעים" לוחצים ליד כל נוסע "וואטסאפ" או "SMS".','ההודעה נפתחת מוכנה בטלפון שלכם: שעה, מסלול, מאיפה נאסף, פרטי הנהג, האחראי/ת וקישור קצר להוספה ליומן. לוחצים "שליחה".','ליד מי שקיבל מופיע ✓ נשלח, ולמעלה כמה נשלחו מתוך כמה.'],tip:'נוסע בלי טלפון במאגר לא יופיע ברשימה. עדכנו לו טלפון בלשונית "נוסעים".'},
    {h:'ביטול הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "ביטול" ליד הנסיעה.','לא נספר בסל: ביטול לפני שהסדרן הזמין מונית, ויותר מ־3 שעות לפני הנסיעה.','נספר בסל: ביטול אחרי שהמונית כבר הוזמנה, או פחות מ־3 שעות לפני הנסיעה. המערכת תבקש אישור לפני כן.','ליד כל ביטול כתוב מי ביטל.']},
    {h:'🔒 אבטחת מידע',go:'ops',steps:['כמעט כל נסיעה צריכה אישור אבטחת מידע. זה מעקב פנימי שלכם.','אם האישור כבר התקבל, מסמנים "כבר התקבל אישור אבטחת מידע" לפני השליחה.','אחר כך, ב"ההזמנות שלי", לחיצה על 🔒 מחליפה בין: ממתין ← אושר ← לא נדרש.','בראש העמוד מופיעה תזכורת לנסיעות קרובות בלי אישור.']},
    {h:'נוסעים: הוספה, עריכה והסרה',go:'ops-pax',steps:['בלשונית "נוסעים" ← "הוספת נוסע": שם, סוג (ביזנס, פרימיום או תיירים) וטלפון נייד. בלי טלפון הנוסע לא יקבל הודעה עם פרטי הנסיעה.','שומרים על פרטיות: רק שם פרטי ואות ראשונה של שם המשפחה, למשל "דנה כ.". כתבתם שם מלא? הוא יקוצר לבד. אם כבר יש "דנה כ." במאגר, נשמרת אות נוספת ("דנה כה.").','"שליחה לאישור המנהלת". הנוסע יופיע בהזמנות אחרי שהמנהלת תאשר. ייתכן שהיא תתקן פרטים לפני האישור.','עריכה: "עריכה" ליד הנוסע ← משנים ← שליחה לאישור. עד האישור הפרטים הישנים בתוקף.','הסרה: "הסרה" ← אישור. הנוסע יורד מיד, בלי לחכות לאישור.']},
@@ -1229,11 +1237,11 @@ const G={
    {h:'אישור נסיעות',go:'ops-boss',steps:['ברשימה מופיעות נסיעות עם נוסע בודד שמחכות לך.','ליד כל נסיעה כתוב לאיזה אחוז נוסע בודד האישור יעלה.','"אישור" מעביר את הנסיעה לסדרן (או למנכ״ל, אם זו גם נסיעת לילה). "דחייה" מבטלת אותה, והמבצעים מקבלים התראה.','נסיעות לילה מאשר המנכ״ל, אלא אם הוא האציל לך את הסמכות.']}
   ]},
   disp:{title:'סדרן',intro:'הסדרן מזמין את המוניות בפועל, מעדכן פרטי נהג ושולח לחברת המוניות את הקו של מחר.',
-   quick:['נכנסים כ"סדרן" ומשאירים את ההתראה הקולית פעילה.','"לוח הזמנות": הזמנה חדשה ← מזמינים מונית ← "אישור הזמנה".','מגיעים פרטי נהג ← "שליחת פרטי נהג" ← שולחים לכל נוסע בוואטסאפ או SMS.','כל ערב (בערך 23:00): "יישור קו" ← "יישור קו וסגירה" ← שליחה לחברת המוניות.','⚡ מתפרצת = הזמנה שנכנסה אחרי סגירת הקו. מטפלים מיד.'],
+   quick:['נכנסים כ"סדרן" ומשאירים את ההתראה הקולית פעילה.','"לוח הזמנות": הזמנה חדשה ← מזמינים מונית ← "אישור הזמנה".','מגיעים פרטי נהג ← "שליחת פרטי נהג". המבצעים מקבלים אותם ושולחים לנוסעים.','כל ערב (בערך 23:00): "יישור קו" ← "יישור קו וסגירה" ← שליחה לחברת המוניות.','⚡ מתפרצת = הזמנה שנכנסה אחרי סגירת הקו. מטפלים מיד.'],
    sections:[
    {h:'כניסה',go:'disp',steps:[LOGIN('סדרן','"סדרן"'),'כפתור 🔔 בראש הלוח מפעיל או משתיק צליל על כל הזמנה חדשה.']},
    {h:'אישור הזמנה חדשה',go:'disp',steps:['בלשונית "לוח הזמנות" ההתראות מחולקות: לפעולה (צריך לטפל) ולידיעה (סטטוס של המבצעים).','הזמנה חדשה מסומנת "חדשה · ממתינה לסדרן".','מזמינים מונית מחברת המוניות ולוחצים "אישור הזמנה". המבצעים מקבלים התראה.','"🚕 סיכום לנהג" פותח את פרטי הנסיעה והכתובות להעתקה.','אם יש סדר תחנות קצר יותר, מופיעה הצעה לסדר מחדש.']},
-   {h:'פרטי נהג והודעה לנוסעים',go:'disp',steps:['בפרטי הנסיעה ממלאים שם וטלפון של הנהג ולוחצים "שליחת פרטי נהג". המבצעים מקבלים אותם מיד.','נפתח "📱 הודעה לנוסעים": ליד כל נוסע לוחצים "וואטסאפ" או "SMS".','ההודעה נפתחת בטלפון שלכם מוכנה, עם השעה, המסלול, הנהג וקישור ליומן. לוחצים "שליחה".','ליד כל מי שקיבל מופיע ✓ נשלח, ולמעלה כמה נשלחו מתוך כמה.'],tip:'נוסע בלי טלפון במאגר מופיע ברשימת "ללא טלפון". אפשר להוסיף לו טלפון בהגדרות.'},
+   {h:'פרטי נהג',go:'disp',steps:['בפרטי הנסיעה ממלאים שם וטלפון של הנהג ולוחצים "שליחת פרטי נהג". אפשר גם לפני האישור.','המבצעים מקבלים את הפרטים מיד, והם שולחים לנוסעים את ההודעה.','ב"📱 הודעה לנוסעים" רואים למי כבר נשלח (✓) ולמי עוד לא.']},
    {h:'ממתין להחרגה',go:'disp-approvals',steps:['כאן רואים נסיעות שמחכות לבוס הגדול או למנכ״ל. זה למעקב בלבד, הסדרן לא מאשר כאן.','אחרי האישור הנסיעה מגיעה ל"לוח הזמנות".']},
    {h:'יישור קו לילי',go:'disp-line',steps:['בלשונית "יישור קו" מופיעות כל הנסיעות של מחר לפי שעות, עם כתובות, נוסעים וטלפונים.','אם יש הזמנות שעוד לא אושרו, תופיע אזהרה. מאשרים אותן קודם.','"יישור קו וסגירה".','שולחים לחברת המוניות: "העתקה כטקסט" לוואטסאפ או למייל, "העתקה לאקסל" או "הורדת קובץ".','הזמנה שנכנסת אחרי הסגירה מסומנת ⚡ ומשמיעה צליל כפול.']},
    {h:'הגדרות',go:'disp-settings',steps:['ערים מותרות: מוסיפים עיר ומסמנים צפון או מרכז.','מחירי מונית, ופרטי הנוסעים (סוג וטלפון).','זמני הנסיעה מחושבים לבד לפי המרחק ושעת היום.']}
@@ -1416,8 +1424,8 @@ document.addEventListener('click',e=>{
     if(!ph&&!nm){toast('הקלידו שם או טלפון של הנהג');return}
     if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר הטלפון לא תקין. למשל: 050-1234567');document.getElementById('ph-'+r.id)?.focus();return}
     if(ph===(r.driverPhone||'')&&nm===(r.driverName||'')){toast('לא שונה דבר');return}
-    r.driverPhone=ph;r.driverName=nm;mark(r,'driver');const to=r.pax.filter(p=>emp(p)?.phone);r.sms={at:Date.now(),to,missing:r.pax.filter(p=>!emp(p)?.phone),sent:{}};ui.openR=[...new Set([...(ui.openR||[]),r.id])];save();
-    toast(to.length?`פרטי הנהג נשמרו והמבצעים עודכנו. עכשיו שלחו את ההודעה ל־${to.length} נוסעים (וואטסאפ או SMS)`:'פרטי הנהג נשמרו והמבצעים עודכנו');render();return}
+    r.driverPhone=ph;r.driverName=nm;mark(r,'driver');makeCalLinks(r);const to=r.pax.filter(p=>emp(p)?.phone);r.sms={at:Date.now(),to,missing:r.pax.filter(p=>!emp(p)?.phone),sent:{...((r.sms||{}).sent||{})}};save();
+    toast('פרטי הנהג נשמרו. המבצעים קיבלו אותם וישלחו הודעה לנוסעים');render();return}
   if(t.dataset.seen){const r=S.rides.find(x=>x.id===t.dataset.seen);(r.seenBy??=[]).push(ui.cid);save();render();return}
   if(t.dataset.seenall){notices(ui.cid).forEach(r=>(r.seenBy??=[]).push(ui.cid));save();render();return}
   if(t.dataset.grole){ui.grole=t.dataset.grole;render();scrollTo(0,0);return}
@@ -1426,6 +1434,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.nav){if(t.dataset.nav==='guide'&&ui.page!=='guide')ui.grole=(ROLEG[ui.role]||['ops'])[0];ui.page=t.dataset.nav;ui.confirm=null;render();return}
   if(t.dataset.openroutes){ui.openR=routeTips().map(r=>r.id)}
   if(t.dataset.tab){ui.tab=t.dataset.tab;render();return}
+  if(t.dataset.opensms){const id=t.dataset.opensms;ui.sub='orders';ui.openR=[...new Set([...(ui.openR||[]),id])];render();setTimeout(()=>{const el=document.querySelector(`details[data-rid="${id}"]`);el&&el.scrollIntoView({behavior:'smooth',block:'center'})},50);return}
   if(t.dataset.dbed){ui.dbEd=t.dataset.dbed;render();setTimeout(()=>document.getElementById('db-'+ui.dbEd)?.focus());return}
   if(t.dataset.dbx){ui.dbEd=null;render();return}
   if(t.dataset.dbsave){const r=S.rides.find(x=>x.id===t.dataset.dbsave),v=(document.getElementById('db-'+r.id)?.value||'').trim();

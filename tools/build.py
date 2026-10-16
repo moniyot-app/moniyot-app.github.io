@@ -21,4 +21,6 @@ head='<!doctype html>\n<html lang="he" dir="rtl">\n<head>\n<meta charset="utf-8"
 s=head+s+'\n</body>\n</html>\n'
 
 open('index.html','w').write(s)
+c=open('src/c.html').read().replace('__SB_URL__',cfg['url']).replace('__SB_KEY__',cfg['key'])
+open('c.html','w').write(c)
 print('ok',len(s))

@@ -141,3 +141,12 @@ drop policy if exists r_del on public.rides;
 create policy r_del on public.rides for delete to authenticated using (public.is_mgr());
 drop policy if exists p_wr on public.people;
 create policy p_wr on public.people for all to authenticated using (public.is_mgr() or public.has_role('disp')) with check (public.is_mgr() or public.has_role('disp'));
+-- v5: short calendar links for passengers
+create table if not exists public.links(k text primary key, data jsonb not null, created_at timestamptz default now());
+alter table public.links enable row level security;
+drop policy if exists l_wr on public.links;
+create policy l_wr on public.links for all to authenticated using (public.is_member()) with check (public.is_member());
+create or replace function public.get_link(k text) returns jsonb
+language sql stable security definer set search_path = public as $$ select data from public.links where links.k = get_link.k $$;
+revoke all on public.links from anon;
+grant execute on function public.get_link(text) to anon, authenticated;
