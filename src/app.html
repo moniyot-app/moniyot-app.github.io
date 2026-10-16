@@ -1312,7 +1312,8 @@ function renderGuide(){const GR=ROLEG[ui.role]||['ops'];if(!GR.includes(ui.grole
     ${g.rules?`<section class="panel" id="grules"><h2>כללי זכאות בקצרה</h2>${RULES}</section>`:''}`;
 }
 /* ---------- production: real accounts (Supabase). Inactive when PROD is false ---------- */
-const AUTH={sb:null,member:null,user:null,state:'loading',mode:'role',msg:''};
+const LASTK='ramoniyot-last',lastGet=()=>{try{return localStorage.getItem(LASTK)||''}catch(_){return ''}},lastSet=v=>{try{localStorage.setItem(LASTK,v)}catch(_){}};
+const AUTH={sb:null,member:null,user:null,state:'loading',mode:lastGet().startsWith('admin:')?'admin':'role',msg:''};
 const ROLEL={ops:'מבצעים',boss:'בוס גדול',princess:'★ נסיכות',disp:'סדרן',ceo:'מנכ״ל',admin:'המנהלת'};
 function sbDb(sb){
   const T={app:['kv','key'],rides:['rides','id'],people:['people','id']};
@@ -1363,14 +1364,16 @@ function renderAuth(){
   const m=AUTH.mode,msg=`<div class="note" id="au-msg" style="color:var(--bad)">${esc(AUTH.msg||'')}</div>`;
   if(m==='role'||m==='login'&&!AUTH.adminMode){
     if(!LOGINOPTS){AUTH.sb.rpc('login_options').then(({data})=>{LOGINOPTS=data||[];renderAuth()});app.innerHTML=box('<div class="note">טוען…</div>');return}
-    const opts=[...LOGINOPTS.map(o=>`<option value="ops-${esc(o.id)}">מבצעים · ${esc(o.name)}</option>`),...LOGINOPTS.map(o=>`<option value="boss-${esc(o.id)}">בוס גדול · ${esc(o.name)}</option>`),
-      '<option value="princess">★ נסיכות</option>','<option value="disp">סדרן</option>','<option value="ceo">מנכ״ל</option>'].join('');
+    const all=[...LOGINOPTS.map(o=>`<option value="ops-${esc(o.id)}">מבצעים · ${esc(o.name)}</option>`),...LOGINOPTS.map(o=>`<option value="boss-${esc(o.id)}">בוס גדול · ${esc(o.name)}</option>`),
+      '<option value="princess">★ נסיכות</option>','<option value="disp">סדרן</option>','<option value="ceo">מנכ״ל</option>'];
+    const lv=lastGet(),li=all.findIndex(o=>o.startsWith(`<option value="${lv}"`));if(li>0)all.unshift(all.splice(li,1)[0]);
+    const opts=all.map((o,i)=>i===0&&li>=0?o.replace('<option ','<option selected '):o).join('');
     app.innerHTML=box(`<form id="authf" style="display:grid;gap:12px"><label>מי נכנס/ת?<select id="au-r">${opts}</select></label>
       <label>סיסמה<input type="password" id="au-p" autocomplete="current-password" required></label>${msg}
       <button class="btn primary">כניסה</button><div class="note">את הסיסמה מקבלים מהמנהלת.</div>
       <button type="button" class="btn small" data-aumode="admin" style="justify-self:start">כניסת המנהלת (במייל)</button></form>`);return}
   app.innerHTML=box(`<form id="authf" style="display:grid;gap:12px"><div class="note"><b>כניסת המנהלת</b></div>
-    ${m==='newpw'?'<div class="note">בחרו סיסמה חדשה.</div>':`<label>מייל<input type="email" id="au-e" autocomplete="email" required dir="ltr"></label>`}
+    ${m==='newpw'?'<div class="note">בחרו סיסמה חדשה.</div>':`<label>מייל<input type="email" id="au-e" autocomplete="email" required dir="ltr" value="${esc(lastGet().startsWith('admin:')?lastGet().slice(6):'')}"></label>`}
     ${m==='reset'?'':`<label>${m==='admin'?'סיסמה':'סיסמה חדשה (לפחות 8 תווים)'}<input type="password" id="au-p" autocomplete="${m==='admin'?'current-password':'new-password'}" minlength="${m==='admin'?1:8}" required></label>`}
     ${m==='signup'||m==='newpw'?'<label>שוב את הסיסמה<input type="password" id="au-p2" autocomplete="new-password" required></label>':''}${msg}
     <button class="btn primary">${m==='admin'?'כניסה':m==='signup'?'יצירת סיסמה וכניסה':m==='reset'?'שליחת קישור לאיפוס':'שמירת הסיסמה'}</button>
@@ -1378,9 +1381,9 @@ function renderAuth(){
     ${m==='newpw'?'':'<button type="button" class="btn small" data-aumode="role" style="justify-self:start">חזרה לכניסה רגילה</button>'}</form>`)}
 async function authSubmit(){const g=id=>(document.getElementById(id)?.value||'').trim(),m=AUTH.mode,sb=AUTH.sb;AUTH.msg='';
   const fail=t=>{AUTH.msg=t;renderAuth()};
-  if(m==='role'||m==='login'){const {data,error}=await sb.auth.signInWithPassword({email:RMAIL(g('au-r')),password:document.getElementById('au-p').value});if(error)return fail('הסיסמה לא נכונה');return loadMember(data.user)}
+  if(m==='role'||m==='login'){const {data,error}=await sb.auth.signInWithPassword({email:RMAIL(g('au-r')),password:document.getElementById('au-p').value});if(error)return fail('הסיסמה לא נכונה');lastSet(g('au-r'));return loadMember(data.user)}
   if((m==='signup'||m==='newpw')&&g('au-p')!==g('au-p2'))return fail('הסיסמאות לא זהות');
-  if(m==='admin'){const {data,error}=await sb.auth.signInWithPassword({email:g('au-e'),password:g('au-p')});if(error)return fail('המייל או הסיסמה לא נכונים');return loadMember(data.user)}
+  if(m==='admin'){const {data,error}=await sb.auth.signInWithPassword({email:g('au-e'),password:g('au-p')});if(error)return fail('המייל או הסיסמה לא נכונים');lastSet('admin:'+g('au-e'));return loadMember(data.user)}
   if(m==='signup'){const {data,error}=await sb.auth.signUp({email:g('au-e'),password:g('au-p')});if(error)return fail(/registered/i.test(error.message)?'למייל הזה כבר יש סיסמה. היכנסו או לחצו "שכחתי סיסמה"':'לא הצלחנו ליצור סיסמה: '+error.message);
     if(data.session)return loadMember(data.user);AUTH.mode='admin';return fail('נשלח אליכם מייל אישור. אשרו אותו ואז היכנסו')}
   if(m==='reset'){const {error}=await sb.auth.resetPasswordForEmail(g('au-e'),{redirectTo:location.origin+location.pathname});AUTH.mode='admin';return fail(error?'לא הצלחנו לשלוח: '+error.message:'אם המייל קיים, נשלח אליו קישור לאיפוס הסיסמה')}
