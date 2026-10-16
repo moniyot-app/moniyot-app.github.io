@@ -116,3 +116,28 @@ begin
 end $$;
 revoke execute on function public.remove_person(text) from anon;
 grant execute on function public.remove_person(text) to authenticated;
+-- v4: princess = manager without CEO (and without role passwords)
+create or replace function public.is_mgr() returns boolean
+language sql stable as $$ select public.my_roles() && array['admin','princess'] $$;
+drop policy if exists kv_ins on public.kv;
+create policy kv_ins on public.kv for insert to authenticated with check (
+  public.has_role('admin')
+  or (public.has_role('princess') and key <> 'nightDeleg')
+  or (key in ('destinations','north','prices','mins','lines','dismissed') and public.has_role('disp'))
+  or (key = 'nightDeleg' and public.has_role('ceo'))
+  or (key not in ('clients','dayOverride','freeDays','restricted','blocked','ownWins','genFlights','destinations','north','prices','mins','nightDeleg') and public.is_member())
+);
+drop policy if exists kv_upd on public.kv;
+create policy kv_upd on public.kv for update to authenticated using (public.is_member()) with check (
+  public.has_role('admin')
+  or (public.has_role('princess') and key <> 'nightDeleg')
+  or (key in ('destinations','north','prices','mins','lines','dismissed') and public.has_role('disp'))
+  or (key = 'nightDeleg' and public.has_role('ceo'))
+  or (key not in ('clients','dayOverride','freeDays','restricted','blocked','ownWins','genFlights','destinations','north','prices','mins','nightDeleg') and public.is_member())
+);
+drop policy if exists kv_del on public.kv;
+create policy kv_del on public.kv for delete to authenticated using (public.is_mgr());
+drop policy if exists r_del on public.rides;
+create policy r_del on public.rides for delete to authenticated using (public.is_mgr());
+drop policy if exists p_wr on public.people;
+create policy p_wr on public.people for all to authenticated using (public.is_mgr() or public.has_role('disp')) with check (public.is_mgr() or public.has_role('disp'));

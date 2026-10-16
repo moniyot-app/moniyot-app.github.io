@@ -483,14 +483,15 @@ try{ui.authed=sessionStorage.getItem('taxi-disp')==='1';ui.admAuthed=sessionStor
 try{const v=sessionStorage.getItem('taxi-client');if(v&&(v===PID||S.clients.some(c=>c.id===v))){ui.cid=v;ui.cAuth=v}}catch(e){}
 ui.welcome=true;try{ui.welcome=localStorage.getItem('taxi-welcome')!=='0'}catch(_){}
 /* roles: ops (מבצעים + בוס גדול), disp (סדרן), admin (המנהלת: הכול). The password decides the role. */
-const ROLEP={ops:['guide','client'],disp:['guide','dispatcher'],admin:['guide','client','dispatcher','admin'],ceo:['guide','admin']};
-const ROLEG={ops:['ops','boss'],disp:['disp'],admin:['ops','boss','disp','adm'],ceo:['adm']};
+const ROLEP={ops:['guide','client'],disp:['guide','dispatcher'],admin:['guide','client','dispatcher','admin'],princess:['guide','client','dispatcher','admin'],ceo:['guide','admin']};
+const MGR=()=>ui.role==='admin'||ui.role==='princess';
+const ROLEG={ops:['ops','boss'],disp:['disp'],admin:['ops','boss','disp','adm'],princess:['ops','boss','disp','adm'],ceo:['adm']};
 const HASHR={'#ops':'ops','#disp':'disp','#dispatcher':'disp','#admin':'admin'};
 ui.role=null;try{const r=sessionStorage.getItem('taxi-role');if(ROLEP[r])ui.role=r}catch(_){}
 ui.entry=HASHR[location.hash]||null;
 if(ui.entry)ui.page={ops:'client',disp:'dispatcher',admin:'admin'}[ui.entry];
-if(ui.role!=='admin'){ui.admAuthed=false}if(!ui.role){ui.authed=false;ui.cAuth=null}
-const setRole=r=>{if(ui.role==='admin')return;ui.role=r;try{sessionStorage.setItem('taxi-role',r)}catch(_){}};
+if(!MGR()){ui.admAuthed=false}if(!ui.role){ui.authed=false;ui.cAuth=null}
+const setRole=r=>{if(MGR())return;ui.role=r;try{sessionStorage.setItem('taxi-role',r)}catch(_){}};
 function fullLogout(){ui.role=null;ui.cAuth=null;ui.authed=false;ui.admAuthed=false;ui.ceoAuthed=false;ui.mgrAuthed=[];ui.sub='orders';
   try{['taxi-role','taxi-client','taxi-disp','taxi-adm'].forEach(k=>sessionStorage.removeItem(k))}catch(_){}ui.page=ui.entry==='disp'?'dispatcher':ui.entry==='admin'?'admin':'client';render()}
 function loginChooser(){if(ui.entry)return '';const cur=ui.page==='dispatcher'?'disp':ui.page==='admin'?'admin':'ops';
@@ -513,8 +514,8 @@ function meter(c,extra=0){
 function tag(t){return `<span class="tag t-${t}">${TYPE[t]}</span>`}
 function route(r){const s=(r.stops||[]).map(esc);return (r.dir==='to'?[esc(r.dest),...s,esc(baseOf(r))]:[esc(baseOf(r)),...s,esc(r.dest)]).join(' ← ')}
 const mergedStops=(a,b)=>[...new Set([...(a.stops||[]),...(b.dest!==a.dest?[b.dest]:[]),...(b.stops||[])])].filter(x=>x!==a.dest);
-const byTxt=r=>{const b=r.cancelBy;if(!b)return '';return ' · ע״י '+(b.k==='ops'?(b.cid===PID?'נסיכות':'מבצעים '+(client(b.cid)?.name||'')):b.k==='disp'?'הסדרן':b.k==='boss'?'הבוס הגדול':b.k==='ceo'?'המנכ״ל':b.k==='admin'?'המנהלת':'')};
-const cancelActor=()=>ui.page==='client'?(ui.role==='admin'?{k:'admin'}:{k:'ops',cid:ui.cid}):ui.role==='admin'?{k:'admin'}:{k:'disp'};
+const byTxt=r=>{const b=r.cancelBy;if(!b)return '';return ' · ע״י '+(b.k==='ops'?(b.cid===PID?'נסיכות':'מבצעים '+(client(b.cid)?.name||'')):b.k==='disp'?'הסדרן':b.k==='boss'?'הבוס הגדול':b.k==='ceo'?'המנכ״ל':b.k==='admin'?'המנהלת':b.k==='princess'?'נסיכות':'')};
+const cancelActor=()=>ui.role==='princess'?{k:'princess'}:ui.page==='client'?(ui.role==='admin'?{k:'admin'}:{k:'ops',cid:ui.cid}):ui.role==='admin'?{k:'admin'}:{k:'disp'};
 const lateWhy=r=>r.status==='active'?'המונית כבר הוזמנה':'פחות מ־3 שעות לנסיעה';
 function statusOf(r){
   if(r.status==='merged')return '<span class="st st-merged">אוחדה לנסיעה אחרת</span>';
@@ -606,7 +607,7 @@ const needsOf=r=>Array.isArray(r.needs)?r.needs:r.needs?[r.needs]:[];
 function groupByDay(list){const g={};list.forEach(r=>{(g[ymd(new Date(r.ts))]??=[]).push(r)});return Object.entries(g).sort()}
 
 /* ---------- client page ---------- */
-function subTabs(c){return `${ui.welcome?`<div class="tip welcome"><span>👋 פעם ראשונה כאן? בהוראות השימוש מוסבר בפשטות איך רושמים נוסעים ומזמינים מונית.</span><span class="row" style="gap:6px"><button class="btn small primary" data-welcome="guide">להוראות השימוש</button><button class="btn small" data-welcome="hide">הסתרה</button></span></div>`:''}<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span><button class="btn small" id="clogout">${ui.role==='admin'?'החלפת מבצעים':'יציאה'}</button></div>
+function subTabs(c){return `${ui.welcome?`<div class="tip welcome"><span>👋 פעם ראשונה כאן? בהוראות השימוש מוסבר בפשטות איך רושמים נוסעים ומזמינים מונית.</span><span class="row" style="gap:6px"><button class="btn small primary" data-welcome="guide">להוראות השימוש</button><button class="btn small" data-welcome="hide">הסתרה</button></span></div>`:''}<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span><button class="btn small" id="clogout">${MGR()?'החלפת מבצעים':'יציאה'}</button></div>
   ${isP(c.id)?`<div class="tip">★ <b>הרשאת נסיכות:</b> אפשר להזמין מוניות לכל הנוסעים מכל המבצעים. כל מונית יורדת מהסל של המבצעים שהנוסעים שייכים אליהם, לפי מספר הנוסעים.</div><div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="true">הזמנות</button></div>${noticeBox(c.id)}`:`<div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMerges(c.id).filter(x=>!x.voted).length?`<span class="count soft">${myMerges(c.id).filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="plan" aria-selected="${ui.sub==='plan'}">תכנון חודשי</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button><button role="tab" class="tab-boss" data-sub="manager" aria-selected="${ui.sub==='manager'}"><span aria-hidden="true">★</span> בוס גדול${mgrPending(c.id).length?`<span class="count">${mgrPending(c.id).length}</span>`:''}</button></div>${noticeBox(c.id)}`}`}
 const UPD={confirmed:['ok','✓ הסדרן אישר: המונית הוזמנה'],driver:['ok','🚕 התקבלו פרטי נהג'],tod:['info','✓ ההחרגה אושרה. ההזמנה עברה לסדרן'],bossok:['info','✓ הבוס הגדול אישר. ממתינה עוד לאישור'],ceook:['info','✓ המנכ״ל אישר. ממתינה עוד לאישור'],
   bossno:['bad','✕ הבוס הגדול דחה את ההחרגה. ההזמנה בוטלה'],ceono:['bad','✕ המנכ״ל דחה את נסיעת הלילה. ההזמנה בוטלה'],cancelled:['bad','✕ ההזמנה בוטלה'],dispcancel:['bad','✕ הסדרן ביטל את ההזמנה'],late:['bad','✕ ההזמנה בוטלה אחרי שהמונית הוזמנה או פחות מ־3 שעות לפני. נספרת בסל'],merged:['info','🔗 ההזמנה אוחדה עם הזמנה אחרת'],route:['info','🧭 הסדרן שינה את סדר התחנות כדי לקצר את הנסיעה. שעות האיסוף עודכנו']};
@@ -787,10 +788,10 @@ function renderPlan(c){const now=new Date(),curK=ymd(now).slice(0,7),nextK=ymd(n
   </section>`;
 }
 function renderClientLogin(){
-  app.innerHTML=`<form class="panel gate" id="clogin"><h2>${ui.role==='admin'?'צפייה במבצעים':'כניסה למבצעים'}</h2>
+  app.innerHTML=`<form class="panel gate" id="clogin"><h2>${MGR()?'צפייה במבצעים':'כניסה למבצעים'}</h2>
     <label>מבצעים<select id="lcid">${S.clients.map(x=>`<option value="${x.id}" ${x.id===ui.cid?'selected':''}>${esc(x.name)}</option>`).join('')}<option value="${PID}" ${ui.cid===PID?'selected':''}>★ נסיכות (הרשאה מורחבת)</option></select></label>
-    ${ui.role==='admin'?'<input type="hidden" id="lpw"><div class="note">כמנהלת אפשר להיכנס לכל אחד מהמבצעים בלי סיסמה.</div>':'<label>סיסמה<input type="password" id="lpw" autocomplete="current-password"></label>'}
-    <div class="note"${ui.role==='admin'?' hidden':''}>לכל אחד מהמבצעים יש סיסמה משלו, שהמנהלת קובעת בלשונית "סלים". בנתוני הדוגמה: 1111 למבצעים הראשונים, 2222 לשנייה וכן הלאה.</div>
+    ${MGR()?`<input type="hidden" id="lpw"><div class="note">${ui.role==='princess'?'כנסיכות':'כמנהלת'} אפשר להיכנס לכל אחד מהמבצעים בלי סיסמה.</div>`:'<label>סיסמה<input type="password" id="lpw" autocomplete="current-password"></label>'}
+    <div class="note"${MGR()?' hidden':''}>לכל אחד מהמבצעים יש סיסמה משלו, שהמנהלת קובעת בלשונית "סלים". בנתוני הדוגמה: 1111 למבצעים הראשונים, 2222 לשנייה וכן הלאה.</div>
     <div class="note" id="lerr" style="color:var(--bad)" hidden>הסיסמה לא מתאימה למבצעים שנבחרו. נסו שוב.</div>
     <button class="btn primary">כניסה</button></form>`;
 }
@@ -1076,7 +1077,7 @@ function renderDispatcher(){
   if(ADM&&!ui.admAuthed){app.innerHTML=`<form class="panel gate adm-panel" id="admgate"><h2>כניסת המנהלת</h2><div class="note">אישורי מנכ״ל, מעקב והוצאות, לוח שנה ואישור נוסעים. בנתוני הדוגמה הסיסמה היא 2468.</div>
     <label>סיסמה<input type="password" id="admpw" autocomplete="current-password"></label><div class="note" id="admerr" style="color:var(--bad)" hidden>סיסמה שגויה.</div><button class="btn primary">כניסה</button></form>`;return}
   if(!ADM&&ui.ceoOnly){app.innerHTML=renderCeo();return}
-  if(!ADM&&!ui.authed&&ui.role!=='admin'){app.innerHTML=`<form class="panel gate" id="gate"><h2>כניסת סדרן</h2>
+  if(!ADM&&!ui.authed&&!MGR()){app.innerHTML=`<form class="panel gate" id="gate"><h2>כניסת סדרן</h2>
     <label>סיסמה<input type="password" id="pw" autocomplete="current-password"></label>
     <div class="note">באב־טיפוס הסיסמה היא 1234. אבטחה אמיתית תיבנה בשלב העלאה לאוויר.</div>
     <div class="note" id="pwerr" style="color:var(--bad)" hidden>סיסמה שגויה. נסו שוב.</div>
@@ -1086,7 +1087,7 @@ function renderDispatcher(){
   const sug=suggestions();
   const hot=S.clients.map(c=>({c,p:used(c.id)/limit(c)})).filter(x=>x.p>=.9).sort((a,b)=>b.p-a.p);
   const awn=S.rides.filter(r=>r.status==='awaiting').length;
-  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','אישור נוסעים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',0]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo');
+  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','אישור נוסעים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',0]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
   if(ADM){const ORD=['calendar','paxreq','quotas','costs','ceo','users'];tabs.sort((a,b)=>ORD.indexOf(a[0])-ORD.indexOf(b[0]))}
   if(!tabs.some(([k])=>k===ui.tab))ui.tab=tabs[0][0];
   let body='';
@@ -1166,7 +1167,7 @@ function renderDispatcher(){
   if(ADM){app.innerHTML=`<div class="row" style="justify-content:space-between"><h1 style="font-size:1.4rem">המנהלת</h1><button class="btn small" id="admlogout">יציאה</button></div>
     ${(npq||ceoPending().length)?`<div class="alerts">${ceoPending().length?`<span class="alert bad">${ceoPending().length} נסיעות לילה ממתינות לאישור מנכ״ל</span>`:''}${npq?`<span class="alert warn">${npq} בקשות נוסעים לאישור</span>`:''}</div>`:''}
     <section class="panel"><div class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-tab="${k}"${k==='ceo'?' class="tab-ceo"':''} aria-selected="${ui.tab===k}">${l}${n?`<span class="count">${n}</span>`:''}</button>`).join('')}</div>${body}</section>`;return}
-  app.innerHTML=`<div class="row" style="justify-content:space-between"><h1 style="font-size:1.4rem">לוח סדרן</h1><span class="row" style="gap:6px"><button class="btn small" id="sound" aria-pressed="${ui.sound}">${ui.sound?'🔔 התראה קולית פועלת':'🔕 התראה קולית כבויה'}</button>${ui.role==='admin'?'':'<button class="btn small" id="logout">יציאה</button>'}</span></div>
+  app.innerHTML=`<div class="row" style="justify-content:space-between"><h1 style="font-size:1.4rem">לוח סדרן</h1><span class="row" style="gap:6px"><button class="btn small" id="sound" aria-pressed="${ui.sound}">${ui.sound?'🔔 התראה קולית פועלת':'🔕 התראה קולית כבויה'}</button>${MGR()?'':'<button class="btn small" id="logout">יציאה</button>'}</span></div>
     ${(()=>{const urg=S.rides.filter(r=>r.status==='awaiting'&&isUrgent(r)).length,lineDue=new Date().getHours()>=22&&!lineOf(ymd(new Date(Date.now()+DAY)));
       const act=[awn?`<button class="alert" data-tab="board">🚕 ${awn} הזמנות חדשות ממתינות לאישורך${urg?` (מתוכן ${urg} ⚡ מתפרצות)`:''}</button>`:'',lineDue?'<button class="alert" data-tab="line">🌙 הגיע זמן יישור הקו של מחר</button>':'',(()=>{const n=routeTips().length;return n?`<button class="alert" data-tab="board" data-openroutes="1">🧭 ${n} נסיעות עם מסלול שאפשר לקצר</button>`:''})()].filter(Boolean);
       const st=S.clients.map(c=>{const p=used(c.id)/limit(c),pb=pend.filter(r=>clientsOf(r).includes(c.id)).length;return `<span class="ops-st ${p>1?'bad':p>=.9?'warn':''}" data-tip="${esc(c.name)} · ${fmt(used(c.id))} מתוך ${limit(c)} מוניות${pb?` · ${pb} ממתינות להחרגה (בוס גדול או מנכ״ל)`:''}">${opsDot(c.id)}${esc(c.name)} <b class="num">${Math.round(p*100)}%</b>${p>1?' חריגה':''}${pb?` · ⏳${pb}`:''}</span>`}).join('');
@@ -1257,10 +1258,11 @@ async function loadMember(user){AUTH.user=user;
   AUTH.member=data;AUTH.state='in';const R=data.roles||[];
   ui.ceoAuthed=R.includes('ceo');ui.mgrAuthed=[];
   if(R.includes('admin')){ui.role='admin';ui.admAuthed=true;ui.authed=true}
+  else if(R.includes('princess')){ui.role='princess';ui.admAuthed=true;ui.authed=true}
   else if(R.includes('disp')){ui.role='disp';ui.authed=true}
   else if(R.includes('ceo')&&!R.includes('ops')&&!R.includes('princess')){ui.role='ceo';ui.admAuthed=true;ui.tab='ceo'}
   else{ui.role='ops';const cid=R.includes('princess')?PID:data.cid;ui.cid=cid;ui.cAuth=cid;if(R.includes('boss'))ui.mgrAuthed=[cid]}
-  ui.page={admin:'admin',ceo:'admin',disp:'dispatcher',ops:'client'}[ui.role];if(ui.role==='admin')ui.tab='calendar';if(ui.role==='disp')ui.tab='board';
+  ui.page={admin:'admin',princess:'admin',ceo:'admin',disp:'dispatcher',ops:'client'}[ui.role];if(MGR())ui.tab='calendar';if(ui.role==='disp')ui.tab='board';
   DB=sbDb(AUTH.sb);render();initDb()}
 const RMAIL=k=>'noampatishi+'+k+'@gmail.com'; /* role accounts: never emailed (confirmation is off) */
 const roleKeys=()=>[...S.clients.flatMap(c=>[{k:'ops-'+c.id,label:'מבצעים · '+c.name,roles:['ops'],cid:c.id},{k:'boss-'+c.id,label:'בוס גדול · '+c.name,roles:['ops','boss'],cid:c.id}]),
@@ -1452,9 +1454,9 @@ document.addEventListener('click',e=>{
   if(t.dataset.deldest){S.destinations.splice(+t.dataset.deldest,1);save();render();return}
   if(t.dataset.delfree){S.freeDays=S.freeDays.filter(x=>x!==t.dataset.delfree);save();render();return}
   if(t.dataset.delblock){const ds=ui.calSel||ymd(new Date());if(/^g\d$/.test(t.dataset.delblock)){ownWins(ds);const i=+t.dataset.delblock.slice(1),gf=genFor(ds)[i];const m=S.blocked.find(x=>x.date===ds&&x.from===gf.from&&x.to===gf.to);S.blocked=S.blocked.filter(x=>x!==m);save();render();return}S.blocked=S.blocked.filter(x=>x.id!==t.dataset.delblock);save();render();return}
-  if(t.id==='clogout'&&ui.role!=='admin'){fullLogout();return}
+  if(t.id==='clogout'&&!MGR()){fullLogout();return}
   if(t.id==='clogout'){ui.cAuth=null;ui.mgrAuthed=[];ui.sub='orders';try{sessionStorage.removeItem('taxi-client')}catch(_){}render();return}
-  if(PROD&&(t.id==='admlogout'||t.id==='glogout'||t.id==='authout'||t.id==='logout'||t.id==='clogout'&&ui.role!=='admin')){AUTH.sb.auth.signOut().finally(()=>{try{localStorage.removeItem(KEY)}catch(_){}location.reload()});return}
+  if(PROD&&(t.id==='admlogout'||t.id==='glogout'||t.id==='authout'||t.id==='logout'||t.id==='clogout'&&!MGR())){AUTH.sb.auth.signOut().finally(()=>{try{localStorage.removeItem(KEY)}catch(_){}location.reload()});return}
   if(t.dataset.aumode){AUTH.mode=t.dataset.aumode;AUTH.msg='';renderAuth();return}
   if(t.dataset.rpsave){rolePwSave(t.dataset.rpsave);return}
   if(t.id==='admlogout'||t.id==='glogout'){fullLogout();return}
@@ -1475,7 +1477,8 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
     const ph=document.getElementById('pxp').value.replace(/\D/g,'');if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר טלפון לא תקין. למשל 050-1234567');return}
     paxReq().push({id:'q'+Date.now(),cid:ui.cid,name:n,phone:ph,type:document.getElementById('pxt').value,status:'pending'});save();toast('הבקשה נשלחה לסדרן');render();return}
   if(f.id==='clogin'){const id=document.getElementById('lcid').value,c=client(id);
-    if(c&&(ui.role==='admin'||document.getElementById('lpw').value===(isP(id)?(S.princessPw||'7777'):c.pw))){setRole('ops');ui.cid=id;ui.cAuth=id;ui.knownNt=ntIds(id);ui.draft.pax=[];ui.sub='orders';try{sessionStorage.setItem('taxi-client',id)}catch(_){}render()}
+    if(c&&isP(id)&&!MGR()&&document.getElementById('lpw').value===(S.princessPw||'7777')){ui.role='princess';try{sessionStorage.setItem('taxi-role','princess');sessionStorage.setItem('taxi-adm','1')}catch(_){}ui.admAuthed=true;ui.authed=true;ui.page='admin';ui.tab='calendar';render();return}
+    if(c&&(MGR()||document.getElementById('lpw').value===(isP(id)?(S.princessPw||'7777'):c.pw))){setRole('ops');ui.cid=id;ui.cAuth=id;ui.knownNt=ntIds(id);ui.draft.pax=[];ui.sub='orders';try{sessionStorage.setItem('taxi-client',id)}catch(_){}render()}
     else document.getElementById('lerr').hidden=false;return}
   if(f.id==='mgate'){const c=client(ui.cid),v=document.getElementById('mpw').value;if(c.bossPhone?v.replace(/\D/g,'')===c.bossPhone:v==='5678'){ui.mgrAuthed.push(ui.cid);render()}else document.getElementById('mpwerr').hidden=false;return}
   if(f.id==='add-dest'){const v=document.getElementById('nd').value.trim();if(v&&!S.destinations.includes(v)){S.destinations.push(v);if(document.getElementById('nr').value==='north')S.north.push(v)}save();render();return}
