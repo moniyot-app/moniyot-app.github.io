@@ -559,6 +559,8 @@ ui.welcome=true;try{ui.welcome=localStorage.getItem('taxi-welcome')!=='0'}catch(
 const ROLEP={ops:['guide','client'],disp:['guide','dispatcher'],admin:['guide','client','dispatcher','admin'],princess:['guide','client','dispatcher','admin'],ceo:['guide','admin']};
 const MGR=()=>ui.role==='admin'||ui.role==='princess';
 const ROLEG={ops:['ops','boss'],disp:['disp'],admin:['adm','ops','boss','disp','princess','ceo'],princess:['princess','adm','ops','boss','disp'],ceo:['ceo']};
+/* training sandbox: no manager page (and so no CEO/admin tabs) */
+if(TRAIN){ROLEP.princess=['guide','client','dispatcher'];ROLEG.princess=['princess','ops','boss','disp'];delete ROLEP.admin;delete ROLEP.ceo}
 const HASHR={'#ops':'ops','#disp':'disp','#dispatcher':'disp','#admin':'admin'};
 ui.role=null;try{const r=sessionStorage.getItem('taxi-role');if(ROLEP[r])ui.role=r}catch(_){}
 ui.entry=HASHR[location.hash]||null;
@@ -569,7 +571,7 @@ function fullLogout(){ui.role=null;ui.cAuth=null;ui.authed=false;ui.admAuthed=fa
   try{['taxi-role','taxi-client','taxi-disp','taxi-adm'].forEach(k=>sessionStorage.removeItem(k))}catch(_){}ui.page=ui.entry==='disp'?'dispatcher':ui.entry==='admin'?'admin':'client';render()}
 function loginChooser(){if(ui.entry)return '';const cur=ui.page==='dispatcher'?'disp':ui.page==='admin'?'admin':'ops';
   return `<div class="panel gate" style="margin-bottom:0;padding-bottom:0"><h2>ברוכים הבאים ל"רמוניות"</h2><div class="note">בחרו מי אתם ונכנסים עם הסיסמה שקיבלתם. כל אחד רואה רק את מה ששייך לו.</div>
-    <div class="tabs" role="tablist">${[['ops','מבצעים','client'],['disp','סדרן','dispatcher'],['admin','המנהלת','admin']].map(([k,l,pg])=>`<button role="tab" data-entrypg="${pg}" aria-selected="${cur===k}">${l}</button>`).join('')}</div></div>`}
+    <div class="tabs" role="tablist">${[['ops','מבצעים','client'],['disp','סדרן','dispatcher'],['admin','המנהלת','admin']].filter(([k])=>!TRAIN||k!=='admin').map(([k,l,pg])=>`<button role="tab" data-entrypg="${pg}" aria-selected="${cur===k}">${l}</button>`).join('')}</div></div>`}
 const app=document.getElementById('app');
 let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
 
@@ -1625,7 +1627,7 @@ async function rolePwSave(k){const r=roleKeys().find(x=>x.k===k),pw=(document.ge
 
 const confirmDel=t=>{if(t.dataset.sure){return true}t.dataset.sure='1';t.textContent='בטוח? ללחוץ שוב';setTimeout(()=>{if(t.isConnected){delete t.dataset.sure;t.textContent='הסרה'}},4000);return false};
 /* ---------- render + events ---------- */
-function render(){if(TRAIN){document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 <b>קשה באימונים, קל בקרב</b> · מצב אימון: חברות ונוסעים פיקטיביים, בלי סיסמאות. מה שעושים כאן נשמר רק במכשיר הזה ולא מגיע לאף אחד.</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
+function render(){if(TRAIN){if(ui.page==='admin')ui.page='client';const na=document.getElementById('nav-adm');if(na)na.style.display='none';document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 <b>קשה באימונים, קל בקרב</b> · מצב אימון: חברות ונוסעים פיקטיביים, בלי סיסמאות. מה שעושים כאן נשמר רק במכשיר הזה ולא מגיע לאף אחד.</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
   if(PROD&&AUTH.state!=='in'){['nav-guide','nav-client','nav-disp','nav-adm','glogout'].forEach(id=>{document.getElementById(id).hidden=true});renderAuth();return}
   const allowed=ui.role?ROLEP[ui.role]:[];
   if(!ui.role){if(!['client','dispatcher','admin'].includes(ui.page))ui.page='client'}
