@@ -511,16 +511,16 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
   else if(new Set([d.dest,...st]).size!==st.length+1)add('block','אותה עיר מופיעה פעמיים במסלול. לנוסע מכתובת אחרת באותה עיר, כתבו את הכתובת ליד שמו');
   else if(st.length)add('ok',`${st.length+1} נקודות במסלול`);
   const free=isFree(sD);
-  const PR=isP(ui.cid); /* the princess may order a taxi even when a flight or minibus is the alternative */
+  const PR=isP(ui.cid)&&!!d.house; /* princess, on the house only: may order even when a flight or minibus is the alternative, for any passenger type */
   if(free)add('ok','יום מוניות: אין שעות חסומות');
-  else if(PR)add('ok','לנסיכות אין הגבלה של שעות טיסה או מיניבוס');
+  else if(PR)add('ok','על חשבון הבית: אין הגבלה של שעות טיסה או מיניבוס');
   else{const sc=sched(d),en=sc?new Date(sc.end):null,b=rideBlock(d);
     if(b){const K=WK(b.date||sD);add('block',`${K.day}: ${K.n} ב־${winTxt(b)}${b.note&&b.note!=='טיסה'?` (${b.note})`:''}. אי אפשר להזמין מונית שנוסעת בין ${fromM(toM(b.from)-BUF)} ל־${fromM(toM(b.to)+BUF)}`);}
     else add('ok','השעה אינה חסומה');}
   const types=d.pax.map(p=>emp(p)?.type);
   const dty=dayType(sD);
   if(dty==='free')add('ok','יום מוניות: כל סוגי הנוסעים זכאים');
-  else if(PR)add('ok',`${dty==='restricted'?'יום אווירי':'יום קרקעי'}: לנסיכות כל סוגי הנוסעים זכאים`);
+  else if(PR)add('ok',`${dty==='restricted'?'יום אווירי':'יום קרקעי'}, על חשבון הבית: כל סוגי הנוסעים זכאים`);
   else if(dty==='restricted'){if(!types.some(t=>t==='business'||t==='premium'))add('block','יום אווירי: נוסע מסוג תיירים יכול לנסוע רק יחד עם נוסע ביזנס או פרימיום');else add('ok','יום אווירי: הרכב הנוסעים תקין');}
   else{if(!types.includes('business'))add('block','יום קרקעי: חייב להיות במונית לפחות נוסע ביזנס אחד. פרימיום ותיירים יכולים רק להצטרף אליו');else add('ok','יום קרקעי: יש במונית נוסע ביזנס');}
   if(isNight(d)&&!(d.reason||'').trim())add('block','נסיעת לילה: כתבו פירוט של הבקשה, כדי שהמאשר/ת יוכלו להחליט');
@@ -902,7 +902,7 @@ function smartDraft(grp,o){const cs0=[...new Set(grp.map(x=>x.city))];let cs=cs0
 const pDur=(d,p)=>{const t=paxTimes(d,p);return t?t.end-t.start:0};
 /* who may ride without a companion on this kind of day: taxi day everyone; air day business/premium; ground day business only */
 const canAnchor=(p,ty)=>{const t=emp(p)?.type;return ty==='free'||t==='business'||(ty==='restricted'&&t==='premium')};
-function smartPlan(items,o){const cap=o.allow4?4:3,MAXX=(MAXEXTRA+5)*MIN /* +5: times are rounded to 5 minutes */,ty=isP(ui.cid)?'free':dayType(o.date);
+function smartPlan(items,o){const cap=o.allow4?4:3,MAXX=(MAXEXTRA+5)*MIN /* +5: times are rounded to 5 minutes */,ty=isP(ui.cid)&&o.house?'free':dayType(o.date);
   const byFar=(a,b)=>kmBase(b.city)-kmBase(a.city),solo=Object.fromEntries(items.map(x=>[x.p,pDur(smartDraft([x],o),x.p)]));
   const A=items.filter(x=>canAnchor(x.p,ty)).sort(byFar),R=items.filter(x=>!canAnchor(x.p,ty)).sort(byFar),out=[],unplaced=[];
   /* can x join this taxi? same city, or within 10 km of its route, max 4 stations, nobody's ride grows by more than ~15 min */
@@ -941,7 +941,7 @@ function renderSmart(c){const sm=ui.smart||(ui.smart={date:ymd(new Date(Date.now
   </section>
   ${plan?`<section class="panel"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>התוצאה: ${plan.some(x=>x.leg==='b')?`${plan.filter(x=>x.leg==='a').length} מוניות בהלוך · ${plan.filter(x=>x.leg==='b').length} בחזור`:`${plan.length} מוניות ל־${plan.reduce((a,x)=>a+x.d.pax.length,0)} נוסעים`}</h2>
       ${plan.some(x=>!x.booked&&!x.block)?`<button class="btn primary" data-smbook="1">הזמנת כל המוניות התקינות (${plan.filter(x=>!x.booked&&!x.block).length})</button>`:''}</div>
-    ${sm.ty==='normal'?'<div class="tip">יום קרקעי: יש מענה במיניבוסים, ובמונית חייב להיות לפחות נוסע ביזנס אחד. לכן המוניות נבנו סביב נוסעי הביזנס, ופרימיום ותיירים שובצו איתם.</div>':sm.ty==='restricted'?'<div class="tip">יום אווירי: יש מענה בטיסה. תיירים נוסעים רק עם ביזנס או פרימיום, ולכן המוניות נבנו סביבם. מוניות לא יכולות לנסוע 45 דקות לפני ואחרי טיסה.</div>':`<div class="tip">${isP(ui.cid)&&dayType(sm.date)!=='free'?'לנסיכות כל סוגי הנוסעים זכאים, גם כשיש טיסה או מיניבוס.':'יום מוניות: כל סוגי הנוסעים זכאים.'}</div>`}
+    ${sm.ty==='normal'?'<div class="tip">יום קרקעי: יש מענה במיניבוסים, ובמונית חייב להיות לפחות נוסע ביזנס אחד. לכן המוניות נבנו סביב נוסעי הביזנס, ופרימיום ותיירים שובצו איתם.</div>':sm.ty==='restricted'?'<div class="tip">יום אווירי: יש מענה בטיסה. תיירים נוסעים רק עם ביזנס או פרימיום, ולכן המוניות נבנו סביבם. מוניות לא יכולות לנסוע 45 דקות לפני ואחרי טיסה.</div>':`<div class="tip">${isP(ui.cid)&&sm.house&&dayType(sm.date)!=='free'?'על חשבון הבית: כל סוגי הנוסעים זכאים, גם כשיש טיסה או מיניבוס.':'יום מוניות: כל סוגי הנוסעים זכאים.'}</div>`}
     ${(sm.unplaced||[]).length?`<div class="over" role="alert"><strong>${sm.unplaced.length} שיבוצים חסרים</strong>${sm.unplaced.map(u=>`<div>${plan.some(x=>x.leg==='b')?(u.leg==='b'?'חזור · ':'הלוך · '):''}${esc(emp(u.x.p)?.name||'')} ${tag(emp(u.x.p)?.type||'regular')} · ${esc(u.x.city)}: ${esc(u.why)}</div>`).join('')}</div>`:''}
     <div class="note">כל מונית עוברת את אותה בדיקה כמו הזמנה רגילה. מונית עם נוסע בודד תמתין לאישור הבוס הגדול. מונית עם בעיה (אדום) אפשר להעביר לטופס ההזמנה ולתקן.${booked?` · <b>הוזמנו ${booked}</b>`:''}</div>
     ${['a','b'].filter(L=>plan.some(x=>x.leg===L)).map(L=>`${plan.some(x=>x.leg==='b')?`<h3 style="margin:10px 0 4px">${L==='a'?`הלוך · הגעה ל${esc(BASE)} ב־${esc(sm.time)}`:`חזור · יציאה מ${esc(BASE)} ב־${esc(sm.end)}`}</h3>`:''}<div class="rides">${plan.map((x,i)=>{if(x.leg!==L)return '';const s2=sched(x.d);return `<div class="ride${x.booked?' dim':''}"><div class="t num">${i+1}</div><div style="min-width:0;display:grid;gap:4px">
@@ -1446,7 +1446,7 @@ const G={
    {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','"★ נסיכות"'),'נפתח עמוד ההזמנות של הנסיכות. בתפריט למעלה יש גם "המנהלת", ו"עמוד סדרן" לצפייה בסטטוס ההזמנות בלבד (בלי אישור ובלי פרטי נהג).']},
    {h:'אישור נוסע בודד של יבא',go:'adm-approvals',steps:['בלשונית "ממתין להחרגה" נסיעות של יבא עם נוסע בודד מופיעות עם הכפתורים "אישור (נסיכות)" ו"דחייה".','האישור שלך מחליף את אישור הבוס הגדול של יבא. אחריו ההזמנה עוברת לסדרן (או למנכ״ל, אם זו גם נסיעת לילה).','הבוס הגדול של יבא עדיין יכול לאשר בעצמו. מי שמאשר ראשון קובע.']},
    {h:'נוסעים ומי פנוי באלנבי',go:'ops-pax',steps:['בלשונית "נוסעים" רואים את כל הנוסעים מכל המבצעים. אפשר לערוך או להסיר.','להוספת נוסע בוחרים לאיזה מבצעים הוא שייך, וממלאים שם, סוג וטלפון. הנוסע נכנס אחרי אישור המנהלת.','ב"מי פנוי באלנבי" מופיעות הצעות לאחד הזמנות שהנסיכות הזמינה עם הזמנות אחרות. האישור שלך נחשב אישור של המבצעים של הנוסעים בהזמנה שלך.']},
-   {h:'הזמנה לכל הנוסעים',go:'ops',steps:['🏠 על חשבון הבית: לפני השליחה מסמנים "על חשבון הבית". המונית לא יורדת מאף סל, ובמעקב היא מופיעה בנפרד. אפשר גם בתכנון החכם.','אחרי הכניסה נפתח ישר עמוד ההזמנות של הנסיכות. מכל עמוד אחר חוזרים אליו ב"מבצעים" בתפריט למעלה.','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','נסיעה עם נוסע יחיד על חשבון הבית לא צריכה אישור של הבוס הגדול, והיא עוברת ישר לסדרן. בלי "על חשבון הבית" היא מחכה לבוס הגדול כרגיל. נסיעת לילה תמיד צריכה אישור מנכ״ל.','לנסיכות אין הגבלה של ימים אוויריים וקרקעיים: אפשר להזמין גם בשעות של טיסה או מיניבוס, ולכל סוג נוסע.','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
+   {h:'הזמנה לכל הנוסעים',go:'ops',steps:['🏠 על חשבון הבית: לפני השליחה מסמנים "על חשבון הבית". המונית לא יורדת מאף סל, ובמעקב היא מופיעה בנפרד. אפשר גם בתכנון החכם.','אחרי הכניסה נפתח ישר עמוד ההזמנות של הנסיכות. מכל עמוד אחר חוזרים אליו ב"מבצעים" בתפריט למעלה.','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','נסיעה עם נוסע יחיד על חשבון הבית לא צריכה אישור של הבוס הגדול, והיא עוברת ישר לסדרן. בלי "על חשבון הבית" היא מחכה לבוס הגדול כרגיל. נסיעת לילה תמיד צריכה אישור מנכ״ל.','על חשבון הבית אין הגבלה של ימים אוויריים וקרקעיים: אפשר להזמין גם בשעות של טיסה או מיניבוס, ולכל סוג נוסע. בלי "על חשבון הבית" חלות כל המגבלות הרגילות.','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
   ]},
   ceo:{title:'מנכ״ל',intro:'המנכ״ל מאשר נסיעות לילה ויכול להאציל את הסמכות לבוסים גדולים.',
    quick:['נכנסים כ"מנכ״ל".','"אישור" או "דחייה" לכל נסיעה בין 23:00 ל־06:00.','רוצים שבוס גדול יאשר בעצמו? "האצלת סמכות".'],
@@ -1798,7 +1798,7 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
 document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
   if(ui.smart&&ui.sub==='smart'&&ui.page==='client'){const sm=ui.smart;
     if(t.id==='sm-date'){sm.date=t.value;sm.plan=null;render();return}if(t.id==='sm-dir'){sm.dir=t.value;sm.plan=null;render();return}
-    if(t.id==='sm-time'){sm.time=t.value;sm.plan=null;render();return}if(t.id==='sm-4'){sm.allow4=t.checked;sm.plan=null;render();return}if(t.id==='sm-house'){sm.house=t.checked;if(sm.plan)sm.plan.forEach(x=>{x.d.house=t.checked});render();return}if(t.id==='sm-back'){sm.back=t.checked;sm.plan=null;render();return}if(t.id==='sm-end'){sm.end=t.value;sm.plan=null;render();return}
+    if(t.id==='sm-time'){sm.time=t.value;sm.plan=null;render();return}if(t.id==='sm-4'){sm.allow4=t.checked;sm.plan=null;render();return}if(t.id==='sm-house'){sm.house=t.checked;sm.plan=null;render();return}if(t.id==='sm-back'){sm.back=t.checked;sm.plan=null;render();return}if(t.id==='sm-end'){sm.end=t.value;sm.plan=null;render();return}
     if(t.dataset.smp){const p=t.dataset.smp;if(t.checked)sm.sel[p]=lastCity(p)||emp(p)?.city||'';else delete sm.sel[p];sm.plan=null;render();return}
     if(t.dataset.smc){sm.sel[t.dataset.smc]=t.value.trim();sm.plan=null;render();return}
     if(t.id==='sm-reason'){sm.reason=t.value;if(sm.plan)sm.plan.forEach(x=>{x.d.reason=t.value;smCheck(x)});render();return}
