@@ -1781,7 +1781,10 @@ document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
     if(t.dataset.smp){const p=t.dataset.smp;if(t.checked)sm.sel[p]=lastCity(p)||emp(p)?.city||'';else delete sm.sel[p];sm.plan=null;render();return}
     if(t.dataset.smc){sm.sel[t.dataset.smc]=t.value.trim();sm.plan=null;render();return}
     if(t.id==='sm-reason'){sm.reason=t.value;if(sm.plan)sm.plan.forEach(x=>{x.d.reason=t.value;smCheck(x)});render();return}
-    if(t.dataset.smaddr){const[i,j]=t.dataset.smaddr.split('|').map(Number),x=sm.plan[i];x.d.pts[j].addr=t.value.trim();syncDraft(x.d);smCheck(x);render();return}}
+    if(t.dataset.smaddr){const[i,j]=t.dataset.smaddr.split('|').map(Number),x=sm.plan[i],old=x.d.pts[j].addr||'',v=t.value.trim(),city=x.d.pts[j].city;x.d.pts[j].addr=v;syncDraft(x.d);smCheck(x);
+      /* an address typed on the way there is offered for the way back too (same passengers, same city), unless one was typed there already */
+      if(x.leg==='a'){const who=x.d.pax.filter(p=>ptOf(x.d,p)===city);let n=0;sm.plan.forEach(y=>{if(y.leg!=='b'||y.booked)return;y.d.pts.forEach(q=>{if(q.city!==city)return;if(!y.d.pax.some(p=>who.includes(p)&&ptOf(y.d,p)===city))return;if(!q.addr||q.addr===old){q.addr=v;n++}});if(n){syncDraft(y.d);smCheck(y)}});if(n)toast('הכתובת עודכנה גם בחזור')}
+      render();return}}
   if(t.id==='cid'){ui.cid=t.value;ui.knownNt=ntIds(t.value);d.pax=[];ui.ack=false;ui.confirm=null;render();return}
   if(t.id==='empcid'){ui.empCid=t.value;render();return}
   if(t.dataset.type){emp(t.dataset.type).type=t.value;save();toast('סוג הנוסע עודכן');return}
