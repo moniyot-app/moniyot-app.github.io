@@ -701,7 +701,7 @@ function reqRow(q,mode){const[cl,lb]=REQST[q.status];const k=q.kind||'add';
   <div class="acts">${mode==='disp'&&q.status==='pending'&&ui.paxEd!==q.id?`<button class="btn small primary" data-paxok="${q.id}">אישור</button><button class="btn small" data-paxed="${q.id}">עריכה ואישור</button><button class="btn small danger" data-paxno="${q.id}">לא לאשר</button>`:''}</div></div>${mode==='disp'&&q.status==='pending'&&ui.paxEd===q.id?paxEdForm(q):''}`}
 function paxEdForm(q){const k=q.kind||'add';
   return `<div class="card" style="margin:6px 0 10px;padding:10px"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
-  <label class="field" style="flex:1 1 140px">שם<input id="pe-name" value="${esc(q.name||'')}"></label>
+  <label class="field" style="flex:1 1 140px">שם פרטי + אות משם המשפחה<input id="pe-name" value="${esc(q.name||'')}"></label>
   <label class="field" style="flex:0 1 120px">סוג<select id="pe-type">${Object.entries(TYPE).map(([v,l])=>`<option value="${v}"${q.type===v?' selected':''}>${l}</option>`).join('')}</select></label>
   <label class="field" style="flex:0 1 130px">טלפון<input id="pe-phone" inputmode="tel" value="${esc(q.phone||'')}"></label>
   ${k==='add'?`<label class="field" style="flex:0 1 130px">עיר<input id="pe-city" list="pe-cities" value="${esc(q.city||'')}"><datalist id="pe-cities">${S.destinations.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label>`:''}
@@ -726,10 +726,18 @@ function parsePeople(text){
     if(!addr&&parts.length)addr=parts.shift();
     return {name,phone,city,type,addr,raw}});
 }
+const splitName=n=>{const w=String(n||'').replace(/[.'׳"״,]/g,' ').trim().split(/\s+/).filter(Boolean);return {f:w[0]||'',l:w.slice(1).join('')}};
+/* privacy: first name + shortest last-name prefix that is unique (1 letter unless a namesake exists) */
+function shortName(raw,o={}){const {f,l}=splitName(raw);
+  if(!f)return {err:'חסר שם'};
+  if(!l)return {err:'כתבו שם פרטי ואות ראשונה של שם המשפחה, למשל "דנה כ."'};
+  const others=[...S.employees.filter(e=>!e.removed&&e.id!==o.skipEmp).map(e=>e.name),...paxReq().filter(q=>q.status==='pending'&&(q.kind||'add')==='add'&&q.id!==o.skipReq).map(q=>q.name),...(o.extra||[])].map(splitName);
+  for(let k=1;k<=l.length;k++){const p=l.slice(0,k);if(!others.some(x=>x.f===f&&x.l===p))return {name:`${f} ${p}.`,cut:k<l.length}}
+  return {err:`כבר יש נוסע בשם "${f} ${l}." הוסיפו עוד אות משם המשפחה`}}
 function pasteRows(){const rows=ui.paste||[];if(!rows.length)return '';
   return `<div class="tablewrap"><table style="min-width:640px"><thead><tr><th>שם</th><th>סוג</th><th>טלפון</th><th>עיר</th><th>כתובת</th><th></th></tr></thead><tbody>${rows.map((r,i)=>{
     const okPh=!r.phone||/^0\d{8,9}$/.test(r.phone),okCity=!r.city||S.destinations.includes(r.city);
-    return `<tr><td><input data-pf="${i}|name" id="pf-${i}-n" value="${esc(r.name)}" style="width:110px" ${r.name?'':'class="bad"'}></td>
+    return `<tr><td><input data-pf="${i}|name" id="pf-${i}-n" value="${esc(r.name)}" style="width:110px" ${splitName(r.name).l?'':'class="bad"'}></td>
     <td><select data-pf="${i}|type" id="pf-${i}-t" ${r.type?'':'class="bad"'}><option value="">בחרו</option>${Object.entries(TYPE).map(([k,v])=>`<option value="${k}" ${r.type===k?'selected':''}>${v}</option>`).join('')}</select></td>
     <td><input data-pf="${i}|phone" id="pf-${i}-p" value="${esc(r.phone?fmtPh(r.phone):'')}" style="width:110px" class="num${okPh?'':' bad'}"></td>
     <td><input data-pf="${i}|city" id="pf-${i}-c" list="dest-list2" value="${esc(r.city)}" style="width:100px" ${okCity?'':'class="bad" title="עיר לא מותרת"'}></td>
@@ -756,7 +764,7 @@ function renderPaxReq(c){
       <div style="display:grid;gap:6px">${emps.map(row).join('')}</div></section>
     <section class="panel"><h2>הוספת נוסע</h2>
       <div class="note">נוסע חדש נכנס למאגר רק אחרי שהמנהלת מאשרת אותו. עד אז אי אפשר להזמין לו מונית.</div>
-      <form class="fields" id="add-pax"><label>שם פרטי<input id="pxn" required maxlength="30"></label>
+      <form class="fields" id="add-pax"><label>שם פרטי + אות משם המשפחה<input id="pxn" required maxlength="30" placeholder="דנה כ."></label>
         <label>סוג<select id="pxt"><option value="business">ביזנס</option><option value="premium">פרימיום</option><option value="regular">תיירים</option></select></label>
         <label>טלפון נייד<input id="pxp" inputmode="tel" placeholder="050-1234567" class="num"></label>
         <button class="btn primary" style="align-self:end">שליחה לאישור המנהלת</button></form>
@@ -1232,7 +1240,7 @@ const G={
    {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–06:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו, והסדרן ישלח לכל נוסע הודעה עם השעה, המסלול ופרטי הנהג.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
    {h:'ביטול הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "ביטול" ליד הנסיעה.','לא נספר בסל: ביטול לפני שהסדרן הזמין מונית, ויותר מ־3 שעות לפני הנסיעה.','נספר בסל: ביטול אחרי שהמונית כבר הוזמנה, או פחות מ־3 שעות לפני הנסיעה. המערכת תבקש אישור לפני כן.','ליד כל ביטול כתוב מי ביטל.']},
    {h:'🔒 אבטחת מידע',go:'ops',steps:['כמעט כל נסיעה צריכה אישור אבטחת מידע. זה מעקב פנימי שלכם.','אם האישור כבר התקבל, מסמנים "כבר התקבל אישור אבטחת מידע" לפני השליחה.','אחר כך, ב"ההזמנות שלי", לחיצה על 🔒 מחליפה בין: ממתין ← אושר ← לא נדרש.','בראש העמוד מופיעה תזכורת לנסיעות קרובות בלי אישור.']},
-   {h:'נוסעים: הוספה, עריכה והסרה',go:'ops-pax',steps:['בלשונית "נוסעים" ← "הוספת נוסע": שם, סוג (ביזנס, פרימיום או תיירים) וטלפון נייד. בלי טלפון הנוסע לא יקבל הודעה עם פרטי הנסיעה.','אפשר להדביק רשימה של כמה נוסעים בבת אחת, והמערכת מזהה שם, טלפון וסוג.','"שליחה לאישור המנהלת". הנוסע יופיע בהזמנות אחרי שהמנהלת תאשר. ייתכן שהיא תתקן פרטים לפני האישור.','עריכה: "עריכה" ליד הנוסע ← משנים ← שליחה לאישור. עד האישור הפרטים הישנים בתוקף.','הסרה: "הסרה" ← אישור. הנוסע יורד מיד, בלי לחכות לאישור.']},
+   {h:'נוסעים: הוספה, עריכה והסרה',go:'ops-pax',steps:['בלשונית "נוסעים" ← "הוספת נוסע": שם, סוג (ביזנס, פרימיום או תיירים) וטלפון נייד. בלי טלפון הנוסע לא יקבל הודעה עם פרטי הנסיעה.','שומרים על פרטיות: רק שם פרטי ואות ראשונה של שם המשפחה, למשל "דנה כ.". כתבתם שם מלא? הוא יקוצר לבד. אם כבר יש "דנה כ." במאגר, נשמרת אות נוספת ("דנה כה.").','"שליחה לאישור המנהלת". הנוסע יופיע בהזמנות אחרי שהמנהלת תאשר. ייתכן שהיא תתקן פרטים לפני האישור.','עריכה: "עריכה" ליד הנוסע ← משנים ← שליחה לאישור. עד האישור הפרטים הישנים בתוקף.','הסרה: "הסרה" ← אישור. הנוסע יורד מיד, בלי לחכות לאישור.']},
    {h:'מי פנוי באלנבי: חיסכון במוניות',go:'ops-merge',steps:['כאן מופיעות הצעות לאחד הזמנה שלכם עם הזמנה קרובה של מבצעים אחרים.','רואים את המסלול המאוחד, השעות, כמה זמן מתווסף וכמה מונית תרד לכם מהסל.','"מאשרים איחוד" או "לא מאשרים". האיחוד קורה רק אם כל המבצעים אישרו.']},
    {h:'תכנון חודשי',go:'ops-plan',steps:['לוח השנה זהה ללוח של המנהלת: צהוב יום מוניות, כחול יום אווירי עם שעות הטיסות, ירוק יום קרקעי עם שעות המיניבוסים. ימים שעברו מופיעים בהיר.','מתכננים מוניות בעיקר בימי מוניות. בימים אוויריים וקרקעיים יש מענה חלופי (טיסה או מיניבוס), ולכן משאירים רק רזרבה קטנה לחריגים.','רושמים בכל יום כמה מוניות מתכננים, או לוחצים "⚡ תכנון אוטומטי" ומתקנים.','בתחתית: פיזור מומלץ, קצב החודש וטיפים לחיסכון.']},
    {h:'הסל החודשי',steps:['בראש העמוד: כמה מוניות נוצלו ומה נשאר.','מונית משותפת עם מבצעים אחרים נספרת לפי מספר הנוסעים שלכם, למשל ⅓ מונית.','מותר לחרוג, אבל החריגה יורדת מהסל של החודש הבא. לפני השליחה תופיע אזהרה שצריך לאשר.']}
@@ -1453,18 +1461,18 @@ document.addEventListener('click',e=>{
   if(t.dataset.paxed){ui.paxEd=t.dataset.paxed;render();setTimeout(()=>{const i=document.getElementById('pe-name');i&&i.focus()});return}
   if(t.dataset.paxedx){ui.paxEd=null;render();return}
   if(t.dataset.paxedok){const q=paxReq().find(x=>x.id===t.dataset.paxedok),v=id=>{const el=document.getElementById(id);return el?el.value.trim():null};
-    const nm=v('pe-name');if(!nm){toast('צריך למלא שם');return}
+    const sn=shortName(v('pe-name'),{skipReq:q.id,skipEmp:q.empId});if(sn.err){toast(sn.err);return}const nm=sn.name;
     q.name=nm;q.type=v('pe-type')||q.type;q.phone=(v('pe-phone')||'').replace(/[^\d+]/g,'');const c=v('pe-city');if(c!==null)q.city=c;q.edited=true;ui.paxEd=null;t.dataset.paxok=q.id}
   if(t.dataset.paxok){const q=paxReq().find(x=>x.id===t.dataset.paxok);q.status='approved';const k=q.kind||'add',e=q.empId&&emp(q.empId);
     if(k==='add'){S.employees.push({id:'e'+Date.now()+Math.random().toString(36).slice(2,5),cid:q.cid,name:q.name,phone:q.phone||'',type:q.type,city:q.city||'',addr:q.addr||''});toast(`${q.name} נכנס/ה למאגר`)}
     else if(k==='edit'&&e){Object.assign(e,{name:q.name,type:q.type,phone:q.phone||''});toast(`הפרטים של ${q.name} עודכנו`)}
     else if(k==='remove'&&e){e.removed=true;toast(`${e.name} הוסר/ה מהמאגר`)}
     save();render();return}
-  if(t.dataset.pfparse){const v=document.getElementById('pastebox').value;const rows=parsePeople(v);if(!rows.length){toast('לא נמצא טקסט לזיהוי');return}
+  if(t.dataset.pfparse){const v=document.getElementById('pastebox').value;const rows=parsePeople(v);{const done=(ui.paste||[]).map(r=>r.name);rows.forEach(r=>{const sn=shortName(r.name,{extra:done});if(!sn.err){r.name=sn.name;done.push(sn.name)}})}if(!rows.length){toast('לא נמצא טקסט לזיהוי');return}
     ui.paste=[...(ui.paste||[]),...rows];document.getElementById('pastebox').value='';document.getElementById('pasterows').innerHTML=pasteRows();toast(`זוהו ${rows.length} נוסעים. בדקו את הפרטים ושלחו`);return}
   if(t.dataset.pfdel){ui.paste.splice(+t.dataset.pfdel,1);document.getElementById('pasterows').innerHTML=pasteRows();return}
   if(t.dataset.pfclear){ui.paste=[];document.getElementById('pasterows').innerHTML='';return}
-  if(t.dataset.pfsend){const rows=ui.paste||[];const bad=rows.findIndex(r=>!r.name||!r.type||(r.phone&&!/^0\d{8,9}$/.test(r.phone))||(r.city&&!S.destinations.includes(r.city)));
+  if(t.dataset.pfsend){const rows=ui.paste||[];{const done=[];for(let i=0;i<rows.length;i++){const sn=shortName(rows[i].name,{extra:done});if(sn.err){toast(`שורה ${i+1}: ${sn.err}`);return}rows[i].name=sn.name;done.push(sn.name)}}const bad=rows.findIndex(r=>!r.name||!r.type||(r.phone&&!/^0\d{8,9}$/.test(r.phone))||(r.city&&!S.destinations.includes(r.city)));
     if(bad>=0){toast(`בשורה ${bad+1} חסר שם או סוג, או שיש טלפון או עיר לא תקינים`);return}
     rows.forEach((r,i)=>paxReq().push({id:'q'+Date.now()+'_'+i,cid:ui.cid,kind:'add',name:r.name,type:r.type,phone:r.phone,city:r.city,addr:r.addr,status:'pending'}));
     ui.paste=[];save();toast(`${rows.length} בקשות נשלחו לאישור המנהלת`);render();return}
@@ -1549,13 +1557,13 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
   if(f.id==='authf'){authSubmit();return}
   if(f.id==='admgate'){if(document.getElementById('admpw').value===(S.adminPw||'2468')){setRole('admin');ui.admAuthed=true;ui.authed=true;ui.tab='calendar';try{sessionStorage.setItem('taxi-adm','1')}catch(_){}render()}else document.getElementById('admerr').hidden=false;return}
   if(f.id==='gate'){if(document.getElementById('pw').value==='1234'){setRole('disp');ui.authed=true;try{sessionStorage.setItem('taxi-disp','1')}catch(_){}render()}else document.getElementById('pwerr').hidden=false;return}
-  if(f.id==='edit-pax'){const e=emp(f.dataset.emp),nm=document.getElementById('ex-n').value.trim(),ty=document.getElementById('ex-t').value,ph=document.getElementById('ex-p').value.replace(/\D/g,'');
+  if(f.id==='edit-pax'){const e=emp(f.dataset.emp),sn0=shortName(document.getElementById('ex-n').value,{skipEmp:e.id});if(sn0.err){toast(sn0.err);return}const nm=sn0.name,ty=document.getElementById('ex-t').value,ph=document.getElementById('ex-p').value.replace(/\D/g,'');
     if(!nm)return;if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר טלפון לא תקין. למשל 050-1234567');return}
     if(nm===e.name&&ty===e.type&&ph===(e.phone||'')){toast('לא שונה דבר');return}
     paxReq().push({id:'q'+Date.now(),cid:e.cid,kind:'edit',empId:e.id,name:nm,type:ty,phone:ph,status:'pending'});ui.editEmp=null;save();toast('השינוי נשלח לאישור המנהלת');render();return}
-  if(f.id==='add-pax'){const n=document.getElementById('pxn').value.trim();if(!n)return;
+  if(f.id==='add-pax'){const sn=shortName(document.getElementById('pxn').value);if(sn.err){toast(sn.err);document.getElementById('pxn').focus();return}const n=sn.name;
     const ph=document.getElementById('pxp').value.replace(/\D/g,'');if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר טלפון לא תקין. למשל 050-1234567');return}
-    paxReq().push({id:'q'+Date.now(),cid:ui.cid,name:n,phone:ph,type:document.getElementById('pxt').value,status:'pending'});save();toast('הבקשה נשלחה לסדרן');render();return}
+    paxReq().push({id:'q'+Date.now(),cid:ui.cid,name:n,phone:ph,type:document.getElementById('pxt').value,status:'pending'});save();toast(`${n} נשלח/ה לאישור המנהלת`);render();return}
   if(f.id==='clogin'){const id=document.getElementById('lcid').value,c=client(id);
     if(c&&isP(id)&&!MGR()&&document.getElementById('lpw').value===(S.princessPw||'7777')){ui.role='princess';try{sessionStorage.setItem('taxi-role','princess');sessionStorage.setItem('taxi-adm','1')}catch(_){}ui.admAuthed=true;ui.authed=true;ui.page='admin';ui.tab='calendar';render();return}
     if(c&&(MGR()||document.getElementById('lpw').value===(isP(id)?(S.princessPw||'7777'):c.pw))){setRole('ops');ui.cid=id;ui.cAuth=id;ui.knownNt=ntIds(id);ui.draft.pax=[];ui.sub='orders';try{sessionStorage.setItem('taxi-client',id)}catch(_){}render()}
