@@ -540,6 +540,29 @@ const mergedStops=(a,b)=>[...new Set([...(a.stops||[]),...(b.dest!==a.dest?[b.de
 const byTxt=r=>{const b=r.cancelBy;if(!b)return '';return ' · ע״י '+(b.k==='ops'?(b.cid===PID?'נסיכות':'מבצעים '+(client(b.cid)?.name||'')):b.k==='disp'?'הסדרן':b.k==='boss'?'הבוס הגדול':b.k==='ceo'?'המנכ״ל':b.k==='admin'?'המנהלת':b.k==='princess'?'נסיכות':'')};
 const cancelActor=()=>ui.role==='princess'?{k:'princess'}:ui.page==='client'?(ui.role==='admin'?{k:'admin'}:{k:'ops',cid:ui.cid}):ui.role==='admin'?{k:'admin'}:{k:'disp'};
 const lateWhy=r=>r.status==='active'?'המונית כבר הוזמנה':'פחות מ־3 שעות לנסיעה';
+const dmy=ms=>{const d=new Date(ms);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`};
+const ROLEBY={admin:'המנהלת',princess:'נסיכות',boss:'בוס גדול',disp:'הסדרן'};
+function excTxt(r){const n=needsOf(r).map(k=>NEEDS[k]);if(r.over)n.push('חריגה מהסל');if(!n.length)return 'לא נדרשה';
+  const ok=[(r.approvedBy||[]).length?'אישר: בוס גדול':'',r.ceoOk?'אישר: מנכ״ל':'',needsOf(r).includes('four')&&!needsOf(r).some(k=>k!=='four')&&r.status!=='pending'?'אישרו: המבצעים':''].filter(Boolean);
+  return n.join(', ')+(ok.length?' · '+ok.join(', '):r.status==='pending'?' · ממתין לאישור':'')}
+function histRows(mo){return S.rides.filter(r=>r.status!=='merged'&&ymd(new Date(r.ts)).slice(0,7)===mo).sort((a,b)=>a.ts-b.ts).map(r=>{const pts=points(r);
+  return {r,created:r.createdAt?`${dmy(r.createdAt)} ${hm(new Date(r.createdAt))}`:'—',when:`${dmy(r.ts)} ${hm(new Date(r.ts))}`,
+    by:(r.by?client(r.by)?.name:clientsOf(r).map(c=>client(c)?.name).join(', '))||'—',byRole:r.byRole&&ROLEBY[r.byRole]&&!(r.byRole==='princess'&&r.by===PID)?ROLEBY[r.byRole]:'',
+    route:(r.dir==='to'?[...pts,baseOf(r)]:[baseOf(r),...pts]).join(' ← '),pax:r.pax.map(p=>emp(p)?.name||'').filter(Boolean).join(', '),
+    exc:excTxt(r),status:statusOf(r).replace(/<[^>]+>/g,''),driver:[r.driverName,r.driverPhone&&fmtPh(r.driverPhone)].filter(Boolean).join(' '),note:r.debrief?.text||''}})}
+const HISTCOLS=['הוזמנה ב','לתאריך ושעה','מי הזמין','מסלול','נוסעים','החרגה','סטטוס','נהג','תחקיר / הערות'];
+const histCSV=mo=>'﻿'+[HISTCOLS,...histRows(mo).map(x=>[x.created,x.when,x.by+(x.byRole?` (${x.byRole})`:''),x.route,x.pax,x.exc,x.status,x.driver,x.note])].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+function renderHist(mo){const rows=histRows(mo),past=r=>r.ts<Date.now()&&!['cancelled'].includes(r.status);
+  return `<h3 id="hist">היסטוריית מוניות</h3><div class="row" style="gap:8px;margin-bottom:8px"><button class="btn small primary" data-histcsv="${mo}">הורדה לאקסל</button><span class="note">${rows.length} נסיעות בחודש הזה</span></div>
+  ${rows.length?`<div class="tablewrap"><table><thead><tr>${HISTCOLS.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(x=>`<tr>
+    <td class="num">${x.created}</td><td class="num"><b>${x.when}</b></td><td>${opsDot(x.r.by||clientsOf(x.r)[0])}${esc(x.by)}${x.byRole?`<br><span class="note">ע״י ${esc(x.byRole)}</span>`:''}</td><td>${esc(x.route)}</td><td>${esc(x.pax)}</td>
+    <td>${x.exc==='לא נדרשה'?'<span class="note">לא נדרשה</span>':`<b style="color:var(--warn)">${esc(x.exc)}</b>`}</td><td>${statusOf(x.r)}</td><td>${esc(x.driver)}</td>
+    <td style="min-width:180px">${ui.dbEd===x.r.id?`<textarea id="db-${x.r.id}" rows="3" style="width:100%" maxlength="1000" placeholder="מה קרה בנסיעה? מה לשפר?">${esc(x.note)}</textarea><div class="row" style="gap:6px;margin-top:4px"><button class="btn small primary" data-dbsave="${x.r.id}">שמירה</button><button class="btn small" data-dbx="1">ביטול</button></div>`
+      :`${x.note?`<div style="white-space:pre-wrap">${esc(x.note)}</div><div class="note">${esc(x.r.debrief.by||'')} · ${dmy(x.r.debrief.at)}</div>`:''}${past(x.r)?`<button class="btn small" data-dbed="${x.r.id}">${x.note?'עריכה':'📝 הוספת תחקיר'}</button>`:''}`}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">אין נסיעות בחודש הזה.</div>'}
+  <div class="note">אפשר להוסיף תחקיר או הערות לשימור לכל נסיעה שכבר יצאה.</div>`}
+function renderReset(){return `<div class="panel" style="margin-top:24px;border-color:var(--bad)"><h3 style="color:var(--bad)">איפוס נתונים</h3>
+  <div class="note">מוחק את כל הנוסעים, ההזמנות (כולל היסטוריה ותחקירים) ובקשות הנוסעים בכל המבצעים. נשארים: המבצעים והסלים, לוח השנה, ההגדרות והסיסמאות. אי אפשר לבטל את הפעולה. כדאי להוריד קודם את ההיסטוריה ב"מעקב והוצאות".</div>
+  <div class="row" style="gap:8px;margin-top:8px"><input id="rstconf" placeholder='הקלידו "איפוס" לאישור' style="width:180px"><button class="btn small danger" data-reset="1">איפוס</button></div></div>`}
 function statusOf(r){
   if(r.status==='merged')return '<span class="st st-merged">אוחדה לנסיעה אחרת</span>';
   if(r.status==='cancelled')return `<span class="st st-cancelled">בוטלה${esc(byTxt(r))}</span>`;
@@ -1167,12 +1190,12 @@ function renderDispatcher(){
         <tr><th>סה"כ</th><th>צפון</th><th>מרכז</th><th>סה"כ</th><th>צפון</th><th>מרכז</th></tr></thead>
       <tbody>${rows.map(x=>`<tr><td>${esc(x.c.name)}</td>${K.map(k=>`<td class="num">${fmt(x[k])}</td>`).join('')}<td class="num"><b>${money(x.s)}</b></td></tr>`).join('')}</tbody>
       <tfoot><tr><td><b>סה"כ</b></td>${K.map(k=>`<td class="num"><b>${fmt(sum(k))}</b></td>`).join('')}<td class="num"><b>${money(tot)}</b></td></tr></tfoot></table></div>
-      <div class="note">כולל נסיעות מאושרות, ממתינות וביטולים מאוחרים. מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים. מונית שעוברת בתחנה צפונית לנתניה נספרת ומתומחרת כצפון. העמוד הזה גלוי רק לסדרן.</div>`;
+      <div class="note">כולל נסיעות מאושרות, ממתינות וביטולים מאוחרים. מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים. מונית שעוברת בתחנה צפונית לנתניה נספרת ומתומחרת כצפון. העמוד הזה גלוי רק לסדרן.</div>${renderHist(cur)}`;
   }else if(ui.tab==='quotas'){
     body=`<div class="tablewrap"><table><thead><tr><th>לוגו</th><th>צבע</th><th>שם המבצעים (לחצו לעריכה)</th>${PROD?'':'<th>סיסמת כניסה</th><th>טלפון בוס גדול (משמש כסיסמה שלו)</th>'}<th>סל חודשי</th><th>ירד מהחודש הקודם (מחושב אוטומטית)</th><th>נוצל</th><th>ניצול</th><th></th></tr></thead><tbody>${S.clients.map(c=>{const u=used(c.id),L=limit(c),p=u/L;
       return `<tr><td><div class="row" style="gap:6px;flex-wrap:nowrap">${opsLogo(c.id,30)}<label class="btn small" style="display:inline-block;color:var(--ink);font-weight:600">העלאה<input type="file" accept="image/*" data-ologo="${c.id}" id="lg-${c.id}" hidden></label>${c.logo?`<button class="btn small danger" data-ologodel="${c.id}" aria-label="הסרת לוגו">✕</button>`:''}</div></td><td><input type="color" id="col-${c.id}" data-ocolor="${c.id}" value="${opsColor(c.id)}" aria-label="צבע של ${esc(c.name)}" style="width:38px;height:30px;padding:2px"></td><td><input id="nm-${c.id}" data-name="${c.id}" value="${esc(c.name)}" aria-label="שם המבצעים" style="width:160px"></td>${PROD?'':`<td><input id="cpw-${c.id}" data-cpw="${c.id}" value="${esc(c.pw||'')}" style="width:90px" class="num" autocomplete="off" aria-label="סיסמת כניסה של ${esc(c.name)}"></td><td><input id="bph-${c.id}" data-bphone="${c.id}" inputmode="tel" value="${esc(c.bossPhone?fmtPh(c.bossPhone):'')}" placeholder="050-1234567" style="width:118px" class="num" autocomplete="off" aria-label="טלפון הבוס הגדול של ${esc(c.name)}"></td>`}<td><input type="number" min="0" id="q-${c.id}" data-quota="${c.id}" value="${c.quota}" class="num"></td><td class="num">${c.carry?c.carry:'—'}</td>
         <td class="num">${fmt(u)} / ${L}</td><td style="min-width:120px"><div class="bar"><i class="${p>1?'bad':p>=.9?'warn':''}" style="width:${Math.min(100,p*100)}%"></i><b></b></div></td>
-        <td>${p>1?`<span class="st st-late num">חריגה ${fmt(u-L)}</span>`:p>=.9?'<span class="st st-pending">מעל 90%</span>':''}</td></tr>`}).join('')}</tbody></table></div>`;
+        <td>${p>1?`<span class="st st-late num">חריגה ${fmt(u-L)}</span>`:p>=.9?'<span class="st st-pending">מעל 90%</span>':''}</td></tr>`}).join('')}</tbody></table></div>${ui.role==='admin'?renderReset():''}`;
   }else{
     const emps=S.employees.filter(e=>e.cid===ui.empCid&&!e.removed);
     body=`<div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
@@ -1393,6 +1416,15 @@ document.addEventListener('click',e=>{
   if(t.dataset.nav){ui.page=t.dataset.nav;ui.confirm=null;render();return}
   if(t.dataset.openroutes){ui.openR=routeTips().map(r=>r.id)}
   if(t.dataset.tab){ui.tab=t.dataset.tab;render();return}
+  if(t.dataset.dbed){ui.dbEd=t.dataset.dbed;render();setTimeout(()=>document.getElementById('db-'+ui.dbEd)?.focus());return}
+  if(t.dataset.dbx){ui.dbEd=null;render();return}
+  if(t.dataset.dbsave){const r=S.rides.find(x=>x.id===t.dataset.dbsave),v=(document.getElementById('db-'+r.id)?.value||'').trim();
+    r.debrief=v?{text:v,at:Date.now(),by:ui.role==='princess'?'נסיכות':ui.role==='admin'?'המנהלת':''}:null;ui.dbEd=null;save();toast(v?'התחקיר נשמר':'התחקיר נמחק');render();return}
+  if(t.dataset.histcsv){const mo=t.dataset.histcsv,fn=`היסטוריית מוניות ${mo}.csv`;(async()=>{const dl=window.claude?await window.claude.use('downloads'):null;
+    if(!dl){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([histCSV(mo)],{type:'text/csv;charset=utf-8'}));a.download=fn;document.body.appendChild(a);a.click();a.remove();toast('הקובץ ירד');return}
+    try{await dl.save({filename:fn,data:histCSV(mo)});toast('הקובץ נשמר')}catch(e){if(e&&e.code!=='declined')toast('לא ניתן להוריד כרגע')}})();return}
+  if(t.dataset.reset){if(ui.role!=='admin')return;if((document.getElementById('rstconf')?.value||'').trim()!=='איפוס'){toast('כדי לאפס, הקלידו "איפוס" בתיבה');return}
+    S.rides=[];S.employees=[];S.paxReq=[];S.mergeVotes={};if(S.lines)S.lines={};if(S.dismissed)S.dismissed=[];ui.draft.pax=[];save();toast('האפליקציה אופסה: אין נוסעים ואין הזמנות');render();return}
   if(t.dataset.paxed){ui.paxEd=t.dataset.paxed;render();setTimeout(()=>{const i=document.getElementById('pe-name');i&&i.focus()});return}
   if(t.dataset.paxedx){ui.paxEd=null;render();return}
   if(t.dataset.paxedok){const q=paxReq().find(x=>x.id===t.dataset.paxedok),v=id=>{const el=document.getElementById(id);return el?el.value.trim():null};
@@ -1444,7 +1476,7 @@ document.addEventListener('click',e=>{
   if(t.id==='submit'){const d=ui.draft,c=client(ui.cid);syncDraft(d);const res=check(d);const bl=res.find(x=>x.k==='block');if(bl){toast(bl.t);renderCheck();return}
     const nd=[];if(d.pax.length===1)nd.push('single');if(isNight(d))nd.push('night');
     const needs=nd.length;const over=!isP(c.id)&&used(c.id)+1>limit(c);
-    S.rides.push({id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,createdAt:Date.now()});
+    S.rides.push({id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,createdAt:Date.now()});
     d.reason='';d.base='';d.baseOn=false;ui.ack4=false;ui.secOk=false;d.pax=[];d.stops=[];d.stopAddr=[];d.destAddr='';d.lead=null;d.ppt={};d.addr={};d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};ui.ack=false;save();toast(needs?'ההזמנה ממתינה לאישור הבוס הגדול':'ההזמנה נשלחה לסדרן');render();return}
   if(t.dataset.cancel){const r=S.rides.find(x=>x.id===t.dataset.cancel);
     const who=cancelActor(),opsSide=ui.page==='client';
