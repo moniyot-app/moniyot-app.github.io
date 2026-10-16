@@ -297,6 +297,7 @@ body.train label:has(input[type=password]){display:none}
     <button id="nav-client" data-nav="client">מבצעים</button>
     <button id="nav-disp" data-nav="dispatcher">עמוד סדרן</button>
     <button id="nav-adm" data-nav="admin">המנהלת</button>
+    <button id="nav-notif" hidden title="התראות למכשיר על כל מה שמחכה לפעולה שלך">🔔</button>
     <button id="glogout" hidden>יציאה</button>
   </div>
 </div></div>
@@ -431,7 +432,7 @@ async function initDb(){let db=null;try{db=window.claude&&window.claude.use?awai
   if(first.empty){dbOn=true;flush()}
   else{S={};applyApp(first.docs);
     for(const[k,col]of Object.entries(ROWS)){try{const rs=await DB.collection(col).get();S[k]=rs.docs.map(d=>{const j=JSON.stringify(d.data());synced[col+':'+d.id]=j;return JSON.parse(j)})}catch(e){S[k]=S[k]||[]}}
-    migrate();dbOn=true;flush();ui.knownAw=awIds();ui.knownNt=ntIds(ui.cid);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}render()}
+    migrate();dbOn=true;flush();ui.knownAct=null;ui.knownAw=awIds();ui.knownNt=ntIds(ui.cid);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}render()}
   syncBadge();
   DB.collection('app').onSnapshot(sn=>{let ch=false;sn.docChanges().forEach(c=>{const k=c.doc.id;
       if(c.type==='removed'){if(synced['a:'+k]!==undefined){delete synced['a:'+k];delete S[k];ch=true}return}
@@ -1419,6 +1420,7 @@ const G={
    quick:['נכנסים עם הסיסמה של המבצעים שלכם.','"הזמנות": תאריך ושעה ← נוסעים ← מסלול ← אחראי/ת ← "הזמנת מונית". מזמינים לפחות 3 שעות לפני האיסוף הראשון.','מחכים לעדכון: 🔔 בראש העמוד מודיע כשהמונית הוזמנה, כשהגיעו פרטי הנהג או כשבקשה נדחתה.','הגיעו פרטי נהג? "📱 שליחה לנוסעים" ← וואטסאפ או SMS לכל נוסע.','מסמנים 🔒 אבטחת מידע ליד כל נסיעה.','צריך נוסע חדש? "נוסעים" ← "הוספת נוסע". הוא יופיע בהזמנה אחרי שהמנהלת תאשר.'],
    sections:[
    {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','את "מבצעים" ואת השם של המבצעים שלכם'),'נפתח העמוד של המבצעים שלכם בלבד. בראשו רואים כמה מוניות נוצלו החודש ומה נשאר בסל.']},
+   {h:'🔔 התראות למכשיר',steps:['בסרגל העליון לוחצים "🔕 הפעלת התראות" ומאשרים בחלון שקופץ.','מעכשיו כל דבר שמחכה לפעולה שלכם מקפיץ התראה בטלפון או במחשב, גם כשהאפליקציה ברקע.','האפליקציה צריכה להישאר פתוחה (אפשר ברקע). באייפון: קודם מוסיפים את האתר למסך הבית ופותחים משם.']},
    {h:'הזמנת מונית',go:'ops',steps:['בלשונית "הזמנות" בוחרים תאריך, ואם השעה היא שעת הגעה ליעד או שעת יציאה מהמוצא, ומזינים שעה.','שלב 1: מסמנים עד 4 נוסעים.','שלב 2, מסלול: בוחרים תחנת מוצא ותחנת יעד. בכל תחנת איסוף או הורדה מקלידים עיר: ✓ מותרת, ✕ לא מותרת. אחר כך כותבים כתובת מדויקת.','ב"מי עולה כאן?" לוחצים על הנוסעים שנאספים בתחנה. נוסע שנאסף ממקום אחר מקבל תחנה משלו ("+ הוספת נקודת איסוף").','אם יש סדר תחנות קצר יותר, תופיע הצעה "💡 סדר יעיל יותר". לחיצה אחת מסדרת מחדש.','שלב 3: בוחרים אחראי/ת נסיעה.','בודקים את "בדיקת ההזמנה" בצד: ירוק תקין, כתום דורש תשומת לב, אדום חוסם. מתקנים ולוחצים "הזמנת מונית".'],tip:'העיר שמופיעה ליד נוסע היא העיר שממנה נסע בפעם האחרונה. שעות האיסוף המשוערות מחושבות לבד.'},
    {h:'⚡ תכנון חכם: הרבה נוסעים, שעה אחת',go:'ops-smart',steps:['בלשונית "⚡ תכנון חכם" בוחרים תאריך ושעה (למשל שעת תחילת העבודה), ומסמנים את הנוסעים. "סימון הכל" מסמן את כולם.','ליד כל נוסע מופיעה העיר שממנה נסע בפעם האחרונה. אפשר לשנות.','רוצים גם את החזרה? מסמנים "גם חזרה הביתה בסיום יום העבודה" ובוחרים שעת סיום משותפת. המערכת מתכננת גם את מוניות החזור, ומזמינה הלוך וחזור יחד.','לוחצים "⚡ תכנון המוניות". המערכת מחלקת למספר המוניות הקטן ביותר: נוסעים מאותה עיר או מעיר שעד 10 ק״מ מהמסלול נוסעים יחד, בלי להאריך לאף אחד את הנסיעה ביותר מכ־15 דקות, ובסדר התחנות הקצר ביותר.','המערכת מתחשבת בסוג היום: ביום קרקעי כל מונית נבנית סביב נוסע ביזנס, וביום אווירי תיירים משובצים רק עם ביזנס או פרימיום. נוסע שאין איתו מי שיכול לנסוע, מופיע ב"לא שובצו" עם הסיבה. גם כשאיחוד מאריך למישהו את הנסיעה יותר מדי, המערכת מפצלת למוניות נפרדות.','בכל מונית בודקים את הכתובות בתחנות ומשלימים מה שחסר. נסיעה שמתחילה לפני 06:00 צריכה פירוט לנסיעת לילה.','"הזמנת כל המוניות התקינות" מזמין הכל בלחיצה. מונית שצריכה תיקון אפשר לפתוח ב"עריכה בטופס".']},
    {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–06:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
@@ -1441,6 +1443,7 @@ const G={
    quick:['נכנסים כ"סדרן" ומשאירים את ההתראה הקולית פעילה.','"לוח הזמנות": הזמנה חדשה ← מזמינים מונית ← "אישור הזמנה".','מגיעים פרטי נהג ← ממלאים בשורה של הנסיעה ← "שמירה ושליחה למבצעים".','כל ערב (בערך 23:00): "יישור קו" ← "יישור קו וסגירה" ← שליחה לחברת המוניות.','⚡ מתפרצת = הזמנה שנכנסה אחרי סגירת הקו. מטפלים מיד.'],
    sections:[
    {h:'כניסה',go:'disp',steps:[LOGIN('סדרן','"סדרן"'),'כפתור 🔔 בראש הלוח מפעיל או משתיק צליל על כל הזמנה חדשה.']},
+   {h:'🔔 התראות למכשיר',steps:['בסרגל העליון לוחצים "🔕 הפעלת התראות" ומאשרים בחלון שקופץ.','מעכשיו כל דבר שמחכה לפעולה שלכם מקפיץ התראה בטלפון או במחשב, גם כשהאפליקציה ברקע.','האפליקציה צריכה להישאר פתוחה (אפשר ברקע). באייפון: קודם מוסיפים את האתר למסך הבית ופותחים משם.']},
    {h:'אישור הזמנה חדשה',go:'disp',steps:['בלשונית "לוח הזמנות" ההתראות מחולקות: לפעולה (צריך לטפל) ולידיעה (סטטוס של המבצעים).','הזמנה חדשה מסומנת "חדשה · ממתינה לסדרן". הזמנה שהמבצעים שינו מסומנת "✏️ שונתה · ממתינה לאישור מחדש", עם מה שהשתנה. מאשרים אותה שוב.','מזמינים מונית מחברת המוניות ולוחצים "אישור הזמנה". המבצעים מקבלים התראה.','"🚕 סיכום לנהג" פותח את פרטי הנסיעה והכתובות להעתקה.','אם יש סדר תחנות קצר יותר, מופיעה הצעה לסדר מחדש.']},
    {h:'פרטי נהג',go:'disp',steps:['ישר בשורה של הנסיעה, ליד "🚕 נהג", ממלאים שם וטלפון ולוחצים "שמירה ושליחה למבצעים" (או Enter). אפשר גם לפני האישור.','המבצעים מקבלים את הפרטים מיד, והם שולחים לנוסעים את ההודעה.','ב"📱 הודעה לנוסעים" רואים למי כבר נשלח (✓) ולמי עוד לא.']},
    {h:'ממתין להחרגה',go:'disp-approvals',steps:['כאן רואים נסיעות שמחכות לבוס הגדול או למנכ״ל. זה למעקב בלבד, הסדרן לא מאשר כאן.','אחרי האישור הנסיעה מגיעה ל"לוח הזמנות".']},
@@ -1451,6 +1454,7 @@ const G={
    quick:[PROD?'נכנסים ב"כניסת המנהלת (במייל)".':'נכנסים: "המנהלת" ← סיסמה.','"לוח שנה": מסמנים ימי מוניות, אוויריים וקרקעיים. כולם רואים אותו בתכנון החודשי.','"ממתין להחרגה" ו"אישור נוסעים": מה שמחכה להחלטה.','"מעקב והוצאות": גרפים, חריגות מהסל והיסטוריית מוניות להורדה.',PROD?'"סיסמאות": סיסמה לכל תפקיד. כדי לחסום מישהו מחליפים לו סיסמה.':'"סלים": סל חודשי וסיסמה לכל אחד מהמבצעים.'],
    sections:[
    {h:'כניסה וסיסמאות',go:PROD?'adm-users':'adm',steps:PROD?['במסך הכניסה לוחצים "כניסת המנהלת (במייל)" ונכנסים עם המייל והסיסמה שלך. רק לך יש כניסה במייל.','בלשונית "סיסמאות" קובעים סיסמה לכל תפקיד: כל אחד מהמבצעים, כל בוס גדול, נסיכות, סדרן ומנכ״ל (לפחות 6 תווים).','כדי לחסום מישהו, מחליפים לו את הסיסמה.']:['לוחצים למעלה על "המנהלת" ומקלידים את הסיסמה.']},
+   {h:'🔔 התראות למכשיר',steps:['בסרגל העליון לוחצים "🔕 הפעלת התראות" ומאשרים בחלון שקופץ.','מעכשיו כל דבר שמחכה לפעולה שלכם מקפיץ התראה בטלפון או במחשב, גם כשהאפליקציה ברקע.','האפליקציה צריכה להישאר פתוחה (אפשר ברקע). באייפון: קודם מוסיפים את האתר למסך הבית ופותחים משם.']},
    {h:'לוח שנה וסוגי ימים',go:'adm-calendar',steps:['ראשון–חמישי מסומנים אוטומטית כיום אווירי, שישי–שבת כיום קרקעי. לוחצים על יום כדי לשנות, למשל ליום מוניות.','יום אווירי: הטיסות הקבועות (הגעה 08:25, יציאה 18:00, ובשעון חורף 17:30) ממולאות לבד. אפשר לשנות כל שעה.','יום קרקעי: המיניבוס הקבוע (09:00) ממולא לבד.','45 דקות לפני ואחרי כל טיסה או מיניבוס אי אפשר להזמין מונית.','את השעות הקבועות משנים ב"שעות קבועות". שינוי ביום מסוים משפיע רק עליו.']},
    {h:'ממתין להחרגה',go:'adm-approvals',steps:['כל הנסיעות שמחכות לבוס גדול (נוסע בודד) או למנכ״ל (נסיעת לילה), מחולקות לשתי רשימות.','זה למעקב. הבוס הגדול מאשר אצלו, ונסיעות לילה מאשרים בלשונית "★ מנכ״ל".']},
    {h:'אישור נוסעים',go:'adm-paxreq',steps:['כאן מופיעות בקשות של המבצעים להוסיף נוסע או לערוך נוסע. בעריכה רואים בדיוק מה משתנה.','"אישור": הנוסע נכנס למאגר כמו שהוא.','"עריכה ואישור": מתקנים שם, סוג, טלפון או עיר ולוחצים "שמירה ואישור".','"לא לאשר": הבקשה נדחית והמבצעים רואים זאת.','הסרת נוסע לא צריכה אישור.']},
@@ -1548,7 +1552,7 @@ async function loadMember(user){AUTH.user=user;
   else{ui.role='ops';const cid=R.includes('princess')?PID:data.cid;ui.cid=cid;ui.cAuth=cid;if(R.includes('boss'))ui.mgrAuthed=[cid]}
   ui.page={admin:'admin',princess:'client',ceo:'admin',disp:'dispatcher',ops:'client'}[ui.role];if(MGR())ui.tab='calendar';if(ui.role==='princess')ui.sub='orders';if(ui.role==='disp')ui.tab='board';
   DB=sbDb(AUTH.sb);render();initDb();joinPresence();
-  if(ui.role==='admin')AUTH.sb.from('pw_help').select('*').eq('done',false).order('at',{ascending:false}).then(({data,error})=>{if(!error){PW_HELP=data||[];if(PW_HELP.length)toast(`🔑 ${PW_HELP.length} בקשות לתזכורת סיסמה מחכות לך בלשונית "סיסמאות"`);render()}})}
+  if(ui.role==='admin')AUTH.sb.from('pw_help').select('*').eq('done',false).order('at',{ascending:false}).then(({data,error})=>{if(!error){PW_HELP=data||[];render()}})}
 const RMAIL=k=>'noampatishi+'+k+'@gmail.com'; /* role accounts: never emailed (confirmation is off) */
 const roleKeys=()=>[...S.clients.flatMap(c=>[{k:'ops-'+c.id,label:'מבצעים · '+c.name,roles:['ops'],cid:c.id},{k:'boss-'+c.id,label:'בוס גדול · '+c.name,roles:['ops','boss'],cid:c.id}]),
   {k:'princess',label:'★ נסיכות',roles:['princess'],cid:null},{k:'disp',label:'סדרן',roles:['disp'],cid:null},{k:'ceo',label:'מנכ״ל',roles:['ceo'],cid:null}];
@@ -1619,7 +1623,7 @@ async function rolePwSave(k){const r=roleKeys().find(x=>x.k===k),pw=(document.ge
 const confirmDel=t=>{if(t.dataset.sure){return true}t.dataset.sure='1';t.textContent='בטוח? ללחוץ שוב';setTimeout(()=>{if(t.isConnected){delete t.dataset.sure;t.textContent='הסרה'}},4000);return false};
 /* ---------- render + events ---------- */
 function render(){if(TRAIN){if(ui.page==='admin')ui.page='client';const na=document.getElementById('nav-adm');if(na)na.style.display='none';document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 מצב אימון · קשה באימונים, קל בקרב · שום דבר כאן לא אמיתי ולא נשלח לאף אחד</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
-  if(PROD&&AUTH.state!=='in'){['nav-guide','nav-client','nav-disp','nav-adm','glogout'].forEach(id=>{document.getElementById(id).hidden=true});renderAuth();return}
+  if(PROD&&AUTH.state!=='in'){['nav-guide','nav-client','nav-disp','nav-adm','glogout','nav-notif'].forEach(id=>{document.getElementById(id).hidden=true});renderAuth();return}
   const allowed=ui.role?ROLEP[ui.role]:[];
   if(!ui.role){if(!['client','dispatcher','admin'].includes(ui.page))ui.page='client'}
   else if(!allowed.includes(ui.page))ui.page=allowed[1];
@@ -1631,18 +1635,39 @@ function render(){if(TRAIN){if(ui.page==='admin')ui.page='client';const na=docum
   document.getElementById('nav-adm').setAttribute('aria-pressed',ui.page==='admin');document.getElementById('nav-adm').textContent=ui.role==='princess'?'ניהול':'המנהלת';
   ui.page==='guide'?renderGuide():ui.page==='client'?renderClient():renderDispatcher();
   if(!ui.role)app.insertAdjacentHTML('afterbegin',loginChooser());
-  checkArrivals();paintOnline();
+  checkArrivals();paintOnline();checkActions();paintNotifBtn();
 }
 function beep(){try{const ac=ui.ac;if(!ac)return;if(ac.state==='suspended')ac.resume();
   [[0,784],[.2,1046],[.4,784]].forEach(([d,f])=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);const t=ac.currentTime+d;
     g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.3,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.17);o.start(t);o.stop(t+.18)})}catch(e){}}
 const awIds=()=>S.rides.filter(r=>r.status==='awaiting').map(r=>r.id+'~'+(r.changes||[]).length);
 const ntIds=cid=>notices(cid).map(r=>r.id+':'+updOf(r)+':'+(r.upd?.at||'')+':'+(r.driverPhone||'')+':'+(r.driverName||''));
+/* ---------- device notifications: everything that waits for THIS user's action ---------- */
+const NOTIFK='ramoniyot-notif',notifOn=()=>{try{return localStorage.getItem(NOTIFK)==='1'&&'Notification' in window&&Notification.permission==='granted'}catch(_){return false}};
+let SWREG=null;if(PROD&&'serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>{SWREG=r}).catch(()=>{})}
+function actionItems(){const out=[],R=ui.role,add=(key,text)=>out.push({key,text});if(!R)return out;
+  if(R==='disp'){S.rides.filter(r=>r.status==='awaiting'&&r.ts>Date.now()).forEach(r=>add('aw:'+r.id+'~'+(r.changes||[]).length,`${r.reconfirm?'✏️ המבצעים שינו הזמנה':isUrgent(r)?'⚡ הזמנה מתפרצת':'🚕 הזמנה חדשה'} ממתינה לאישורך · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))} · ${points(r).join(', ')}`))}
+  if(R==='ops'||R==='princess'){const cid=R==='princess'?PID:ui.cid;if(cid){notices(cid).forEach(r=>{const k=updOf(r);add('nt:'+r.id+':'+k+':'+(r.upd?.at||''),`${UPD[k][1]} · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`)});
+      if(R==='ops'&&(ui.mgrAuthed||[]).includes(cid))mgrPending(cid).forEach(r=>add('bo:'+r.id,`★ נסיעה עם נוסע בודד ממתינה לאישורך (בוס גדול) · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`));
+      if(R==='princess')S.rides.filter(r=>r.status==='pending'&&r.ts>Date.now()&&pBossOf(r).length&&needBoss(r)).forEach(r=>add('pb:'+r.id,`נסיעה של יבא עם נוסע בודד ממתינה לאישורך · ${hm(new Date(r.ts))}`))}}
+  if(R==='admin'){paxReq().filter(q=>q.status==='pending').forEach(q=>add('px:'+q.id,`בקשת נוסע ממתינה לאישורך · ${q.name} (${client(q.cid)?.name||''})`));(PW_HELP||[]).forEach(q=>add('pw:'+q.id,`🔑 בקשה לתזכורת סיסמה · ${q.role}`))}
+  if((R==='admin'||R==='ceo')&&ui.ceoAuthed)ceoPending().forEach(r=>add('ceo:'+r.id,`🌙 נסיעת לילה ממתינה לאישור מנכ״ל · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`));
+  return out}
+function checkActions(){const items=actionItems(),keys=items.map(x=>x.key);
+  if(ui.knownAct==null||ui.knownActRole!==ui.role){ui.knownAct=keys;ui.knownActRole=ui.role;return}
+  const fresh=items.filter(x=>!ui.knownAct.includes(x.key));ui.knownAct=keys;if(!fresh.length)return;
+  if(notifOn()&&document.visibilityState!=='visible'){const title=fresh.length===1?'רמוניות · מחכה לך':`רמוניות · ${fresh.length} דברים מחכים לך`,body=fresh.slice(0,3).map(x=>x.text).join('\n')+(fresh.length>3?`\nועוד ${fresh.length-3}`:'');
+    const o={body,icon:'icons/icon-192.png',badge:'icons/icon-192.png',tag:'ramoniyot',renotify:true,lang:'he',dir:'rtl'};
+    try{if(SWREG)SWREG.showNotification(title,o);else new Notification(title,o)}catch(_){}}
+  else if(!['disp','ops'].includes(ui.role)){toast('🔔 '+fresh[0].text);if(ui.sound)beep()}}
+function paintNotifBtn(){const b=document.getElementById('nav-notif');if(!b)return;const show=PROD&&AUTH.state==='in'&&'Notification' in window;b.hidden=!show;if(!show)return;
+  const on=notifOn();b.textContent=on?'🔔 התראות פעילות':'🔕 הפעלת התראות';b.setAttribute('aria-pressed',on)}
 function checkArrivals(){
   if(ui.page==='dispatcher'&&ui.authed){const aw=awIds(),fresh=aw.filter(id=>!ui.knownAw.includes(id));ui.knownAw=aw;
     if(fresh.length){const urg=fresh.some(id=>{const r=S.rides.find(r=>r.id===id.split('~')[0]);return r&&isUrgent(r)});if(ui.sound){beep();if(urg)setTimeout(beep,700)}toast(urg?'⚡ נכנסה הזמנה מתפרצת! טפלו בה מיד':fresh.length===1?(fresh[0].endsWith('~0')?'נכנסה הזמנה חדשה':'✏️ הזמנה שונתה וממתינה לאישור מחדש'):`נכנסו ${fresh.length} הזמנות חדשות או שינויים`)}}
   if(ui.page==='client'){const n=ntIds(ui.cid),fresh=n.filter(id=>!ui.knownNt.includes(id));ui.knownNt=n;if(fresh.length){toast('🔔 התקבל עדכון על הזמנה');if(ui.sound)beep()}}
 }
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkActions()});
 window.addEventListener('storage',e=>{if(e.key!==KEY||!e.newValue)return;try{S=JSON.parse(e.newValue)}catch(_){return}render()});
 document.addEventListener('mousemove',e=>{const el=e.target.closest?.('[data-tip]'),tp=document.getElementById('tip');if(!tp)return;
   if(!el){tp.hidden=true;return}tp.textContent=el.dataset.tip;tp.hidden=false;const x=Math.min(e.clientX+12,innerWidth-tp.offsetWidth-8),y=e.clientY+14;tp.style.left=Math.max(8,x)+'px';tp.style.top=y+'px'});
@@ -1796,6 +1821,10 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.id==='clogout'&&ui.role!=='admin'){fullLogout();return}
   if(t.id==='clogout'){ui.cAuth=null;ui.mgrAuthed=[];ui.sub='orders';try{sessionStorage.removeItem('taxi-client')}catch(_){}render();return}
   if(PROD&&(t.id==='admlogout'||t.id==='glogout'||t.id==='authout'||t.id==='logout'||t.id==='clogout'&&ui.role!=='admin')){AUTH.sb.auth.signOut().finally(()=>{try{localStorage.removeItem(KEY)}catch(_){}location.reload()});return}
+  if(t.id==='nav-notif'){if(!('Notification' in window)){toast('המכשיר הזה לא תומך בהתראות');return}
+    if(notifOn()){try{localStorage.setItem(NOTIFK,'0')}catch(_){}toast('ההתראות כובו במכשיר הזה');paintNotifBtn();return}
+    Notification.requestPermission().then(p=>{if(p==='granted'){try{localStorage.setItem(NOTIFK,'1')}catch(_){}toast('ההתראות הופעלו. תקבלו התראה על כל מה שמחכה לפעולה שלכם');try{(SWREG?SWREG.showNotification.bind(SWREG):(t,o)=>new Notification(t,o))('רמוניות · ההתראות פעילות',{body:'כך תיראה התראה כשמשהו יחכה לפעולה שלך',icon:'icons/icon-192.png',lang:'he',dir:'rtl'})}catch(_){}}
+      else toast(p==='denied'?'ההתראות חסומות בדפדפן. אפשר לאשר אותן בהגדרות האתר':'ההתראות לא הופעלו');paintNotifBtn()});return}
   if(t.id==='forgot'){AUTH.forgot=!AUTH.forgot;AUTH.forgotSent=false;const b=document.getElementById('forgotbox');if(b){b.hidden=!AUTH.forgot;paintForgot()}return}
   if(t.id==='fgsend'){const sel=document.getElementById('au-r'),n=(document.getElementById('fg-name')?.value||'').trim();if(!n){toast('כתבו שם וטלפון, כדי שהמנהלת תדע למי לחזור');return}
     t.disabled=true;AUTH.sb.rpc('request_pw_help',{r:sel.selectedOptions[0].textContent,n}).then(({error})=>{if(error){t.disabled=false;toast('לא הצלחנו לשלוח. נסו שוב או פנו למנהלת ישירות');return}AUTH.forgotSent=true;paintForgot()});return}
