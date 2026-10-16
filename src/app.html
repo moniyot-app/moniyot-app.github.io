@@ -262,6 +262,8 @@ td input{width:80px}
 .toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));inset-inline-start:50%;transform:translateX(50%);background:var(--ink);color:var(--surface);padding:10px 18px;border-radius:8px;font-weight:600;z-index:10}
 .empty{color:var(--muted);font-size:.92rem;padding:8px 0}
 @media (prefers-reduced-motion:no-preference){.bar>i{transition:width .3s}}
+/* phones: 16px fields so iPhone doesn't zoom in when typing (e.g. passwords) */
+@media (hover:none) and (pointer:coarse){input,select,textarea{font-size:16px!important}}
 </style>
 
 <div class="top"><div class="top-in">
