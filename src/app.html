@@ -282,10 +282,14 @@ td input{width:80px}
   .auth-hero h1{font-size:1.4rem;margin:0}.auth-hero p{font-size:.9rem}.auth-hero ul{display:none}.auth-form{padding:22px 20px}}
 .chgbox{border:2px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:8px 12px;display:grid;gap:6px;margin:4px 0}
 .chgt{border-collapse:collapse;font-size:.9rem;width:100%}.chgt th{text-align:start;font-weight:600;color:var(--muted);padding:2px 6px}.chgt td{padding:3px 6px;border-top:1px solid var(--line);vertical-align:top}.chgt .was{text-decoration:line-through;color:var(--muted)}.chgt .now{font-weight:700;color:var(--ink)}
-.trainbar{max-width:1100px;margin:10px auto 0;padding:10px 16px;border:2px dashed var(--accent);background:var(--accent-soft);border-radius:12px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;font-size:.95rem}
+.trainbar{background:#c2410c;color:#fff;padding:6px 16px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:center;font-size:.9rem;font-weight:600}
+.trainbar .btn{background:#fff;color:#c2410c;border-color:#fff}
+body.train{background:#fff7ed}body.train .top{background:#ffedd5;border-bottom:3px solid #c2410c}body.train .brand{color:#9a3412}
+@media (prefers-color-scheme:dark){body.train{background:#2a1608}body.train .top{background:#3b1d0a}body.train .brand{color:#fdba74}}
 body.train label:has(input[type=password]){display:none}
 </style>
 
+<div id="trainbar" class="trainbar" hidden></div>
 <div class="top"><div class="top-in">
   <div class="brand"><span class="roof">TAXI</span>רמוניות</div><span id="syncst" class="syncst" hidden></span>
   <div class="switch" role="group" aria-label="בחירת עמוד">
@@ -297,7 +301,6 @@ body.train label:has(input[type=password]){display:none}
   </div>
 </div></div>
 <div id="onl" class="onl" hidden></div>
-<div id="trainbar" class="trainbar" hidden></div>
 <main class="wrap" id="app"></main>
 <div class="toast" id="toast" hidden></div>
 <div id="tip" hidden></div>
@@ -714,7 +717,7 @@ const needsOf=r=>Array.isArray(r.needs)?r.needs:r.needs?[r.needs]:[];
 function groupByDay(list){const g={};list.forEach(r=>{(g[ymd(new Date(r.ts))]??=[]).push(r)});return Object.entries(g).sort()}
 
 /* ---------- client page ---------- */
-function subTabs(c){return `${ui.welcome?`<div class="tip welcome"><span>👋 פעם ראשונה כאן? בהוראות השימוש מוסבר בפשטות איך רושמים נוסעים ומזמינים מונית.</span><span class="row" style="gap:6px"><button class="btn small primary" data-welcome="guide">להוראות השימוש</button><button class="btn small" data-welcome="hide">הסתרה</button></span></div>`:''}<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span>${ui.role==='admin'?'<button class="btn small" id="clogout">החלפת מבצעים</button>':''}<span>· נתוני דוגמה</span></div>
+function subTabs(c){return `<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span>${ui.role==='admin'?'<button class="btn small" id="clogout">החלפת מבצעים</button>':''}<span>· נתוני דוגמה</span></div>
   ${isP(c.id)?`<div class="tip">★ <b>הרשאת נסיכות:</b> אפשר להזמין מוניות לכל הנוסעים מכל המבצעים. כל מונית יורדת מהסל של המבצעים שהנוסעים שייכים אליהם, לפי מספר הנוסעים.</div><div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="smart" aria-selected="${ui.sub==='smart'}">⚡ תכנון חכם</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMergesP().filter(x=>!x.voted).length?`<span class="count soft">${myMergesP().filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button></div>${noticeBox(c.id)}`:`<div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="smart" aria-selected="${ui.sub==='smart'}">⚡ תכנון חכם</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMerges(c.id).filter(x=>!x.voted).length?`<span class="count soft">${myMerges(c.id).filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="plan" aria-selected="${ui.sub==='plan'}">תכנון חודשי</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button><button role="tab" class="tab-boss" data-sub="manager" aria-selected="${ui.sub==='manager'}"><span aria-hidden="true">★</span> בוס גדול${mgrPending(c.id).length?`<span class="count">${mgrPending(c.id).length}</span>`:''}</button></div>${noticeBox(c.id)}`}`}
 const UPD={changed:['info','✏️ ההזמנה שונתה וממתינה לאישור מחדש של הסדרן'],confirmed:['ok','✓ הסדרן אישר: המונית הוזמנה'],driver:['ok','🚕 התקבלו פרטי נהג'],tod:['info','✓ ההחרגה אושרה. ההזמנה עברה לסדרן'],bossok:['info','✓ הבוס הגדול אישר. ממתינה עוד לאישור'],ceook:['info','✓ המנכ״ל אישר. ממתינה עוד לאישור'],
   bossno:['bad','✕ הבוס הגדול דחה את ההחרגה. ההזמנה בוטלה'],ceono:['bad','✕ המנכ״ל דחה את נסיעת הלילה. ההזמנה בוטלה'],cancelled:['bad','✕ ההזמנה בוטלה'],dispcancel:['bad','✕ הסדרן ביטל את ההזמנה'],late:['bad','✕ ההזמנה בוטלה אחרי שהמונית הוזמנה או פחות מ־3 שעות לפני. נספרת בסל'],merged:['info','🔗 ההזמנה אוחדה עם הזמנה אחרת'],route:['info','🧭 הסדרן שינה את סדר התחנות כדי לקצר את הנסיעה. שעות האיסוף עודכנו']};
@@ -1615,7 +1618,7 @@ async function rolePwSave(k){const r=roleKeys().find(x=>x.k===k),pw=(document.ge
 
 const confirmDel=t=>{if(t.dataset.sure){return true}t.dataset.sure='1';t.textContent='בטוח? ללחוץ שוב';setTimeout(()=>{if(t.isConnected){delete t.dataset.sure;t.textContent='הסרה'}},4000);return false};
 /* ---------- render + events ---------- */
-function render(){if(TRAIN){if(ui.page==='admin')ui.page='client';const na=document.getElementById('nav-adm');if(na)na.style.display='none';document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 <b>קשה באימונים, קל בקרב</b> · מצב אימון: חברות ונוסעים פיקטיביים, בלי סיסמאות. מה שעושים כאן נשמר רק במכשיר הזה ולא מגיע לאף אחד.</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
+function render(){if(TRAIN){if(ui.page==='admin')ui.page='client';const na=document.getElementById('nav-adm');if(na)na.style.display='none';document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 מצב אימון · קשה באימונים, קל בקרב · שום דבר כאן לא אמיתי ולא נשלח לאף אחד</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
   if(PROD&&AUTH.state!=='in'){['nav-guide','nav-client','nav-disp','nav-adm','glogout'].forEach(id=>{document.getElementById(id).hidden=true});renderAuth();return}
   const allowed=ui.role?ROLEP[ui.role]:[];
   if(!ui.role){if(!['client','dispatcher','admin'].includes(ui.page))ui.page='client'}

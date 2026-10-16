@@ -31,7 +31,10 @@ t=SRC
 for o,n in [("const TRAIN=false;","const TRAIN=true;"),("const KEY='taxi-quota-proto-v1';","const KEY='ramoniyot-train-v1';"),
             ("name:`${first[(ci*3+k)%16]} ${last[(ci*5+k)%12]}`","name:`${first[(ci*3+k)%16]} ${last[(ci*5+k)%12][0]}.`"),
             ('⚠ מצב מקומי: השינויים לא נשמרים לכולם','🎯 מצב אימון · נשמר רק במכשיר הזה'),
-            ('<title>רמוניות</title>','<title>רמוניות · אימון</title>')]:
+            ('<title>רמוניות</title>','<title>רמוניות · אימון</title>'),
+            ("const names=['אורן מערכות','גלבוע הנדסה','תמר לוגיסטיקה','כרמל שירותים','נחשון תפעול','שקד פיתוח','ארבל ייצור','דקל מחקר'];","const names=['נגב','כריש','עטלף','רפאים','צרעה','יבא','מגדל'];"),
+            ('<span class="roof">TAXI</span>רמוניות</div>','<span class="roof">TAXI</span>רמוניות · אימון</div>'),
+            ("pax:[prem(7)[0].id,prem(7)[1].id]","pax:[prem(6)[0].id,prem(6)[1].id]")]:
     assert t.count(o)==1,o[:50]; t=t.replace(o,n)
 t=t.replace('<meta name="claude:viewport-fit-sides" content="cover">\n','')
 thead=head.replace('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>\n','').replace('<link rel="manifest" href="manifest.webmanifest">\n','')
