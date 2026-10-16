@@ -671,7 +671,7 @@ function groupByDay(list){const g={};list.forEach(r=>{(g[ymd(new Date(r.ts))]??=
 
 /* ---------- client page ---------- */
 function subTabs(c){return `${ui.welcome?`<div class="tip welcome"><span>👋 פעם ראשונה כאן? בהוראות השימוש מוסבר בפשטות איך רושמים נוסעים ומזמינים מונית.</span><span class="row" style="gap:6px"><button class="btn small primary" data-welcome="guide">להוראות השימוש</button><button class="btn small" data-welcome="hide">הסתרה</button></span></div>`:''}<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span>${ui.role==='admin'?'<button class="btn small" id="clogout">החלפת מבצעים</button>':''}</div>
-  ${isP(c.id)?`<div class="tip">★ <b>הרשאת נסיכות:</b> אפשר להזמין מוניות לכל הנוסעים מכל המבצעים. כל מונית יורדת מהסל של המבצעים שהנוסעים שייכים אליהם, לפי מספר הנוסעים.</div><div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMergesP().filter(x=>!x.voted).length?`<span class="count soft">${myMergesP().filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button></div>${noticeBox(c.id)}`:`<div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMerges(c.id).filter(x=>!x.voted).length?`<span class="count soft">${myMerges(c.id).filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="plan" aria-selected="${ui.sub==='plan'}">תכנון חודשי</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button><button role="tab" class="tab-boss" data-sub="manager" aria-selected="${ui.sub==='manager'}"><span aria-hidden="true">★</span> בוס גדול${mgrPending(c.id).length?`<span class="count">${mgrPending(c.id).length}</span>`:''}</button></div>${noticeBox(c.id)}`}`}
+  ${isP(c.id)?`<div class="tip">★ <b>הרשאת נסיכות:</b> אפשר להזמין מוניות לכל הנוסעים מכל המבצעים. כל מונית יורדת מהסל של המבצעים שהנוסעים שייכים אליהם, לפי מספר הנוסעים.</div><div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="smart" aria-selected="${ui.sub==='smart'}">⚡ תכנון חכם</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMergesP().filter(x=>!x.voted).length?`<span class="count soft">${myMergesP().filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button></div>${noticeBox(c.id)}`:`<div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="smart" aria-selected="${ui.sub==='smart'}">⚡ תכנון חכם</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMerges(c.id).filter(x=>!x.voted).length?`<span class="count soft">${myMerges(c.id).filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="plan" aria-selected="${ui.sub==='plan'}">תכנון חודשי</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button><button role="tab" class="tab-boss" data-sub="manager" aria-selected="${ui.sub==='manager'}"><span aria-hidden="true">★</span> בוס גדול${mgrPending(c.id).length?`<span class="count">${mgrPending(c.id).length}</span>`:''}</button></div>${noticeBox(c.id)}`}`}
 const UPD={changed:['info','✏️ ההזמנה שונתה וממתינה לאישור מחדש של הסדרן'],confirmed:['ok','✓ הסדרן אישר: המונית הוזמנה'],driver:['ok','🚕 התקבלו פרטי נהג'],tod:['info','✓ ההחרגה אושרה. ההזמנה עברה לסדרן'],bossok:['info','✓ הבוס הגדול אישר. ממתינה עוד לאישור'],ceook:['info','✓ המנכ״ל אישר. ממתינה עוד לאישור'],
   bossno:['bad','✕ הבוס הגדול דחה את ההחרגה. ההזמנה בוטלה'],ceono:['bad','✕ המנכ״ל דחה את נסיעת הלילה. ההזמנה בוטלה'],cancelled:['bad','✕ ההזמנה בוטלה'],dispcancel:['bad','✕ הסדרן ביטל את ההזמנה'],late:['bad','✕ ההזמנה בוטלה אחרי שהמונית הוזמנה או פחות מ־3 שעות לפני. נספרת בסל'],merged:['info','🔗 ההזמנה אוחדה עם הזמנה אחרת'],route:['info','🧭 הסדרן שינה את סדר התחנות כדי לקצר את הנסיעה. שעות האיסוף עודכנו']};
 const mark=(r,k)=>{r.upd={k,at:Date.now(),by:ui.page==='client'?ui.cid:null};r.seenBy=[]};
@@ -863,6 +863,53 @@ function renderPlan(c){const now=new Date(),curK=ymd(now).slice(0,7),nextK=ymd(n
     <section class="panel" style="background:var(--accent-soft);border-color:var(--accent)"><h3>💡 המלצות</h3><ul class="gsteps">${[...(hq?[]:[planAdvice(P,act,wk,myTot)]),...effTips(c,P,hq?0:proj)].map(t=>`<li>${t}</li>`).join('')}</ul></section>
   </section>`;
 }
+/* ---------- smart planner: many passengers, one start time, as few taxis as possible ---------- */
+const kmBase=c=>{const a=geoOf(c),b=BASEGEO;if(!a)return 0;const R=6371,r=v=>v*Math.PI/180,dl=r(b[0]-a[0]),dg=r(b[1]-a[1]),h=Math.sin(dl/2)**2+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
+const lastAddr=p=>{let best=null;for(const r of S.rides){const a=(r.addr||{})[p];if(!a||!r.pax.includes(p))continue;const k=r.createdAt||r.ts;if(!best||k>best.k)best={k,a}}return best?best.a:(emp(p)?.addr||'')};
+function smartDraft(grp,o){const cs0=[...new Set(grp.map(x=>x.city))];let cs=cs0,bm=Infinity;
+  const perm=(a,l=[])=>{if(!a.length){const m=cityMins(l,o.dir,BASE);if(m<bm){bm=m;cs=l}return}a.forEach((x,i)=>perm([...a.slice(0,i),...a.slice(i+1)],[...l,x]))};if(cs0.length<=5)perm(cs0);
+  const pts=cs.map(c=>({city:c,addr:(grp.find(x=>x.city===c&&x.addr)||{}).addr||''})),pidx={};grp.forEach(x=>{pidx[x.p]=cs.indexOf(x.city)});
+  const lead=(grp.find(x=>emp(x.p)?.type==='business')||grp[0]).p;
+  const d={date:o.date,time:o.time,dir:o.dir,base:BASE,baseOn:false,reason:o.reason||'',pts,pidx,pax:grp.map(x=>x.p),lead,stops:[],ppt:{},addr:{}};syncDraft(d);return d}
+const pDur=(d,p)=>{const t=paxTimes(d,p);return t?t.end-t.start:0};
+function smartPlan(items,o){const cap=o.allow4?4:3,MAXX=(MAXEXTRA+5)*MIN /* +5: times are rounded to 5 minutes */,left=[...items].sort((a,b)=>kmBase(b.city)-kmBase(a.city)),out=[];
+  const solo=Object.fromEntries(items.map(x=>[x.p,pDur(smartDraft([x],o),x.p)]));
+  while(left.length){const grp=[left.shift()];let d=smartDraft(grp,o);
+    while(grp.length<cap){let best=null;
+      left.forEach((x,i)=>{if(!grp.some(g=>g.city===x.city)&&kmToRoute(x.city,d)>MAXKM)return;const g2=[...grp,x];if(new Set(g2.map(y=>y.city)).size>4)return;const d2=smartDraft(g2,o);
+        if(g2.some(y=>pDur(d2,y.p)-solo[y.p]>MAXX))return;const s1=sched(d),s2=sched(d2),cost=(s2.end-s2.start)-(s1.end-s1.start)+(grp.some(g=>g.city===x.city)?-1e9:0);
+        if(!best||cost<best.cost)best={i,cost,d2}});
+      if(!best)break;grp.push(left.splice(best.i,1)[0]);d=best.d2}
+    out.push(d)}
+  return out}
+function smCheck(x){const res=check(x.d);x.issues=res.filter(z=>z.k!=='ok');x.block=res.some(z=>z.k==='block');x.appr=res.some(z=>z.k==='appr');return x}
+function renderSmart(c){const sm=ui.smart||(ui.smart={date:ymd(new Date(Date.now()+DAY)),time:(()=>{try{return localStorage.getItem('smart-time-'+c.id)||'08:30'}catch(_){return '08:30'}})(),dir:'to',sel:{},allow4:false,plan:null});
+  const P=isP(c.id),emps=S.employees.filter(e=>(P||e.cid===c.id)&&!e.removed).sort((a,b)=>a.name.localeCompare(b.name,'he'));
+  const plan=sm.plan,booked=plan&&plan.filter(x=>x.booked).length;
+  app.innerHTML=subTabs(c)+`<section class="panel"><h2>⚡ תכנון חכם</h2>
+    <div class="note">בוחרים תאריך, שעה ונוסעים. המערכת מחלקת אותם למספר המוניות הקטן ביותר: נוסעים מאותה עיר או מעיר שעד ${MAXKM} ק״מ מהמסלול נוסעים יחד, בלי להאריך לאף אחד את הנסיעה ביותר מ־${MAXEXTRA} דקות, וסדר התחנות הוא הקצר ביותר. בודקים ומזמינים בלחיצה.</div>
+    <div class="fields">
+      <label>תאריך<input type="date" id="sm-date" value="${sm.date}"></label>
+      <label>לפי מה קובעים את השעה<select id="sm-dir"><option value="to" ${sm.dir==='to'?'selected':''}>שעת הגעה ל${esc(BASE)}</option><option value="from" ${sm.dir==='from'?'selected':''}>שעת יציאה מ${esc(BASE)}</option></select></label>
+      <label>שעה<input type="time" id="sm-time" value="${sm.time}" step="300"></label>
+      <label class="row" style="gap:6px;font-weight:400;align-self:end"><input type="checkbox" id="sm-4" ${sm.allow4?'checked':''}> לאפשר 4 נוסעים במונית</label>
+    </div>
+    <label>פירוט לנסיעות לילה (איסוף לפני 06:00 או אחרי 23:00 דורש אישור מנכ״ל)<input id="sm-reason" value="${esc(sm.reason||'')}" placeholder="למשל: תחילת משמרת ב־08:30" maxlength="200"></label>
+    <h3 style="margin-bottom:4px">נוסעים <span class="count">${Object.keys(sm.sel).length}</span></h3>
+    <div class="row" style="gap:6px;margin-bottom:6px"><button class="btn small" data-small="1">סימון הכל</button><button class="btn small" data-smnone="1">ניקוי</button><span class="note">ליד כל נוסע מסומן: העיר שממנה הוא יוצא (או אליה הוא חוזר).</span></div>
+    <datalist id="sm-cities">${S.destinations.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px">${emps.map(e=>{const on=e.id in sm.sel;return `<div class="emp-row" style="gap:8px"><label class="row" style="gap:6px;font-weight:400;color:var(--ink);flex:1;min-width:0"><input type="checkbox" data-smp="${e.id}" ${on?'checked':''}>${P?opsDot(e.cid):''}<b>${esc(e.name)}</b> ${tag(e.type)}</label>${on?`<input list="sm-cities" data-smc="${e.id}" value="${esc(sm.sel[e.id])}" placeholder="עיר" style="width:110px" class="${S.destinations.includes(sm.sel[e.id])?'':'bad'}" aria-label="העיר של ${esc(e.name)}">`:''}</div>`}).join('')||'<div class="empty">אין נוסעים במאגר.</div>'}</div>
+    <div class="row" style="gap:8px;margin-top:12px"><button class="btn primary" data-smgo="1" ${Object.keys(sm.sel).length?'':'disabled'}>⚡ תכנון המוניות</button>${plan?'<button class="btn small" data-smclear="1">ניקוי התוצאה</button>':''}</div>
+  </section>
+  ${plan?`<section class="panel"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h2>התוצאה: ${plan.length} מוניות ל־${plan.reduce((a,x)=>a+x.d.pax.length,0)} נוסעים</h2>
+      ${plan.some(x=>!x.booked&&!x.block)?`<button class="btn primary" data-smbook="1">הזמנת כל המוניות התקינות (${plan.filter(x=>!x.booked&&!x.block).length})</button>`:''}</div>
+    <div class="note">כל מונית עוברת את אותה בדיקה כמו הזמנה רגילה. מונית עם נוסע בודד תמתין לאישור הבוס הגדול. מונית עם בעיה (אדום) אפשר להעביר לטופס ההזמנה ולתקן.${booked?` · <b>הוזמנו ${booked}</b>`:''}</div>
+    <div class="rides">${plan.map((x,i)=>{const s2=sched(x.d);return `<div class="ride${x.booked?' dim':''}"><div class="t num">${i+1}</div><div style="min-width:0;display:grid;gap:4px">
+      <div class="row" style="gap:6px;flex-wrap:wrap"><b>${(x.d.dir==='to'?[...points(x.d),BASE]:[BASE,...points(x.d)]).map(esc).join(' ← ')}</b>${x.booked?'<span class="st st-active">הוזמנה</span>':x.block?'<span class="st st-late">צריך תיקון</span>':x.appr?'<span class="st st-pending">תמתין לאישור</span>':'<span class="st st-new">מוכנה להזמנה</span>'}</div>
+      <div class="note r2">👥 ${x.d.pax.map(p=>`${x.d.lead===p?'★':''}${esc(emp(p)?.name||'')}`).join(', ')}${s2?` · ${schedTxt(x.d)}`:''}</div>
+      ${x.booked?'':`<div style="display:grid;gap:4px">${x.d.pts.map((pt,j)=>`<label class="row paddr" style="gap:6px;font-weight:400"><span>📍 ${esc(pt.city)}</span><input data-smaddr="${i}|${j}" value="${esc(pt.addr||'')}" placeholder="רחוב ומספר, או נקודת ציון" aria-label="כתובת בתחנה ${esc(pt.city)}"></label>`).join('')}</div>`}
+      ${x.issues.length&&!x.booked?`<ul class="checks" style="margin:0">${x.issues.map(z=>`<li class="${z.k}">${esc(z.t)}</li>`).join('')}</ul>`:''}</div>
+      <div class="acts">${x.booked?'':`<button class="btn small" data-smedit="${i}">עריכה בטופס</button>`}</div></div>`}).join('')}</div></section>`:''}`}
 function renderClientLogin(){
   app.innerHTML=`<form class="panel gate" id="clogin"><h2>${MGR()?'צפייה במבצעים':'כניסה למבצעים'}</h2>
     <label>מבצעים<select id="lcid">${S.clients.map(x=>`<option value="${x.id}" ${x.id===ui.cid?'selected':''}>${esc(x.name)}</option>`).join('')}<option value="${PID}" ${ui.cid===PID?'selected':''}>★ נסיכות (הרשאה מורחבת)</option></select></label>
@@ -875,12 +922,13 @@ function renderClient(){if(ui.role==='princess'){ui.cid=PID;ui.cAuth=PID}
   if(ui.cAuth!==ui.cid||!client(ui.cid)){renderClientLogin();return}
   const c=client(ui.cid);
   if(ui.sub==='manager'){renderManager(c);return}
-  if(isP(c.id)&&!['orders','merge','pax'].includes(ui.sub))ui.sub='orders';
+  if(isP(c.id)&&!['orders','smart','merge','pax'].includes(ui.sub))ui.sub='orders';
   if(ui.sub==='cal')ui.sub='plan';
   if(false){app.innerHTML=subTabs(c)+`<section class="panel"><h2>לוח שנה</h2><div class="note">זה הלוח שהמנהלת קובעת: סוג כל יום ושעות הטיסות. הוא מתעדכן אצלכם אוטומטית.</div>${calGrid(true)}${dayInfo(ui.calSel||ymd(new Date()))}</section>`;return}
   if(ui.sub==='pax'){renderPaxReq(c);return}
   if(ui.sub==='merge'){renderMerge(c);return}
   if(ui.sub==='plan'){renderPlan(c);return}
+  if(ui.sub==='smart'){renderSmart(c);return}
   const emps=S.employees.filter(e=>(isP(c.id)||e.cid===c.id)&&!e.removed);
   const d=ui.draft;
   const my=S.rides.filter(r=>(isP(c.id)?r.by===PID:r.pax.some(p=>emp(p)?.cid===c.id))&&r.ts>Date.now()-DAY).sort((a,b)=>a.ts-b.ts);
@@ -997,6 +1045,10 @@ function editProblem(r,d){const nt=at(d.date,d.time);if(r.ts-Date.now()<3*H)retu
   const a=new Set(r.pax),b=new Set(d.pax),diff=[...a].filter(x=>!b.has(x)).length+[...b].filter(x=>!a.has(x)).length;
   if(diff>2)return 'אפשר להוסיף, להסיר או להחליף נוסע אחד בלבד. לשינוי גדול יותר בטלו והזמינו מחדש';
   return ''}
+/* creates a ride from a checked draft (used by the order form and by the smart planner) */
+function createRide(d,c){const nd=[];if(d.pax.length===1)nd.push('single');if(isNight(d))nd.push('night');
+    const needs=nd.length;const over=!isP(c.id)&&used(c.id)+1>limit(c);
+    const r={id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,unplanned:!!planGap(ui.cid,ymd(new Date(at(d.date,d.time))),d.pax),createdAt:Date.now()};S.rides.push(r);return r}
 function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   const past=r.ts<Date.now(), dead=['cancelled','merged','late'].includes(r.status), cls=clientsOf(r), s=sched(r);
   const names=r.pax.map(p=>`${leadOf(r)===p?'<b title="אחראי/ת הנסיעה">★</b>':''}${esc(emp(p)?.name||'')}`).join(', ');
@@ -1292,6 +1344,7 @@ const G={
    sections:[
    {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','את "מבצעים" ואת השם של המבצעים שלכם'),'נפתח העמוד של המבצעים שלכם בלבד. בראשו רואים כמה מוניות נוצלו החודש ומה נשאר בסל.']},
    {h:'הזמנת מונית',go:'ops',steps:['בלשונית "הזמנות" בוחרים תאריך, ואם השעה היא שעת הגעה ליעד או שעת יציאה מהמוצא, ומזינים שעה.','שלב 1: מסמנים עד 4 נוסעים.','שלב 2, מסלול: בוחרים תחנת מוצא ותחנת יעד. בכל תחנת איסוף או הורדה מקלידים עיר: ✓ מותרת, ✕ לא מותרת. אחר כך כותבים כתובת מדויקת.','ב"מי עולה כאן?" לוחצים על הנוסעים שנאספים בתחנה. נוסע שנאסף ממקום אחר מקבל תחנה משלו ("+ הוספת נקודת איסוף").','אם יש סדר תחנות קצר יותר, תופיע הצעה "💡 סדר יעיל יותר". לחיצה אחת מסדרת מחדש.','שלב 3: בוחרים אחראי/ת נסיעה.','בודקים את "בדיקת ההזמנה" בצד: ירוק תקין, כתום דורש תשומת לב, אדום חוסם. מתקנים ולוחצים "הזמנת מונית".'],tip:'העיר שמופיעה ליד נוסע היא העיר שממנה נסע בפעם האחרונה. שעות האיסוף המשוערות מחושבות לבד.'},
+   {h:'⚡ תכנון חכם: הרבה נוסעים, שעה אחת',go:'ops-smart',steps:['בלשונית "⚡ תכנון חכם" בוחרים תאריך ושעה (למשל שעת תחילת העבודה), ומסמנים את הנוסעים. "סימון הכל" מסמן את כולם.','ליד כל נוסע מופיעה העיר שממנה נסע בפעם האחרונה. אפשר לשנות.','לוחצים "⚡ תכנון המוניות". המערכת מחלקת למספר המוניות הקטן ביותר: נוסעים מאותה עיר או מעיר שעד 10 ק״מ מהמסלול נוסעים יחד, בלי להאריך לאף אחד את הנסיעה ביותר מכ־15 דקות, ובסדר התחנות הקצר ביותר.','בכל מונית בודקים את הכתובות בתחנות ומשלימים מה שחסר. נסיעה שמתחילה לפני 06:00 צריכה פירוט לנסיעת לילה.','"הזמנת כל המוניות התקינות" מזמין הכל בלחיצה. מונית שצריכה תיקון אפשר לפתוח ב"עריכה בטופס".']},
    {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–06:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
    {h:'📱 שליחת פרטי הנסיעה לנוסעים',go:'ops',steps:['כשמגיעים פרטי הנהג, בהתראה למעלה מופיע "📱 שליחה לנוסעים". אפשר גם לפתוח "פרטים" ליד הנסיעה.','ב"הודעה לנוסעים" לוחצים ליד כל נוסע "וואטסאפ" או "SMS".','ההודעה נפתחת מוכנה בטלפון שלכם: שעה, מסלול, מאיפה נאסף, פרטי הנהג, האחראי/ת וקישור קצר להוספה ליומן. לוחצים "שליחה".','ליד מי שקיבל מופיע ✓ נשלח, ולמעלה כמה נשלחו מתוך כמה.'],tip:'נוסע בלי טלפון במאגר לא יופיע ברשימה. עדכנו לו טלפון בלשונית "נוסעים".'},
    {h:'שינוי הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "שינוי" ליד הנסיעה. ההזמנה נטענת לטופס.','אפשר: להזיז את השעה עד שעה, להוסיף, להסיר או להחליף נוסע אחד, ולעדכן תחנות וכתובות. התאריך והכיוון לא משתנים.','לוחצים "שמירת השינוי". גם הזמנה שכבר אושרה חוזרת לסדרן לאישור מחדש. אם השינוי יוצר החרגה חדשה (למשל נוסע בודד), היא תחכה קודם לאישור.','אפשר לשנות עד 3 שעות לפני הנסיעה. שינוי גדול יותר: מבטלים ומזמינים מחדש.']},
@@ -1532,6 +1585,17 @@ document.addEventListener('click',e=>{
   if(t.dataset.openroutes){ui.openR=routeTips().map(r=>r.id)}
   if(t.dataset.tab){ui.tab=t.dataset.tab;render();return}
   if(t.dataset.opensms){const id=t.dataset.opensms;ui.sub='orders';ui.openR=[...new Set([...(ui.openR||[]),id])];render();setTimeout(()=>{const el=document.querySelector(`details[data-rid="${id}"]`);el&&el.scrollIntoView({behavior:'smooth',block:'center'})},50);return}
+  if(t.dataset.small||t.dataset.smnone){const sm=ui.smart,c=client(ui.cid);if(t.dataset.smnone)sm.sel={};else S.employees.filter(e=>(isP(c.id)||e.cid===c.id)&&!e.removed).forEach(e=>{if(!(e.id in sm.sel))sm.sel[e.id]=lastCity(e.id)||e.city||''});sm.plan=null;render();return}
+  if(t.dataset.smclear){ui.smart.plan=null;render();return}
+  if(t.dataset.smgo){const sm=ui.smart,items=Object.entries(sm.sel).map(([p,city])=>({p,city:(city||'').trim(),addr:lastAddr(p)}));
+    const bad=items.find(x=>!S.destinations.includes(x.city));if(bad){toast(`חסרה עיר מותרת ל${emp(bad.p)?.name||''}`);return}
+    if(at(sm.date,sm.time)<Date.now()+3*H){toast('חייבים לתכנן לפחות 3 שעות לפני הנסיעה');return}
+    try{localStorage.setItem('smart-time-'+ui.cid,sm.time)}catch(_){}
+    const ds=smartPlan(items,sm);sm.plan=ds.map(d=>smCheck({d}));
+    toast(`${items.length} נוסעים ב־${ds.length} מוניות`);render();return}
+  if(t.dataset.smedit){const x=ui.smart.plan[+t.dataset.smedit];ui.editRide=null;ui.draft={...ui.draft,...JSON.parse(JSON.stringify(x.d))};ui.sub='orders';render();scrollTo(0,0);toast('המונית נטענה לטופס ההזמנה. תקנו ושלחו');return}
+  if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;createRide(x.d,c);x.booked=true;n++});
+    save();toast(n?`הוזמנו ${n} מוניות. אפשר לראות אותן ב"הזמנות"`:'אין מוניות תקינות להזמנה');render();return}
   if(t.dataset.editride){const r=S.rides.find(x=>x.id===t.dataset.editride);if(!r||!canEdit(r))return;ui.editRide=r.id;ui.draft=draftFromRide(r);ui.sub='orders';render();scrollTo(0,0);toast('ההזמנה נטענה לטופס. שנו ושמרו');return}
   if(t.dataset.editx){ui.editRide=null;const d=ui.draft;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;render();return}
   if(t.dataset.dbed){ui.dbEd=t.dataset.dbed;render();setTimeout(()=>document.getElementById('db-'+ui.dbEd)?.focus());return}
@@ -1605,9 +1669,7 @@ document.addEventListener('click',e=>{
       r.status=needBoss(r)||needCeo(r)?'pending':'awaiting';r.confirmedAt=null;r.reconfirm=true;if(r.sms)r.sms.sent={};if(r.cal)makeCalLinks(r);
       mark(r,'changed');ui.editRide=null;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;save();
       toast(r.status==='pending'?'השינוי נשמר. ההזמנה ממתינה לאישור החרגה ואז לסדרן':'השינוי נשמר ונשלח לסדרן לאישור מחדש');render();return}
-    const nd=[];if(d.pax.length===1)nd.push('single');if(isNight(d))nd.push('night');
-    const needs=nd.length;const over=!isP(c.id)&&used(c.id)+1>limit(c);
-    S.rides.push({id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,unplanned:!!planGap(ui.cid,ymd(new Date(at(d.date,d.time))),d.pax),createdAt:Date.now()});
+    const nr=createRide(d,c),needs=!!nr.needs;
     d.reason='';d.base='';d.baseOn=false;ui.ack4=false;ui.secOk=false;d.pax=[];d.stops=[];d.stopAddr=[];d.destAddr='';d.lead=null;d.ppt={};d.addr={};d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};ui.ack=false;save();{const up=S.rides[S.rides.length-1].unplanned;toast((needs?'ההזמנה ממתינה לאישור הבוס הגדול':'ההזמנה נשלחה לסדרן')+(up?' · 📅 שימו לב: מחוץ לתכנון החודשי':''))}render();return}
   if(t.dataset.cancel){const r=S.rides.find(x=>x.id===t.dataset.cancel);
     const who=cancelActor(),opsSide=ui.page==='client';
@@ -1677,6 +1739,13 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
     S.blocked.push({id:'b'+Date.now(),date:g('bd'),from:g('bf'),to:g('bt'),note:g('bn').trim()||'הסעה חלופית'});save();render();return}
 });
 document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
+  if(ui.smart&&ui.sub==='smart'&&ui.page==='client'){const sm=ui.smart;
+    if(t.id==='sm-date'){sm.date=t.value;sm.plan=null;render();return}if(t.id==='sm-dir'){sm.dir=t.value;sm.plan=null;render();return}
+    if(t.id==='sm-time'){sm.time=t.value;sm.plan=null;render();return}if(t.id==='sm-4'){sm.allow4=t.checked;sm.plan=null;render();return}
+    if(t.dataset.smp){const p=t.dataset.smp;if(t.checked)sm.sel[p]=lastCity(p)||emp(p)?.city||'';else delete sm.sel[p];sm.plan=null;render();return}
+    if(t.dataset.smc){sm.sel[t.dataset.smc]=t.value.trim();sm.plan=null;render();return}
+    if(t.id==='sm-reason'){sm.reason=t.value;if(sm.plan)sm.plan.forEach(x=>{x.d.reason=t.value;smCheck(x)});render();return}
+    if(t.dataset.smaddr){const[i,j]=t.dataset.smaddr.split('|').map(Number),x=sm.plan[i];x.d.pts[j].addr=t.value.trim();syncDraft(x.d);smCheck(x);render();return}}
   if(t.id==='cid'){ui.cid=t.value;ui.knownNt=ntIds(t.value);d.pax=[];ui.ack=false;ui.confirm=null;render();return}
   if(t.id==='empcid'){ui.empCid=t.value;render();return}
   if(t.dataset.type){emp(t.dataset.type).type=t.value;save();toast('סוג הנוסע עודכן');return}
