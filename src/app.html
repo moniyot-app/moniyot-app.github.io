@@ -521,7 +521,7 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
   if(isNight(d)&&!(d.reason||'').trim())add('block','נסיעת לילה: כתבו פירוט של הבקשה, כדי שהמאשר/ת יוכלו להחליט');
   if(isNight(d))add('appr',deleg(ui.cid,sD)?'נסיעת לילה (23:00–06:00): דורש אישור של הבוס הגדול (בסמכות שהאציל המנכ״ל). ההזמנה תמתין לאישור':'נסיעת לילה (23:00–06:00): דורש אישור של המנכ״ל. ההזמנה תמתין לאישור');
   {const g=!isNaN(ts)&&planGap(ui.cid,sD,d.pax);if(g)add('warn',g.none?'📅 עוד לא מילאתם תכנון חודשי לחודש הזה. ההזמנה תסומן "מחוץ לתכנון"':g.planned?`📅 מחוץ לתכנון: ב${dayLabel(sD)} תכננתם ${fmt(g.planned)} מוניות, וכבר הוזמנו ${fmt(g.used)}. ההזמנה תסומן "מחוץ לתכנון"`:`📅 מחוץ לתכנון: לא תכננתם מוניות ב${dayLabel(sD)}. ההזמנה תסומן "מחוץ לתכנון"`)}
-  if(n===1)isP(ui.cid)?add('ok','נוסע יחיד: לנסיכות לא נדרש אישור של הבוס הגדול'):add('appr','נוסע יחיד: דורש אישור של הבוס הגדול. ההזמנה תמתין לאישור');
+  if(n===1)isP(ui.cid)&&d.house?add('ok','נוסע יחיד על חשבון הבית: לא נדרש אישור של הבוס הגדול'):add('appr','נוסע יחיד: דורש אישור של הבוס הגדול. ההזמנה תמתין לאישור');
   if(n===4)add('warn','4 נוסעים: נדרש אישור של המבצעים. סמנו את האישור למטה');
   if(n>=2&&n<=3)add('ok',`${n} נוסעים במונית`);
   return out;
@@ -1081,7 +1081,7 @@ function editProblem(r,d){const nt=at(d.date,d.time);if(r.ts-Date.now()<3*H)retu
   if(diff>2)return 'אפשר להוסיף, להסיר או להחליף נוסע אחד בלבד. לשינוי גדול יותר בטלו והזמינו מחדש';
   return ''}
 /* creates a ride from a checked draft (used by the order form and by the smart planner) */
-function createRide(d,c){const nd=[];if(d.pax.length===1&&!isP(ui.cid))nd.push('single');if(isNight(d))nd.push('night');
+function createRide(d,c){const nd=[];if(d.pax.length===1&&!(isP(ui.cid)&&d.house))nd.push('single');if(isNight(d))nd.push('night');
     const house=!!(d.house&&isP(ui.cid)),needs=nd.length;const over=!house&&!isP(c.id)&&used(c.id)+1>limit(c);
     const r={id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,house:house||undefined,unplanned:!house&&!!planGap(ui.cid,ymd(new Date(at(d.date,d.time))),d.pax),createdAt:Date.now()};S.rides.push(r);return r}
 function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
@@ -1426,7 +1426,7 @@ const G={
    {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','"★ נסיכות"'),'נפתח עמוד ההזמנות של הנסיכות. בתפריט למעלה יש גם "המנהלת", ו"עמוד סדרן" לצפייה בסטטוס ההזמנות בלבד (בלי אישור ובלי פרטי נהג).']},
    {h:'אישור נוסע בודד של יבא',go:'adm-approvals',steps:['בלשונית "ממתין להחרגה" נסיעות של יבא עם נוסע בודד מופיעות עם הכפתורים "אישור (נסיכות)" ו"דחייה".','האישור שלך מחליף את אישור הבוס הגדול של יבא. אחריו ההזמנה עוברת לסדרן (או למנכ״ל, אם זו גם נסיעת לילה).','הבוס הגדול של יבא עדיין יכול לאשר בעצמו. מי שמאשר ראשון קובע.']},
    {h:'נוסעים ומי פנוי באלנבי',go:'ops-pax',steps:['בלשונית "נוסעים" רואים את כל הנוסעים מכל המבצעים. אפשר לערוך או להסיר.','להוספת נוסע בוחרים לאיזה מבצעים הוא שייך, וממלאים שם, סוג וטלפון. הנוסע נכנס אחרי אישור המנהלת.','ב"מי פנוי באלנבי" מופיעות הצעות לאחד הזמנות שהנסיכות הזמינה עם הזמנות אחרות. האישור שלך נחשב אישור של המבצעים של הנוסעים בהזמנה שלך.']},
-   {h:'הזמנה לכל הנוסעים',go:'ops',steps:['🏠 על חשבון הבית: לפני השליחה מסמנים "על חשבון הבית". המונית לא יורדת מאף סל, ובמעקב היא מופיעה בנפרד. אפשר גם בתכנון החכם.','אחרי הכניסה נפתח ישר עמוד ההזמנות של הנסיכות. מכל עמוד אחר חוזרים אליו ב"מבצעים" בתפריט למעלה.','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','נסיעה עם נוסע יחיד לא צריכה אישור של הבוס הגדול, והיא עוברת ישר לסדרן. נסיעת לילה עדיין צריכה אישור מנכ״ל.','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
+   {h:'הזמנה לכל הנוסעים',go:'ops',steps:['🏠 על חשבון הבית: לפני השליחה מסמנים "על חשבון הבית". המונית לא יורדת מאף סל, ובמעקב היא מופיעה בנפרד. אפשר גם בתכנון החכם.','אחרי הכניסה נפתח ישר עמוד ההזמנות של הנסיכות. מכל עמוד אחר חוזרים אליו ב"מבצעים" בתפריט למעלה.','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','נסיעה עם נוסע יחיד על חשבון הבית לא צריכה אישור של הבוס הגדול, והיא עוברת ישר לסדרן. בלי "על חשבון הבית" היא מחכה לבוס הגדול כרגיל. נסיעת לילה תמיד צריכה אישור מנכ״ל.','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
   ]},
   ceo:{title:'מנכ״ל',intro:'המנכ״ל מאשר נסיעות לילה ויכול להאציל את הסמכות לבוסים גדולים.',
    quick:['נכנסים כ"מנכ״ל".','"אישור" או "דחייה" לכל נסיעה בין 23:00 ל־06:00.','רוצים שבוס גדול יאשר בעצמו? "האצלת סמכות".'],
@@ -1699,7 +1699,7 @@ document.addEventListener('click',e=>{
   if(t.id==='submit'){const d=ui.draft,c=client(ui.cid);syncDraft(d);const res=check(d);const bl=res.find(x=>x.k==='block');if(bl){toast(bl.t);renderCheck();return}
     if(ui.editRide){const r=S.rides.find(x=>x.id===ui.editRide);if(!r||!canEdit(r)){ui.editRide=null;toast('אי אפשר לשנות את ההזמנה הזו יותר');render();return}
       const pr=editProblem(r,d);if(pr){toast(pr);return}
-      const nd=[];if(d.pax.length===1&&!isP(ui.cid))nd.push('single');if(isNight(d))nd.push('night');const same=JSON.stringify([...nd].sort())===JSON.stringify([...needsOf(r)].sort());
+      const nd=[];if(d.pax.length===1&&!(isP(ui.cid)&&r.house))nd.push('single');if(isNight(d))nd.push('night');const same=JSON.stringify([...nd].sort())===JSON.stringify([...needsOf(r)].sort());
       (r.changes??=[]).push({at:Date.now(),by:ui.cid,prev:{ts:r.ts,pax:[...r.pax],dest:r.dest,stops:[...(r.stops||[])]}});
       Object.assign(r,{ts:at(d.date,d.time),dest:d.dest,stops:[...d.stops],pax:[...d.pax],lead:d.lead,base:(d.base||'').trim(),reason:isNight(d)?(d.reason||'').trim():'',ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()]))});
       if(!same){r.needs=nd.length?nd:null;r.approvedBy=[];r.ceoOk=false;r.pOk=false}
