@@ -281,6 +281,19 @@ td input{width:80px}
 .onl{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;max-width:1100px;margin:8px auto 0;padding:6px 16px;font-size:.85rem}
 .onl-h{color:var(--ok);font-weight:700}.onl-p{display:inline-flex;gap:5px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 10px 2px 3px}
 .onav{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:.8rem}
+.auth{display:grid;grid-template-columns:1fr 1fr;max-width:900px;width:100%;margin:56px auto;border-radius:18px;overflow:hidden;border:1px solid var(--line);background:var(--surface);box-shadow:0 12px 36px rgba(20,30,50,.08)}
+.auth-hero{background:#1f2a44;color:#fff;padding:44px 40px;display:grid;align-content:center;gap:18px}
+.auth-hero img{width:96px;height:96px;border-radius:22px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.auth-hero h1{font-size:2.1rem;margin:0 0 4px;color:#fff}
+.auth-hero p{color:#cfd6e4;margin:0;font-size:1.05rem;line-height:1.5}
+.auth-hero ul{margin:0;padding:0;list-style:none;display:grid;gap:10px;color:#e8ecf3}
+.auth-hero li::before{content:"✓";color:#f6c431;font-weight:700;margin-inline-end:8px}
+.auth-form{padding:44px 40px;display:grid;gap:14px;align-content:center}
+.auth-form h2{margin:0 0 4px;font-size:1.5rem}
+.auth-form .btn.primary{padding:11px 14px;font-size:1rem}
+@media (max-width:760px){.auth{grid-template-columns:1fr;margin:16px auto;border-radius:14px}
+  .auth-hero{padding:18px 20px;grid-template-columns:auto 1fr;align-items:center;gap:14px}.auth-hero img{width:52px;height:52px;border-radius:13px}
+  .auth-hero h1{font-size:1.4rem;margin:0}.auth-hero p{font-size:.9rem}.auth-hero ul{display:none}.auth-form{padding:22px 20px}}
 </style>
 
 <div class="top"><div class="top-in">
@@ -1384,7 +1397,9 @@ const roleKeys=()=>[...S.clients.flatMap(c=>[{k:'ops-'+c.id,label:'מבצעים 
   {k:'princess',label:'★ נסיכות',roles:['princess'],cid:null},{k:'disp',label:'סדרן',roles:['disp'],cid:null},{k:'ceo',label:'מנכ״ל',roles:['ceo'],cid:null}];
 let LOGINOPTS=null;
 function renderAuth(){
-  const box=inner=>`<div class="panel gate"><h2>רמוניות</h2>${inner}</div>`;
+  const box=inner=>`<div class="auth"><aside class="auth-hero"><img src="icons/icon-512.png" alt=""><div><h1>רמוניות</h1><p>הזמנת מוניות לנוסעים, אישורים ומעקב, במקום אחד.</p></div>
+    <ul><li>מזמינים מונית בכמה לחיצות</li><li>רואים בזמן אמת מה אושר ומי הנהג</li><li>פרטי הנסיעה נשלחים לנוסעים בהודעה</li></ul></aside>
+    <section class="auth-form"><h2>כניסה</h2>${inner}</section></div>`;
   if(AUTH.state==='loading'){app.innerHTML=box('<div class="note">טוען…</div>');return}
   if(AUTH.state==='error'){app.innerHTML=box(`<div class="note" style="color:var(--bad)">${esc(AUTH.msg)}</div><button class="btn" onclick="location.reload()">לנסות שוב</button>`);return}
   if(AUTH.state==='nomember'){app.innerHTML=box(`<div class="note">למשתמש הזה עוד אין הרשאה לאפליקציה. פנו למנהלת.</div><button class="btn" id="authout">יציאה</button>`);return}
