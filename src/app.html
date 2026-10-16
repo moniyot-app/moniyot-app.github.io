@@ -1,4 +1,4 @@
-<title>מוניות</title>
+<title>רמוניות</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Rubik:wght@500;700&display=swap">
@@ -265,7 +265,7 @@ td input{width:80px}
 </style>
 
 <div class="top"><div class="top-in">
-  <div class="brand"><span class="roof">TAXI</span>מוניות</div><span id="syncst" class="syncst" hidden></span>
+  <div class="brand"><span class="roof">TAXI</span>רמוניות</div><span id="syncst" class="syncst" hidden></span>
   <div class="switch" role="group" aria-label="בחירת עמוד">
     <button id="nav-guide" data-nav="guide">הוראות שימוש</button>
     <button id="nav-client" data-nav="client">מבצעים</button>
@@ -518,7 +518,7 @@ const setRole=r=>{if(MGR())return;ui.role=r;try{sessionStorage.setItem('taxi-rol
 function fullLogout(){ui.role=null;ui.cAuth=null;ui.authed=false;ui.admAuthed=false;ui.ceoAuthed=false;ui.mgrAuthed=[];ui.sub='orders';
   try{['taxi-role','taxi-client','taxi-disp','taxi-adm'].forEach(k=>sessionStorage.removeItem(k))}catch(_){}ui.page=ui.entry==='disp'?'dispatcher':ui.entry==='admin'?'admin':'client';render()}
 function loginChooser(){if(ui.entry)return '';const cur=ui.page==='dispatcher'?'disp':ui.page==='admin'?'admin':'ops';
-  return `<div class="panel gate" style="margin-bottom:0;padding-bottom:0"><h2>ברוכים הבאים ל"מוניות"</h2><div class="note">בחרו מי אתם ונכנסים עם הסיסמה שקיבלתם. כל אחד רואה רק את מה ששייך לו.</div>
+  return `<div class="panel gate" style="margin-bottom:0;padding-bottom:0"><h2>ברוכים הבאים ל"רמוניות"</h2><div class="note">בחרו מי אתם ונכנסים עם הסיסמה שקיבלתם. כל אחד רואה רק את מה ששייך לו.</div>
     <div class="tabs" role="tablist">${[['ops','מבצעים','client'],['disp','סדרן','dispatcher'],['admin','המנהלת','admin']].map(([k,l,pg])=>`<button role="tab" data-entrypg="${pg}" aria-selected="${cur===k}">${l}</button>`).join('')}</div></div>`}
 const app=document.getElementById('app');
 let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
@@ -1315,7 +1315,7 @@ const roleKeys=()=>[...S.clients.flatMap(c=>[{k:'ops-'+c.id,label:'מבצעים 
   {k:'princess',label:'★ נסיכות',roles:['princess'],cid:null},{k:'disp',label:'סדרן',roles:['disp'],cid:null},{k:'ceo',label:'מנכ״ל',roles:['ceo'],cid:null}];
 let LOGINOPTS=null;
 function renderAuth(){
-  const box=inner=>`<div class="panel gate"><h2>מוניות</h2>${inner}</div>`;
+  const box=inner=>`<div class="panel gate"><h2>רמוניות</h2>${inner}</div>`;
   if(AUTH.state==='loading'){app.innerHTML=box('<div class="note">טוען…</div>');return}
   if(AUTH.state==='error'){app.innerHTML=box(`<div class="note" style="color:var(--bad)">${esc(AUTH.msg)}</div><button class="btn" onclick="location.reload()">לנסות שוב</button>`);return}
   if(AUTH.state==='nomember'){app.innerHTML=box(`<div class="note">למשתמש הזה עוד אין הרשאה לאפליקציה. פנו למנהלת.</div><button class="btn" id="authout">יציאה</button>`);return}
