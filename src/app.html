@@ -670,7 +670,7 @@ function groupByDay(list){const g={};list.forEach(r=>{(g[ymd(new Date(r.ts))]??=
 
 /* ---------- client page ---------- */
 function subTabs(c){return `${ui.welcome?`<div class="tip welcome"><span>👋 פעם ראשונה כאן? בהוראות השימוש מוסבר בפשטות איך רושמים נוסעים ומזמינים מונית.</span><span class="row" style="gap:6px"><button class="btn small primary" data-welcome="guide">להוראות השימוש</button><button class="btn small" data-welcome="hide">הסתרה</button></span></div>`:''}<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span><button class="btn small" id="clogout">${ui.role==='admin'?'החלפת מבצעים':'יציאה'}</button><span>· נתוני דוגמה</span></div>
-  ${isP(c.id)?`<div class="tip">★ <b>הרשאת נסיכות:</b> אפשר להזמין מוניות לכל הנוסעים מכל המבצעים. כל מונית יורדת מהסל של המבצעים שהנוסעים שייכים אליהם, לפי מספר הנוסעים.</div><div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="true">הזמנות</button></div>${noticeBox(c.id)}`:`<div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMerges(c.id).filter(x=>!x.voted).length?`<span class="count soft">${myMerges(c.id).filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="plan" aria-selected="${ui.sub==='plan'}">תכנון חודשי</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button><button role="tab" class="tab-boss" data-sub="manager" aria-selected="${ui.sub==='manager'}"><span aria-hidden="true">★</span> בוס גדול${mgrPending(c.id).length?`<span class="count">${mgrPending(c.id).length}</span>`:''}</button></div>${noticeBox(c.id)}`}`}
+  ${isP(c.id)?`<div class="tip">★ <b>הרשאת נסיכות:</b> אפשר להזמין מוניות לכל הנוסעים מכל המבצעים. כל מונית יורדת מהסל של המבצעים שהנוסעים שייכים אליהם, לפי מספר הנוסעים.</div><div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMergesP().filter(x=>!x.voted).length?`<span class="count soft">${myMergesP().filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button></div>${noticeBox(c.id)}`:`<div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMerges(c.id).filter(x=>!x.voted).length?`<span class="count soft">${myMerges(c.id).filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="plan" aria-selected="${ui.sub==='plan'}">תכנון חודשי</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button><button role="tab" class="tab-boss" data-sub="manager" aria-selected="${ui.sub==='manager'}"><span aria-hidden="true">★</span> בוס גדול${mgrPending(c.id).length?`<span class="count">${mgrPending(c.id).length}</span>`:''}</button></div>${noticeBox(c.id)}`}`}
 const UPD={confirmed:['ok','✓ הסדרן אישר: המונית הוזמנה'],driver:['ok','🚕 התקבלו פרטי נהג'],tod:['info','✓ ההחרגה אושרה. ההזמנה עברה לסדרן'],bossok:['info','✓ הבוס הגדול אישר. ממתינה עוד לאישור'],ceook:['info','✓ המנכ״ל אישר. ממתינה עוד לאישור'],
   bossno:['bad','✕ הבוס הגדול דחה את ההחרגה. ההזמנה בוטלה'],ceono:['bad','✕ המנכ״ל דחה את נסיעת הלילה. ההזמנה בוטלה'],cancelled:['bad','✕ ההזמנה בוטלה'],dispcancel:['bad','✕ הסדרן ביטל את ההזמנה'],late:['bad','✕ ההזמנה בוטלה אחרי שהמונית הוזמנה או פחות מ־3 שעות לפני. נספרת בסל'],merged:['info','🔗 ההזמנה אוחדה עם הזמנה אחרת'],route:['info','🧭 הסדרן שינה את סדר התחנות כדי לקצר את הנסיעה. שעות האיסוף עודכנו']};
 const mark=(r,k)=>{r.upd={k,at:Date.now(),by:ui.page==='client'?ui.cid:null};r.seenBy=[]};
@@ -713,7 +713,7 @@ function reqDiff(q){const e=q.empId&&emp(q.empId);if((q.kind||'add')==='add')ret
   if(e&&(q.phone||'')!==(e.phone||''))ch.push(`טלפון: <span class="num">${e.phone?fmtPh(e.phone):'—'}</span> ← <b class="num">${q.phone?fmtPh(q.phone):'—'}</b>`);
   return `${esc(e?.name||q.name)} · ${ch.join(' · ')||'ללא שינוי'}`}
 function reqRow(q,mode){const[cl,lb]=REQST[q.status];const k=q.kind||'add';
-  return `<div class="ride"><div class="t" style="font-size:.8rem">${KIND[k]}</div><div style="min-width:0"><div class="row" style="gap:8px"><span>${reqDiff(q)}</span><span class="st ${cl}">${lb}</span></div>${mode==='disp'?`<div class="who">${esc(client(q.cid).name)}</div>`:''}</div>
+  return `<div class="ride"><div class="t" style="font-size:.8rem">${KIND[k]}</div><div style="min-width:0"><div class="row" style="gap:8px"><span>${reqDiff(q)}</span><span class="st ${cl}">${lb}</span></div>${mode==='disp'||isP(ui.cid)&&ui.page==='client'?`<div class="who">${esc(client(q.cid).name)}</div>`:''}</div>
   <div class="acts">${mode==='disp'&&q.status==='pending'&&ui.paxEd!==q.id?`<button class="btn small primary" data-paxok="${q.id}">אישור</button><button class="btn small" data-paxed="${q.id}">עריכה ואישור</button><button class="btn small danger" data-paxno="${q.id}">לא לאשר</button>`:''}</div></div>${mode==='disp'&&q.status==='pending'&&ui.paxEd===q.id?paxEdForm(q):''}`}
 function paxEdForm(q){const k=q.kind||'add';
   return `<div class="card" style="margin:6px 0 10px;padding:10px"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
@@ -762,15 +762,15 @@ function pasteRows(){const rows=ui.paste||[];if(!rows.length)return '';
     <datalist id="dest-list2">${S.destinations.map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>
     <div class="row"><button type="button" class="btn primary" data-pfsend="1">שליחת ${rows.length} בקשות לאישור המנהלת</button><button type="button" class="btn small" data-pfclear="1">ניקוי</button><span class="note">שדות מסומנים בכתום חסרים או לא תקינים. בדקו לפני השליחה.</span></div>`}
 const pendingFor=id=>paxReq().find(q=>q.empId===id&&q.status==='pending');
-function renderPaxReq(c){
-  const emps=S.employees.filter(e=>e.cid===c.id&&!e.removed);
-  const reqs=paxReq().filter(q=>q.cid===c.id&&q.status!=='approved');
+function renderPaxReq(c){const P=isP(c.id),ord=Object.fromEntries(S.clients.map((x,i)=>[x.id,i]));
+  const emps=S.employees.filter(e=>(P||e.cid===c.id)&&!e.removed).sort((a,b)=>P?(ord[a.cid]-ord[b.cid])||a.name.localeCompare(b.name,'he'):0);
+  const reqs=paxReq().filter(q=>(P?q.by===PID:q.cid===c.id)&&q.status!=='approved');
   const row=e=>{const pend=pendingFor(e.id);
     if(ui.editEmp===e.id)return `<form class="edit-row" id="edit-pax" data-emp="${e.id}"><div class="fields"><label>שם<input id="ex-n" value="${esc(e.name)}" required maxlength="30"></label>
       <label>סוג<select id="ex-t">${Object.entries(TYPE).map(([k,v])=>`<option value="${k}" ${e.type===k?'selected':''}>${v}</option>`).join('')}</select></label>
       <label>טלפון נייד<input id="ex-p" inputmode="tel" class="num" value="${esc(e.phone?fmtPh(e.phone):'')}" placeholder="050-1234567"></label></div>
       <div class="row" style="gap:6px"><button class="btn small primary">שליחת השינוי לאישור המנהלת</button><button type="button" class="btn small" data-editcancel="1">ביטול</button></div></form>`;
-    return `<div class="emp-row"><span style="flex:1;min-width:0"><b>${esc(e.name)}</b> ${tag(e.type)}<br><span class="note num">${e.phone?fmtPh(e.phone):'אין טלפון'}${e.city||e.addr?' · '+esc([e.addr,e.city].filter(Boolean).join(', ')):''}</span></span>
+    return `<div class="emp-row"><span style="flex:1;min-width:0">${P?opsDot(e.cid)+`<span class="note">${esc(client(e.cid)?.name||'')}</span> `:''}<b>${esc(e.name)}</b> ${tag(e.type)}<br><span class="note num">${e.phone?fmtPh(e.phone):'אין טלפון'}${e.city||e.addr?' · '+esc([e.addr,e.city].filter(Boolean).join(', ')):''}</span></span>
       ${pend?`<span class="st st-pending">${KIND[pend.kind||'add']} ממתינה לאישור</span>`:ui.rmEmp===e.id?`<span class="row" style="gap:6px"><span class="note">להסיר את ${esc(e.name)}?</span><button class="btn small danger" data-rmyes="${e.id}">כן, להסיר</button><button class="btn small" data-rmno="1">לא</button></span>`:
       `<span class="row" style="gap:6px"><button class="btn small" data-editemp="${e.id}">עריכה</button><button class="btn small danger" data-rmemp="${e.id}">הסרה</button></span>`}</div>`};
   app.innerHTML=subTabs(c)+`
@@ -780,7 +780,7 @@ function renderPaxReq(c){
       <div style="display:grid;gap:6px">${emps.map(row).join('')}</div></section>
     <section class="panel"><h2>הוספת נוסע</h2>
       <div class="note">נוסע חדש נכנס למאגר רק אחרי שהמנהלת מאשרת אותו. עד אז אי אפשר להזמין לו מונית.</div>
-      <form class="fields" id="add-pax"><label>שם פרטי + אות משם המשפחה<input id="pxn" required maxlength="30" placeholder="דנה כ."></label>
+      <form class="fields" id="add-pax">${P?`<label>מבצעים<select id="pxc" required><option value="">בחרו</option>${S.clients.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label>`:''}<label>שם פרטי + אות משם המשפחה<input id="pxn" required maxlength="30" placeholder="דנה כ."></label>
         <label>סוג<select id="pxt"><option value="business">ביזנס</option><option value="premium">פרימיום</option><option value="regular">תיירים</option></select></label>
         <label>טלפון נייד<input id="pxp" inputmode="tel" placeholder="050-1234567" class="num"></label>
         <button class="btn primary" style="align-self:end">שליחה לאישור המנהלת</button></form>
@@ -790,8 +790,13 @@ function renderPaxReq(c){
 function myMerges(cid){return suggestions().map(({a,b,ev})=>{const key=a.id+'|'+b.id,m=ev.m,cl=clientsOf(m),v=(S.mergeVotes||{})[key]||[];
   const vm=(S.mergeVotes||{})[key+'|meet']||[];const meetVoted=vm.includes(cid);
   return {a,b,ev,key,m,cl,v:meetVoted?vm:v,voted:v.includes(cid)||meetVoted,meetVoted}}).filter(x=>x.cl.includes(cid))}
+/* princess votes for the units of the passengers in the rides she ordered */
+const pVoteCids=(a,b)=>[...new Set([a,b].filter(r=>r.by===PID).flatMap(r=>clientsOf(r)))];
+function myMergesP(){return suggestions().filter(({a,b})=>a.by===PID||b.by===PID).map(({a,b,ev})=>{const key=a.id+'|'+b.id,m=ev.m,cl=clientsOf(m),pc=pVoteCids(a,b);
+  const v=(S.mergeVotes||{})[key]||[],vm=(S.mergeVotes||{})[key+'|meet']||[],meetVoted=pc.every(y=>vm.includes(y));
+  return {a,b,ev,key,m,cl,v:meetVoted?vm:v,voted:pc.every(y=>v.includes(y))||meetVoted,meetVoted}})}
 function renderMerge(c){
-  const list=myMerges(c.id);
+  const list=isP(c.id)?myMergesP():myMerges(c.id);
   app.innerHTML=subTabs(c)+`<section class="panel"><h2>מי פנוי באלנבי</h2>
     <div class="note">ההזמנות שלכם שאפשר לאחד עם הזמנה אחרת באופן יעיל: אותו כיוון, נקודות קרובות (עד 10 ק״מ זו מזו), תוספת של עד 15 דקות לזמן הנסיעה של כל נוסע, הפרש של עד 15 דקות בין ההזמנות ועד 3 נוסעים. המסלול המאוחד מסודר אוטומטית מהנקודה הרחוקה לקרובה. האיחוד קורה רק כשכל המבצעים המעורבים מאשרים, ואז הוא עובר לסדרן לאישור סופי. אם מבצעים אחרים לא מאשרים, הנסיעות נשארות כפי שהוזמנו.</div>
     ${list.length?list.map(x=>{const waiting=x.cl.filter(y=>!x.v.includes(y));
@@ -869,7 +874,7 @@ function renderClient(){if(ui.role==='princess'){ui.cid=PID;ui.cAuth=PID}
   if(ui.cAuth!==ui.cid||!client(ui.cid)){renderClientLogin();return}
   const c=client(ui.cid);
   if(ui.sub==='manager'){renderManager(c);return}
-  if(isP(c.id))ui.sub='orders';
+  if(isP(c.id)&&!['orders','merge','pax'].includes(ui.sub))ui.sub='orders';
   if(ui.sub==='cal')ui.sub='plan';
   if(false){app.innerHTML=subTabs(c)+`<section class="panel"><h2>לוח שנה</h2><div class="note">זה הלוח שהמנהלת קובעת: סוג כל יום ושעות הטיסות. הוא מתעדכן אצלכם אוטומטית.</div>${calGrid(true)}${dayInfo(ui.calSel||ymd(new Date()))}</section>`;return}
   if(ui.sub==='pax'){renderPaxReq(c);return}
@@ -1300,6 +1305,7 @@ const G={
    sections:[
    {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','"★ נסיכות"'),'נפתח עמוד ההזמנות של הנסיכות. בתפריט למעלה יש גם "עמוד סדרן" ו"המנהלת".']},
    {h:'אישור נוסע בודד של יבא',go:'adm-approvals',steps:['בלשונית "ממתין להחרגה" נסיעות של יבא עם נוסע בודד מופיעות עם הכפתורים "אישור (נסיכות)" ו"דחייה".','האישור שלך מחליף את אישור הבוס הגדול של יבא. אחריו ההזמנה עוברת לסדרן (או למנכ״ל, אם זו גם נסיעת לילה).','הבוס הגדול של יבא עדיין יכול לאשר בעצמו. מי שמאשר ראשון קובע.']},
+   {h:'נוסעים ומי פנוי באלנבי',go:'ops-pax',steps:['בלשונית "נוסעים" רואים את כל הנוסעים מכל המבצעים. אפשר לערוך או להסיר.','להוספת נוסע בוחרים לאיזה מבצעים הוא שייך, וממלאים שם, סוג וטלפון. הנוסע נכנס אחרי אישור המנהלת.','ב"מי פנוי באלנבי" מופיעות הצעות לאחד הזמנות שהנסיכות הזמינה עם הזמנות אחרות. האישור שלך נחשב אישור של המבצעים של הנוסעים בהזמנה שלך.']},
    {h:'הזמנה לכל הנוסעים',go:'ops',steps:['אחרי הכניסה נפתח ישר עמוד ההזמנות של הנסיכות. מכל עמוד אחר חוזרים אליו ב"מבצעים" בתפריט למעלה.','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
   ]},
   ceo:{title:'מנכ״ל',intro:'המנכ״ל מאשר נסיעות לילה ויכול להאציל את הסמכות לבוסים גדולים.',
@@ -1548,7 +1554,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.keep){ui.confirm=null;render();return}
   if(t.dataset.approve){const r=S.rides.find(x=>x.id===t.dataset.approve);r.status='active';r.confirmedAt=Date.now();mark(r,'confirmed');save();toast('סומן כמאושר');render();return}
   if(t.dataset.mok){const key=t.dataset.mok,[aid,bid,variant]=key.split('|'),a=S.rides.find(x=>x.id===aid),b=S.rides.find(x=>x.id===bid);
-    const v=((S.mergeVotes??={})[key]??=[]);if(!v.includes(ui.cid))v.push(ui.cid);
+    const v=((S.mergeVotes??={})[key]??=[]);(isP(ui.cid)?pVoteCids(a,b):[ui.cid]).forEach(x=>{if(!v.includes(x))v.push(x)});
     if(clientsOf({pax:[...a.pax,...b.pax]}).every(x=>v.includes(x))){merge(aid,bid,variant==='meet');toast('כל המבצעים אישרו. האיחוד עבר לסדרן לאישור סופי')}
     else{save();toast('אישרתם. ממתין לאישור המבצעים האחרים');render()}return}
   if(t.dataset.merge){const[a,b]=t.dataset.merge.split('|');merge(a,b);return}
@@ -1590,10 +1596,11 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
   if(f.id==='edit-pax'){const e=emp(f.dataset.emp),sn0=shortName(document.getElementById('ex-n').value,{skipEmp:e.id});if(sn0.err){toast(sn0.err);return}const nm=sn0.name,ty=document.getElementById('ex-t').value,ph=document.getElementById('ex-p').value.replace(/\D/g,'');
     if(!nm)return;if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר טלפון לא תקין. למשל 050-1234567');return}
     if(nm===e.name&&ty===e.type&&ph===(e.phone||'')){toast('לא שונה דבר');return}
-    paxReq().push({id:'q'+Date.now(),cid:e.cid,kind:'edit',empId:e.id,name:nm,type:ty,phone:ph,status:'pending'});ui.editEmp=null;save();toast('השינוי נשלח לאישור המנהלת');render();return}
+    paxReq().push({id:'q'+Date.now(),cid:e.cid,by:ui.cid,kind:'edit',empId:e.id,name:nm,type:ty,phone:ph,status:'pending'});ui.editEmp=null;save();toast('השינוי נשלח לאישור המנהלת');render();return}
   if(f.id==='add-pax'){const sn=shortName(document.getElementById('pxn').value);if(sn.err){toast(sn.err);document.getElementById('pxn').focus();return}const n=sn.name;
     const ph=document.getElementById('pxp').value.replace(/\D/g,'');if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר טלפון לא תקין. למשל 050-1234567');return}
-    paxReq().push({id:'q'+Date.now(),cid:ui.cid,name:n,phone:ph,type:document.getElementById('pxt').value,status:'pending'});save();toast(`${n} נשלח/ה לאישור המנהלת`);render();return}
+    const qc=isP(ui.cid)?document.getElementById('pxc')?.value:ui.cid;if(!qc){toast('בחרו לאיזה מבצעים הנוסע שייך');return}
+    paxReq().push({id:'q'+Date.now(),cid:qc,by:ui.cid,name:n,phone:ph,type:document.getElementById('pxt').value,status:'pending'});save();toast(`${n} נשלח/ה לאישור המנהלת`);render();return}
   if(f.id==='clogin'){const id=document.getElementById('lcid').value,c=client(id);
     if(c&&isP(id)&&!MGR()&&document.getElementById('lpw').value===(S.princessPw||'7777')){ui.role='princess';try{sessionStorage.setItem('taxi-role','princess');sessionStorage.setItem('taxi-adm','1')}catch(_){}ui.admAuthed=true;ui.authed=true;ui.cid=PID;ui.cAuth=PID;ui.knownNt=ntIds(PID);ui.sub='orders';ui.page='client';ui.tab='calendar';render();return}
     if(c&&(MGR()||document.getElementById('lpw').value===(isP(id)?(S.princessPw||'7777'):c.pw))){setRole('ops');ui.cid=id;ui.cAuth=id;ui.knownNt=ntIds(id);ui.draft.pax=[];ui.sub='orders';try{sessionStorage.setItem('taxi-client',id)}catch(_){}render()}
