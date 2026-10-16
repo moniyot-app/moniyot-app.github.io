@@ -529,7 +529,7 @@ const lateWhy=r=>r.status==='active'?'המונית כבר הוזמנה':'פחו�
 const dmy=ms=>{const d=new Date(ms);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`};
 const ROLEBY={admin:'המנהלת',princess:'נסיכות',boss:'בוס גדול',disp:'הסדרן'};
 function excTxt(r){const n=needsOf(r).map(k=>NEEDS[k]);if(r.over)n.push('חריגה מהסל');if(r.unplanned)n.push('מחוץ לתכנון');if(!n.length)return 'לא נדרשה';
-  const ok=[(r.approvedBy||[]).length?'אישר: בוס גדול':'',r.ceoOk?'אישר: מנכ״ל':'',needsOf(r).includes('four')&&!needsOf(r).some(k=>k!=='four')&&r.status!=='pending'?'אישרו: המבצעים':''].filter(Boolean);
+  const ok=[r.pOk?'אישרה: נסיכות':'',(r.approvedBy||[]).length&&!r.pOk?'אישר: בוס גדול':'',r.ceoOk?'אישר: מנכ״ל':'',needsOf(r).includes('four')&&!needsOf(r).some(k=>k!=='four')&&r.status!=='pending'?'אישרו: המבצעים':''].filter(Boolean);
   return n.join(', ')+(ok.length?' · '+ok.join(', '):r.status==='pending'?' · ממתין לאישור':'')}
 function histRows(mo){return S.rides.filter(r=>r.status!=='merged'&&ymd(new Date(r.ts)).slice(0,7)===mo).sort((a,b)=>a.ts-b.ts).map(r=>{const pts=points(r);
   return {r,created:r.createdAt?`${dmy(r.createdAt)} ${hm(new Date(r.createdAt))}`:'—',when:`${dmy(r.ts)} ${hm(new Date(r.ts))}`,
@@ -955,6 +955,7 @@ function rideRow(r,mode,cid){
   let acts='';
   if(live){
     if(mode==='ceo')acts=`<button class="btn small primary" data-ceook="${r.id}">אישור</button><button class="btn small danger" data-ceono="${r.id}">דחייה</button>`;
+    else if(mode==='pboss')acts=`<button class="btn small primary" data-pok="${r.id}">אישור (נסיכות)</button><button class="btn small danger" data-pno="${r.id}">דחייה</button>`;
     else if(mode==='mgr')acts=`<button class="btn small primary" data-mgrok="${r.id}">אישור</button><button class="btn small danger" data-mgrno="${r.id}">דחייה</button>`;
     else if(mode==='client')acts=`<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
     else acts=(r.status==='awaiting'?`<button class="btn small primary" data-confirm="${r.id}">אישור</button>`:'')+`<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
@@ -1086,6 +1087,8 @@ const deleg=(cid,ds)=>{const g=(S.nightDeleg||{})[cid];return !!g&&(!g.until||ds
 const delegAll=r=>clientsOf(r).every(c=>deleg(c,ymd(new Date(r.ts))));
 const needBoss=r=>needsOf(r).some(k=>k==='single'||(k==='night'&&delegAll(r)))&&!clientsOf(r).every(x=>(r.approvedBy||[]).includes(x));
 const needCeo=r=>needsOf(r).includes('night')&&!r.ceoOk&&!delegAll(r);
+/* princess may approve single-passenger exceptions on behalf of some units (e.g. יבא) */
+const pBossOf=r=>ui.role!=='princess'||!needsOf(r).includes('single')?[]:clientsOf(r).filter(x=>{const c=client(x);return c&&!isP(x)&&(c.princessBoss??/יבא/.test(c.name||''))&&!(r.approvedBy||[]).includes(x)});
 const afterApproval=r=>{if(!needBoss(r)&&!needCeo(r)){r.status='awaiting';return 'אושר. ההזמנה עברה לסדרן'}return needCeo(r)?'אושר. ממתינה גם לאישור המנכ״ל':'אושר. ממתינה לאישור בוסים גדולים נוספים'};
 const ceoPending=()=>S.rides.filter(r=>r.status==='pending'&&r.ts>Date.now()&&needCeo(r)).sort((a,b)=>a.ts-b.ts);
 function renderCeo(){const list=ceoPending(),mon=S.rides.filter(r=>inMonth(r.ts)&&COUNTS.includes(r.status)&&needsOf(r).includes('night')&&r.ceoOk);
@@ -1144,8 +1147,8 @@ function renderDispatcher(){
   }else if(ui.tab==='users'){body=renderUsers();
   }else if(ui.tab==='ceo'){body=ui.ceoAuthed?renderCeo():PROD?'<div class="empty">אישור נסיעות לילה שמור למנכ״ל. המשתמש שלך לא מוגדר כמנכ״ל.</div>':`<form class="gate ceo-panel panel" id="ceogate2"><h3>★ אזור המנכ״ל</h3><div class="note">אישור נסיעות לילה שמור למנכ״ל בלבד. הכניסה בסיסמת מנכ״ל (בדוגמה: 9999).</div><label>סיסמת מנכ״ל<input type="password" id="ceopw2"></label><div class="note" id="ceoerr2" style="color:var(--bad)" hidden>סיסמה שגויה.</div><button class="btn primary">כניסה</button></form>`;
   }else if(ui.tab==='approvals'){
-    const pb=pend.filter(needBoss),pc=pend.filter(needCeo),sec=(h,l,em)=>`<h3 style="margin-top:6px">${h} <span class="count">${l.length}</span></h3>${l.length?`<div class="rides">${l.map(r=>rideRow(r,'disp')).join('')}</div>`:`<div class="empty">${em}</div>`}`;
-    body=pend.length?`<div class="note">למעקב בלבד: כל הנסיעות שמחכות להחרגה. ${ADM?'האישור עצמו נעשה אצל הבוס הגדול או בלשונית המנכ״ל.':'הסדרן לא מאשר כאן.'} נסיעה שצריכה גם בוס גדול וגם מנכ״ל מופיעה בשתי הרשימות, ועוברת לסדרן אחרי ששניהם אישרו.</div>
+    const pb=pend.filter(needBoss),pc=pend.filter(needCeo),sec=(h,l,em)=>`<h3 style="margin-top:6px">${h} <span class="count">${l.length}</span></h3>${l.length?`<div class="rides">${l.map(r=>rideRow(r,ADM&&pBossOf(r).length&&needBoss(r)?'pboss':'disp')).join('')}</div>`:`<div class="empty">${em}</div>`}`;
+    body=pend.length?`<div class="note">למעקב בלבד: כל הנסיעות שמחכות להחרגה. ${ADM?(ui.role==='princess'?'נסיעות של יבא עם נוסע בודד הנסיכות מאשרת כאן. את השאר מאשרים הבוס הגדול או המנכ״ל.':'האישור עצמו נעשה אצל הבוס הגדול או בלשונית המנכ״ל. נסיעות של יבא עם נוסע בודד יכולה לאשר גם הנסיכות.'):'הסדרן לא מאשר כאן.'} נסיעה שצריכה גם בוס גדול וגם מנכ״ל מופיעה בשתי הרשימות, ועוברת לסדרן אחרי ששניהם אישרו.</div>
       ${sec('★ ממתין לבוס גדול (נוסע בודד)',pb,'אין נסיעות שממתינות לבוס גדול.')}${sec('★ ממתין למנכ״ל (נסיעות לילה 23:00–06:00)',pc,'אין נסיעות שממתינות למנכ״ל.')}`:'<div class="empty">אין נסיעות שממתינות להחרגה.</div>';
   }else if(ui.tab==='optimize'){
     body=sug.length?`<div class="note">הצעות בלבד. שום דבר לא מתאחד לבד. הזמנות לאותו יעד ובאותו כיוון, בהפרש של עד 15 דקות, שאפשר לאחד למונית אחת (עד 3 נוסעים). מאחדים רק אחרי שהמבצעים אישרו. אם לא אישרו, הנסיעות נשארות כפי שהוזמנו. המונית המאוחדת מתחלקת בין הסלים לפי מספר הנוסעים.</div>`+sug.map(({a,b})=>{
@@ -1270,9 +1273,10 @@ const G={
    {h:'איפוס נתונים',go:'adm-quotas',steps:['בתחתית לשונית "סלים". מוחק את כל הנוסעים, ההזמנות, ההיסטוריה ובקשות הנוסעים בכל המבצעים.','נשארים: המבצעים והסלים, לוח השנה, ההגדרות והסיסמאות.','אי אפשר לבטל. מורידים קודם את ההיסטוריה לאקסל, מקלידים "איפוס" ולוחצים על הכפתור. רק המנהלת רואה אותו.']}
   ]},
   princess:{title:'★ נסיכות',intro:'לנסיכות יש את כל מה שיש למנהלת, חוץ מאישורי מנכ״ל, סיסמאות ואיפוס נתונים. בנוסף היא יכולה להזמין מוניות לכל הנוסעים מכל המבצעים.',
-   quick:['נכנסים כ"נסיכות". נפתח עמוד המנהלת.','לוח שנה, ממתין להחרגה, אישור נוסעים, סלים ומעקב: בדיוק כמו אצל המנהלת. ההוראות בלשונית "המנהלת".','להזמנה: "מבצעים" ← "נסיכות" ← מזמינים כרגיל, לכל נוסע מכל המבצעים.'],
+   quick:['נכנסים כ"נסיכות". נפתח עמוד המנהלת.','"ממתין להחרגה": מאשרים או דוחים נסיעות של יבא עם נוסע בודד.','לוח שנה, ממתין להחרגה, אישור נוסעים, סלים ומעקב: בדיוק כמו אצל המנהלת. ההוראות בלשונית "המנהלת".','להזמנה: "מבצעים" ← "נסיכות" ← מזמינים כרגיל, לכל נוסע מכל המבצעים.'],
    sections:[
    {h:'כניסה',go:'adm',steps:[LOGIN('מבצעים','"★ נסיכות"'),'נפתח עמוד המנהלת. בתפריט למעלה יש גם "מבצעים" ו"עמוד סדרן".']},
+   {h:'אישור נוסע בודד של יבא',go:'adm-approvals',steps:['בלשונית "ממתין להחרגה" נסיעות של יבא עם נוסע בודד מופיעות עם הכפתורים "אישור (נסיכות)" ו"דחייה".','האישור שלך מחליף את אישור הבוס הגדול של יבא. אחריו ההזמנה עוברת לסדרן (או למנכ״ל, אם זו גם נסיעת לילה).','הבוס הגדול של יבא עדיין יכול לאשר בעצמו. מי שמאשר ראשון קובע.']},
    {h:'הזמנה לכל הנוסעים',go:'ops',steps:['בתפריט למעלה לוחצים "מבצעים" ובוחרים "★ נסיכות" (או כל אחד מהמבצעים, בלי סיסמה).','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
   ]},
   ceo:{title:'מנכ״ל',intro:'המנכ״ל מאשר נסיעות לילה ויכול להאציל את הסמכות לבוסים גדולים.',
@@ -1494,6 +1498,9 @@ document.addEventListener('click',e=>{
   if(t.dataset.ceook){const r=S.rides.find(x=>x.id===t.dataset.ceook);r.ceoOk=true;toast(afterApproval(r));mark(r,r.status==='awaiting'?'tod':'ceook');save();render();return}
   if(t.dataset.ceono){const r=S.rides.find(x=>x.id===t.dataset.ceono);r.status='cancelled';r.cancelBy={k:'ceo',at:Date.now()};mark(r,'ceono');save();toast('נסיעת הלילה נדחתה');render();return}
   if(t.id==='ceologout'){ui.ceoOnly=false;ui.ceoAuthed=false;render();return}
+  if(t.dataset.pok){const r=S.rides.find(x=>x.id===t.dataset.pok),cs=pBossOf(r);if(!cs.length)return;(r.approvedBy??=[]).push(...cs);r.pOk=true;
+    toast(afterApproval(r));mark(r,r.status==='awaiting'?'tod':'bossok');r.upd.by=null;save();render();return}
+  if(t.dataset.pno){const r=S.rides.find(x=>x.id===t.dataset.pno);if(!pBossOf(r).length)return;r.status='cancelled';r.cancelBy={k:'princess',at:Date.now()};mark(r,'bossno');r.upd.by=null;save();toast('הבקשה נדחתה');render();return}
   if(t.dataset.mgrno){const r=S.rides.find(x=>x.id===t.dataset.mgrno);r.status='cancelled';r.cancelBy={k:'boss',cid:ui.cid,at:Date.now()};mark(r,'bossno');r.upd.by=null;save();toast('הבקשה נדחתה');render();return}
   if(t.dataset.meet){const d=ui.draft,pt=d.pts.find(x=>x.city===t.dataset.meet);const host=d.pax.find(p=>ptOf(d,p)===pt.city);
     if(!pt.addr&&host)pt.addr=addrOf(d,host);d.pts=[pt];d.pidx={};d.addr={};renderRoute();renderCheck();toast(`נקבעה נקודת מפגש ב${pt.city}. בדקו את הכתובת`);return}
