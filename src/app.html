@@ -46,7 +46,7 @@ label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);font-weight:600}
 input,select{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;min-width:0}
 input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
-.btn{border:1px solid var(--line);background:var(--surface);padding:7px 14px;border-radius:6px;cursor:pointer;font-weight:600}
+.btn{text-decoration:none;color:inherit;display:inline-block;border:1px solid var(--line);background:var(--surface);padding:7px 14px;border-radius:6px;cursor:pointer;font-weight:600}
 .btn:hover{border-color:var(--muted)}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .btn.primary:disabled{opacity:.45;cursor:not-allowed}
@@ -606,6 +606,15 @@ function gcalUrl(r,p){const tt=paxTimes(r,p);if(!tt)return '';const a=(r.addr||{
   const title=r.dir==='to'?`מונית ל${baseOf(r)} · איסוף ${hm(new Date(tt.start))}`:`מונית מ${baseOf(r)} · יציאה ${hm(new Date(tt.start))}`;
   const det=`${r.driverName||r.driverPhone?'נהג: '+[r.driverName,r.driverPhone&&fmtPh(r.driverPhone)].filter(Boolean).join(' '):'פרטי הנהג יעודכנו בהמשך'}\nאחראי/ת: ${emp(leadOf(r))?.name||''} ${emp(leadOf(r))?.phone?fmtPh(emp(leadOf(r)).phone):''}`;
   return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(title)+'&dates='+gUTC(tt.start)+'/'+gUTC(tt.end)+'&details='+encodeURIComponent(det)+'&location='+encodeURIComponent((r.dir==='to'?[a,city]:[baseOf(r)]).filter(Boolean).join(', '))+'&ctz=Asia/Jerusalem'}
+const intlPh=p=>{p=String(p||'').replace(/\D/g,'');return p.startsWith('0')?'972'+p.slice(1):p};
+function smsBox(r,mode){const sent=r.sms.sent||{},list=r.pax.filter(p=>emp(p)?.phone),left=list.filter(p=>!sent[p]).length;
+  const rows=list.map(p=>{const e=emp(p),m=encodeURIComponent(tripMsg(r,p));
+    return `<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0"><span style="min-width:90px;color:var(--ink)">${esc(e.name)}</span><span class="num note">${fmtPh(e.phone)}</span>
+    ${mode==='disp'?`<a class="btn small primary" target="_blank" rel="noopener" href="https://wa.me/${intlPh(e.phone)}?text=${m}" data-smsgo="${r.id}|${p}">וואטסאפ</a><a class="btn small" href="sms:${e.phone}?&body=${m}" data-smsgo="${r.id}|${p}">SMS</a>`:''}
+    ${sent[p]?'<span style="color:var(--ok);font-weight:700">✓ נשלח</span>':mode==='disp'?'':'<span class="note">טרם נשלח</span>'}</div>`}).join('');
+  return `<details class="note"${mode==='disp'&&left?' open':''}><summary>📱 הודעה לנוסעים ${list.length?`(נשלחה ל־${list.length-left} מתוך ${list.length})`:''}${r.sms.missing.length?` · ללא טלפון: ${r.sms.missing.map(p=>esc(emp(p)?.name||'')).join(', ')}`:''}</summary>
+  ${mode==='disp'&&left?'<div class="note">לחצו על וואטסאפ או SMS ליד כל נוסע. ההודעה נפתחת מוכנה בטלפון, ונשאר רק ללחוץ "שליחה".</div>':''}${rows}
+  <details><summary>תוכן ההודעה</summary><pre style="white-space:pre-wrap;font-family:inherit;color:var(--ink);background:var(--bg);padding:8px 10px;border-radius:6px;margin:4px 0">${esc(tripMsg(r,leadOf(r)))}</pre></details></details>`}
 function tripMsg(r,forP){const pts=points(r),s=sched(r),tOf=pt=>s?hm(new Date(s.stops.find(x=>x.pt===pt).t)):'';
   const lines=pts.map((pt,i)=>{const w=r.pax.filter(p=>ptOf(r,p)===pt).map(p=>emp(p)?.name+((r.addr||{})[p]?` (${r.addr[p]})`:''));return w.length?`${i+1}. ${tOf(pt)} · ${pt}: ${w.join(', ')}`:null}).filter(Boolean);
   const L=emp(leadOf(r));
@@ -935,7 +944,7 @@ function rideRow(r,mode,cid){
     ${mode==='disp'&&live&&(r.status==='awaiting'||r.status==='active')?`<div class="row" style="gap:4px"><input id="dn-${r.id}" placeholder="שם הנהג" value="${esc(r.driverName||'')}" style="width:110px" aria-label="שם הנהג" maxlength="30"><input id="ph-${r.id}" inputmode="tel" placeholder="טלפון הנהג" value="${esc(r.driverPhone||'')}" style="width:120px" aria-label="טלפון הנהג" class="num"><button class="btn small" data-phone="${r.id}">${drv?'עדכון פרטי נהג':'שליחת פרטי נהג'}</button></div>`:''}
     ${cls.length>1&&mode==='disp'?`<div class="split num">${cls.map(x=>`${opsLogo(x,16)}${fmt2(share(r,x))}`).join(' · ')}</div>`:''}
     ${live&&mode!=='mgr'&&mode!=='ceo'?`<div class="note cal-links">הוספה ליומן: ${r.pax.filter(p=>mode!=='client'||isP(cid)||emp(p)?.cid===cid).map(p=>`<span class="calp">${esc(emp(p)?.name||'')}<a class="calic" href="${gcalUrl(r,p)}" target="_blank" rel="noopener" title="הוספה ליומן של ${esc(emp(p)?.name||'')}" aria-label="הוספה ליומן של ${esc(emp(p)?.name||'')}">📅</a></span>`).join(' ')}</div>`:''}
-    ${r.sms?`<details class="note"><summary>📱 ההודעה לנוסעים (נשלחה ל־${r.sms.to.length}${r.sms.missing.length?`, ללא טלפון: ${r.sms.missing.map(p=>esc(emp(p)?.name||'')).join(', ')}`:''})</summary>${pre(esc(tripMsg(r,leadOf(r))))}</details>`:''}
+    ${r.sms?smsBox(r,mode):''}
     ${mode==='disp'&&live?`<details class="note"><summary>🚕 סיכום לנהג</summary><pre id="dm-${r.id}" style="white-space:pre-wrap;font-family:inherit;color:var(--ink);background:var(--bg);padding:8px 10px;border-radius:6px;margin:4px 0">${esc(driverMsg(r))}</pre><button class="btn small" data-copy="dm-${r.id}">העתקה</button></details>`:''}
   </div></details>`;
   return `<div class="ride ${dead||past?'dim':''}">${stripe(cls)}<div class="t num">${hm(new Date(r.ts))}<div class="note" style="font-family:var(--font-body);font-weight:400;font-size:.72rem">${r.dir==='to'?'הגעה':'יציאה'}</div></div>
@@ -1190,7 +1199,7 @@ function renderDispatcher(){
 }
 
 const G={
- ops:{title:'מבצעים',intro:'כאן רושמים נוסעים ומזמינים מוניות.',quick:['נכנסים: "מבצעים" ← בוחרים את המבצעים שלכם ← סיסמה.','רושמים נוסעים: לשונית "נוסעים" ← "הוספת נוסע" ← הסדרן מאשר.','מזמינים: לשונית "הזמנות" ← תאריך, כיוון ושעה ← מסמנים נוסעים ← עיר וכתובת ← אחראי/ת ← "הזמנת מונית".','מחכים לאישור: תיבה ירוקה = המונית הוזמנה. פרטי הנהג מגיעים אליכם ולנוסעים.','חוסכים: "מי פנוי באלנבי" (איחוד עם אחרים) ו"תכנון חודשי" (פיזור הסל).'],sections:[
+ ops:{title:'מבצעים',intro:'כאן רושמים נוסעים ומזמינים מוניות.',quick:['נכנסים: "מבצעים" ← בוחרים את המבצעים שלכם ← סיסמה.','רושמים נוסעים: לשונית "נוסעים" ← "הוספת נוסע" ← הסדרן מאשר.','מזמינים: לשונית "הזמנות" ← תאריך, כיוון ושעה ← מסמנים נוסעים ← עיר וכתובת ← אחראי/ת ← "הזמנת מונית".','מחכים לאישור: תיבה ירוקה = המונית הוזמנה. פרטי הנהג מגיעים אליכם, והסדרן שולח אותם לנוסעים בוואטסאפ או ב־SMS.','חוסכים: "מי פנוי באלנבי" (איחוד עם אחרים) ו"תכנון חודשי" (פיזור הסל).'],sections:[
   {h:'כניסה',go:'ops',steps:['לוחצים למעלה על "מבצעים".','בוחרים את המבצעים שלכם מהרשימה.','מקלידים את הסיסמה שקיבלתם מהסדרן ולוחצים "כניסה". הסיסמה אישית לכל אחד מהמבצעים.']},
   {h:'רישום נוסע חדש',go:'ops-pax',steps:['עוברים ללשונית "נוסעים".','בטופס "הוספת נוסע" כותבים שם פרטי.','בוחרים סוג: ביזנס, פרימיום או תיירים.','מוסיפים טלפון נייד. בלעדיו הנוסע לא יקבל את סיכום הנסיעה.','לוחצים "שליחה לאישור המנהלת". הנוסע יופיע במאגר ובטופס ההזמנה רק אחרי שהמנהלת תאשר.'],tip:'הבקשה מופיעה מתחת לטופס עם הסטטוס "ממתין לאישור המנהלת".'},
   {h:'עריכה או הסרה של נוסע',go:'ops-pax',steps:['בלשונית "נוסעים", במאגר הנוסעים, מוצאים את הנוסע.','לעדכון סוג, שם או טלפון: לוחצים "עריכה", משנים ולוחצים "שליחת השינוי לאישור המנהלת".','להסרה: לוחצים "הסרה" ומאשרים. הנוסע יורד מהמאגר מיד, בלי צורך באישור.','עד שהמנהלת מאשרת עריכה, ליד הנוסע כתוב "ממתינה לאישור" והפרטים הישנים בתוקף.']},
@@ -1209,7 +1218,7 @@ const G={
  ]},
  disp:{title:'סדרן',intro:'הסדרן מנהל את כל ההזמנות וההגדרות.',quick:['נכנסים: "עמוד סדרן" ← סיסמה. השאירו את ההתראה הקולית פעילה.','במשך היום: "לוח הזמנות" ← "אישור הזמנה" ← "שליחת פרטי נהג". ⚡ מתפרצת = לטפל מיד.','כל ערב (כ־23:00): "יישור קו" ← "יישור קו וסגירה" ← העתקה או הורדה ← שליחה לחברת המוניות.','מנהלים: "הגדרות" (ערים, זמנים, מחירים וסוגי נוסעים).'],sections:[
   {h:'כניסה',go:'disp',steps:['לוחצים למעלה על "עמוד סדרן" ומקלידים את סיסמת הסדרן.','כפתור ההתראה הקולית בראש הלוח מפעיל או משתיק צליל בכל הזמנה חדשה.']},
-  {h:'אישור הזמנה חדשה',go:'disp',steps:['בלשונית "לוח הזמנות" הזמנה חדשה מסומנת "חדשה · ממתינה לאישור סדרן".','מזמינים מונית ולוחצים "אישור הזמנה". מבצעים מקבלים התראה.','כשמתקבלים פרטי הנהג, ממלאים שם וטלפון ולוחצים "שליחת פרטי נהג". אפשר גם לפני האישור, וכל שינוי שולח התראה.','"סיכום לנהג" פותח את פרטי הנסיעה עם הכתובות. "העתקה" מעתיק אותם לשליחה לנהג.']},
+  {h:'אישור הזמנה חדשה',go:'disp',steps:['בלשונית "לוח הזמנות" הזמנה חדשה מסומנת "חדשה · ממתינה לאישור סדרן".','מזמינים מונית ולוחצים "אישור הזמנה". מבצעים מקבלים התראה.','כשמתקבלים פרטי הנהג, ממלאים שם וטלפון ולוחצים "שליחת פרטי נהג". אפשר גם לפני האישור, וכל שינוי שולח התראה.','אחרי השמירה נפתחת "הודעה לנוסעים": ליד כל נוסע לוחצים "וואטסאפ" או "SMS". ההודעה נפתחת מוכנה בטלפון, לוחצים "שליחה", ומופיע ✓ נשלח.','"סיכום לנהג" פותח את פרטי הנסיעה עם הכתובות. "העתקה" מעתיק אותם לשליחה לנהג.']},
   {h:'יישור קו לילי',go:'disp-line',steps:['בלשונית "יישור קו" מופיעות כל הנסיעות של מחר לפי שעות, עם כתובות, נוסעים וטלפונים.','אם יש הזמנות שעוד לא אושרו, מופיעה אזהרה. מאשרים אותן קודם.','לוחצים "יישור קו וסגירה".','שולחים לחברת המוניות: "העתקה כטקסט" לוואטסאפ או למייל, "העתקה לאקסל", או "הורדת קובץ".','כל הזמנה שנכנסת אחרי הסגירה מסומנת ⚡ מתפרצת ומשמיעה צליל כפול.']},
   {h:'הגדרות',go:'disp-settings',steps:['ערים מותרות: מוסיפים עיר ומסמנים צפון או מרכז.','זמני הנסיעה מחושבים אוטומטית לפי המרחק האמיתי ושעת הנסיעה. אין צורך להזין אותם.','מחירי מונית, וסוג וטלפון של כל נוסע.']}
  ]},
@@ -1360,6 +1369,8 @@ window.addEventListener('storage',e=>{if(e.key!==KEY||!e.newValue)return;try{S=J
 document.addEventListener('mousemove',e=>{const el=e.target.closest?.('[data-tip]'),tp=document.getElementById('tip');if(!tp)return;
   if(!el){tp.hidden=true;return}tp.textContent=el.dataset.tip;tp.hidden=false;const x=Math.min(e.clientX+12,innerWidth-tp.offsetWidth-8),y=e.clientY+14;tp.style.left=Math.max(8,x)+'px';tp.style.top=y+'px'});
 document.addEventListener('toggle',e=>{const dd=e.target;if(!dd.dataset||!dd.dataset.rid)return;const L=ui.openR||(ui.openR=[]);const i=L.indexOf(dd.dataset.rid);if(dd.open&&i<0)L.push(dd.dataset.rid);if(!dd.open&&i>=0)L.splice(i,1)},true);
+document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a[data-smsgo]');if(!a)return;const[rid,p]=a.dataset.smsgo.split('|'),r=S.rides.find(x=>x.id===rid);
+  if(r&&r.sms){r.sms.sent={...(r.sms.sent||{}),[p]:Date.now()};save();setTimeout(render,400)}});
 document.addEventListener('click',e=>{
   try{ui.ac??=new (window.AudioContext||window.webkitAudioContext)()}catch(_){}
   const t=e.target.closest('button');if(!t)return;
@@ -1370,8 +1381,8 @@ document.addEventListener('click',e=>{
     if(!ph&&!nm){toast('הקלידו שם או טלפון של הנהג');return}
     if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר הטלפון לא תקין. למשל: 050-1234567');document.getElementById('ph-'+r.id)?.focus();return}
     if(ph===(r.driverPhone||'')&&nm===(r.driverName||'')){toast('לא שונה דבר');return}
-    r.driverPhone=ph;r.driverName=nm;mark(r,'driver');const to=r.pax.filter(p=>emp(p)?.phone);r.sms={at:Date.now(),to,missing:r.pax.filter(p=>!emp(p)?.phone)};save();
-    toast(`פרטי הנהג נשלחו למבצעים, וסיכום הנסיעה נשלח ב־ SMS ל־${to.length} נוסעים`);render();return}
+    r.driverPhone=ph;r.driverName=nm;mark(r,'driver');const to=r.pax.filter(p=>emp(p)?.phone);r.sms={at:Date.now(),to,missing:r.pax.filter(p=>!emp(p)?.phone),sent:{}};ui.openR=[...new Set([...(ui.openR||[]),r.id])];save();
+    toast(to.length?`פרטי הנהג נשמרו והמבצעים עודכנו. עכשיו שלחו את ההודעה ל־${to.length} נוסעים (וואטסאפ או SMS)`:'פרטי הנהג נשמרו והמבצעים עודכנו');render();return}
   if(t.dataset.seen){const r=S.rides.find(x=>x.id===t.dataset.seen);(r.seenBy??=[]).push(ui.cid);save();render();return}
   if(t.dataset.seenall){notices(ui.cid).forEach(r=>(r.seenBy??=[]).push(ui.cid));save();render();return}
   if(t.dataset.grole){ui.grole=t.dataset.grole;render();scrollTo(0,0);return}
