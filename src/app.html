@@ -1551,7 +1551,7 @@ async function loadMember(user){AUTH.user=user;
   else if(R.includes('ceo')&&!R.includes('ops')&&!R.includes('princess')){ui.role='ceo';ui.admAuthed=true;ui.tab='ceo'}
   else{ui.role='ops';const cid=R.includes('princess')?PID:data.cid;ui.cid=cid;ui.cAuth=cid;if(R.includes('boss'))ui.mgrAuthed=[cid]}
   ui.page={admin:'admin',princess:'client',ceo:'admin',disp:'dispatcher',ops:'client'}[ui.role];if(MGR())ui.tab='calendar';if(ui.role==='princess')ui.sub='orders';if(ui.role==='disp')ui.tab='board';
-  DB=sbDb(AUTH.sb);render();initDb();joinPresence();
+  DB=sbDb(AUTH.sb);render();initDb();joinPresence();pushSync();
   if(ui.role==='admin')AUTH.sb.from('pw_help').select('*').eq('done',false).order('at',{ascending:false}).then(({data,error})=>{if(!error){PW_HELP=data||[];render()}})}
 const RMAIL=k=>'noampatishi+'+k+'@gmail.com'; /* role accounts: never emailed (confirmation is off) */
 const roleKeys=()=>[...S.clients.flatMap(c=>[{k:'ops-'+c.id,label:'מבצעים · '+c.name,roles:['ops'],cid:c.id},{k:'boss-'+c.id,label:'בוס גדול · '+c.name,roles:['ops','boss'],cid:c.id}]),
@@ -1644,7 +1644,14 @@ const awIds=()=>S.rides.filter(r=>r.status==='awaiting').map(r=>r.id+'~'+(r.chan
 const ntIds=cid=>notices(cid).map(r=>r.id+':'+updOf(r)+':'+(r.upd?.at||'')+':'+(r.driverPhone||'')+':'+(r.driverName||''));
 /* ---------- device notifications: everything that waits for THIS user's action ---------- */
 const NOTIFK='ramoniyot-notif',notifOn=()=>{try{return localStorage.getItem(NOTIFK)==='1'&&'Notification' in window&&Notification.permission==='granted'}catch(_){return false}};
-let SWREG=null;if(PROD&&'serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>{SWREG=r}).catch(()=>{})}
+let SWREG=null,PUSH_OK=false;if(PROD&&'serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>{SWREG=r;if(AUTH.state==='in')pushSync()}).catch(()=>{})}
+/* server push: register this device for the signed-in user (the server keeps role and unit), so alerts arrive even with the app closed */
+const VAPID='BApoPQ95QxeJIT6w-nDOlsRAECjgr46j6oUyqeaaC53jZdJU73OvFnvFZwjkbrV2yX7WK9LJ7AzrrOMhCFICXXY';
+const b64u=s=>{const p='='.repeat((4-s.length%4)%4),b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(b,c=>c.charCodeAt(0))};
+async function pushSync(){try{if(!PROD||!SWREG||!notifOn()||!('PushManager' in window)||AUTH.state!=='in')return;
+  let sub=await SWREG.pushManager.getSubscription();if(!sub)sub=await SWREG.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(VAPID)});
+  const {error}=await AUTH.sb.rpc('save_push_sub',{s:sub.toJSON()});PUSH_OK=!error}catch(e){PUSH_OK=false}}
+async function pushDrop(){try{if(!SWREG)return;const sub=await SWREG.pushManager.getSubscription();if(sub){await AUTH.sb.rpc('drop_push_sub',{ep:sub.endpoint});await sub.unsubscribe()}}catch(_){}PUSH_OK=false}
 function actionItems(){const out=[],R=ui.role,add=(key,text)=>out.push({key,text});if(!R)return out;
   if(R==='disp'){S.rides.filter(r=>r.status==='awaiting'&&r.ts>Date.now()).forEach(r=>add('aw:'+r.id+'~'+(r.changes||[]).length,`${r.reconfirm?'✏️ המבצעים שינו הזמנה':isUrgent(r)?'⚡ הזמנה מתפרצת':'🚕 הזמנה חדשה'} ממתינה לאישורך · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))} · ${points(r).join(', ')}`))}
   if(R==='ops'||R==='princess'){const cid=R==='princess'?PID:ui.cid;if(cid){notices(cid).forEach(r=>{const k=updOf(r);add('nt:'+r.id+':'+k+':'+(r.upd?.at||''),`${UPD[k][1]} · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`)});
@@ -1656,7 +1663,7 @@ function actionItems(){const out=[],R=ui.role,add=(key,text)=>out.push({key,text
 function checkActions(){const items=actionItems(),keys=items.map(x=>x.key);
   if(ui.knownAct==null||ui.knownActRole!==ui.role){ui.knownAct=keys;ui.knownActRole=ui.role;return}
   const fresh=items.filter(x=>!ui.knownAct.includes(x.key));ui.knownAct=keys;if(!fresh.length)return;
-  if(notifOn()&&document.visibilityState!=='visible'){const title=fresh.length===1?'רמוניות · מחכה לך':`רמוניות · ${fresh.length} דברים מחכים לך`,body=fresh.slice(0,3).map(x=>x.text).join('\n')+(fresh.length>3?`\nועוד ${fresh.length-3}`:'');
+  if(notifOn()&&document.visibilityState!=='visible'){if(PUSH_OK)return;const title=fresh.length===1?'רמוניות · מחכה לך':`רמוניות · ${fresh.length} דברים מחכים לך`,body=fresh.slice(0,3).map(x=>x.text).join('\n')+(fresh.length>3?`\nועוד ${fresh.length-3}`:'');
     const o={body,icon:'icons/icon-192.png',badge:'icons/icon-192.png',tag:'ramoniyot',renotify:true,lang:'he',dir:'rtl'};
     try{if(SWREG)SWREG.showNotification(title,o);else new Notification(title,o)}catch(_){}}
   else if(!['disp','ops'].includes(ui.role)){toast('🔔 '+fresh[0].text);if(ui.sound)beep()}}
@@ -1820,10 +1827,10 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.delblock){const ds=ui.calSel||ymd(new Date());if(/^g\d$/.test(t.dataset.delblock)){ownWins(ds);const i=+t.dataset.delblock.slice(1),gf=genFor(ds)[i];const m=S.blocked.find(x=>x.date===ds&&x.from===gf.from&&x.to===gf.to);S.blocked=S.blocked.filter(x=>x!==m);save();render();return}S.blocked=S.blocked.filter(x=>x.id!==t.dataset.delblock);save();render();return}
   if(t.id==='clogout'&&ui.role!=='admin'){fullLogout();return}
   if(t.id==='clogout'){ui.cAuth=null;ui.mgrAuthed=[];ui.sub='orders';try{sessionStorage.removeItem('taxi-client')}catch(_){}render();return}
-  if(PROD&&(t.id==='admlogout'||t.id==='glogout'||t.id==='authout'||t.id==='logout'||t.id==='clogout'&&ui.role!=='admin')){AUTH.sb.auth.signOut().finally(()=>{try{localStorage.removeItem(KEY)}catch(_){}location.reload()});return}
+  if(PROD&&(t.id==='admlogout'||t.id==='glogout'||t.id==='authout'||t.id==='logout'||t.id==='clogout'&&ui.role!=='admin')){pushDrop().finally(()=>AUTH.sb.auth.signOut().finally(()=>{try{localStorage.removeItem(KEY)}catch(_){}location.reload()}));return}
   if(t.id==='nav-notif'){if(!('Notification' in window)){toast('המכשיר הזה לא תומך בהתראות');return}
-    if(notifOn()){try{localStorage.setItem(NOTIFK,'0')}catch(_){}toast('ההתראות כובו במכשיר הזה');paintNotifBtn();return}
-    Notification.requestPermission().then(p=>{if(p==='granted'){try{localStorage.setItem(NOTIFK,'1')}catch(_){}toast('ההתראות הופעלו. תקבלו התראה על כל מה שמחכה לפעולה שלכם');try{(SWREG?SWREG.showNotification.bind(SWREG):(t,o)=>new Notification(t,o))('רמוניות · ההתראות פעילות',{body:'כך תיראה התראה כשמשהו יחכה לפעולה שלך',icon:'icons/icon-192.png',lang:'he',dir:'rtl'})}catch(_){}}
+    if(notifOn()){try{localStorage.setItem(NOTIFK,'0')}catch(_){}pushDrop();toast('ההתראות כובו במכשיר הזה');paintNotifBtn();return}
+    Notification.requestPermission().then(p=>{if(p==='granted'){try{localStorage.setItem(NOTIFK,'1')}catch(_){}pushSync();toast('ההתראות הופעלו. תקבלו התראה על כל מה שמחכה לפעולה שלכם');try{(SWREG?SWREG.showNotification.bind(SWREG):(t,o)=>new Notification(t,o))('רמוניות · ההתראות פעילות',{body:'כך תיראה התראה כשמשהו יחכה לפעולה שלך',icon:'icons/icon-192.png',lang:'he',dir:'rtl'})}catch(_){}}
       else toast(p==='denied'?'ההתראות חסומות בדפדפן. אפשר לאשר אותן בהגדרות האתר':'ההתראות לא הופעלו');paintNotifBtn()});return}
   if(t.id==='forgot'){AUTH.forgot=!AUTH.forgot;AUTH.forgotSent=false;const b=document.getElementById('forgotbox');if(b){b.hidden=!AUTH.forgot;paintForgot()}return}
   if(t.id==='fgsend'){const sel=document.getElementById('au-r'),n=(document.getElementById('fg-name')?.value||'').trim();if(!n){toast('כתבו שם וטלפון, כדי שהמנהלת תדע למי לחזור');return}
