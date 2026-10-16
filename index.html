@@ -419,7 +419,7 @@ const isP=cid=>cid===PID;
 const client=id=>id===PID?PRINCESS:S.clients.find(c=>c.id===id);
 const COUNTS=['active','pending','awaiting','late'];
 const inMonth=ts=>{const d=new Date(ts),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()};
-const share=(r,cid)=>r.pax.length?r.pax.filter(p=>emp(p)?.cid===cid).length/r.pax.length:0;
+const share=(r,cid)=>r.house?0:r.pax.length?r.pax.filter(p=>emp(p)?.cid===cid).length/r.pax.length:0;
 const used=cid=>S.rides.filter(r=>COUNTS.includes(r.status)&&inMonth(r.ts)).reduce((a,r)=>a+share(r,cid),0);
 /* carry-over: what a unit went over its quota last month comes off this month's basket (computed from the rides, never stored) */
 const prevMonthUsed=cid=>{const n=new Date(),p=new Date(n.getFullYear(),n.getMonth()-1,1);return S.rides.filter(r=>{const d=new Date(r.ts);return COUNTS.includes(r.status)&&d.getFullYear()===p.getFullYear()&&d.getMonth()===p.getMonth()}).reduce((a,r)=>a+share(r,cid),0)};
@@ -550,7 +550,7 @@ const cancelActor=()=>ui.role==='princess'?{k:'princess'}:ui.page==='client'?(ui
 const lateWhy=r=>r.status==='active'?'המונית כבר הוזמנה':'פחות מ־3 שעות לנסיעה';
 const dmy=ms=>{const d=new Date(ms);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`};
 const ROLEBY={admin:'המנהלת',princess:'נסיכות',boss:'בוס גדול',disp:'הסדרן'};
-function excTxt(r){const n=needsOf(r).map(k=>NEEDS[k]);if(r.over)n.push('חריגה מהסל');if(r.unplanned)n.push('מחוץ לתכנון');if(!n.length)return 'לא נדרשה';
+function excTxt(r){const n=needsOf(r).map(k=>NEEDS[k]);if(r.house)n.push('על חשבון הבית');if(r.over)n.push('חריגה מהסל');if(r.unplanned)n.push('מחוץ לתכנון');if(!n.length)return 'לא נדרשה';
   const ok=[r.pOk?'אישרה: נסיכות':'',(r.approvedBy||[]).length&&!r.pOk?'אישר: בוס גדול':'',r.ceoOk?'אישר: מנכ״ל':'',needsOf(r).includes('four')&&!needsOf(r).some(k=>k!=='four')&&r.status!=='pending'?'אישרו: המבצעים':''].filter(Boolean);
   return n.join(', ')+(ok.length?' · '+ok.join(', '):r.status==='pending'?' · ממתין לאישור':'')}
 function histRows(mo){return S.rides.filter(r=>r.status!=='merged'&&ymd(new Date(r.ts)).slice(0,7)===mo).sort((a,b)=>a.ts-b.ts).map(r=>{const pts=points(r);
@@ -870,7 +870,7 @@ function smartDraft(grp,o){const cs0=[...new Set(grp.map(x=>x.city))];let cs=cs0
   const perm=(a,l=[])=>{if(!a.length){const m=cityMins(l,o.dir,BASE);if(m<bm){bm=m;cs=l}return}a.forEach((x,i)=>perm([...a.slice(0,i),...a.slice(i+1)],[...l,x]))};if(cs0.length<=5)perm(cs0);
   const pts=cs.map(c=>({city:c,addr:(grp.find(x=>x.city===c&&x.addr)||{}).addr||''})),pidx={};grp.forEach(x=>{pidx[x.p]=cs.indexOf(x.city)});
   const lead=(grp.find(x=>emp(x.p)?.type==='business')||grp[0]).p;
-  const d={date:o.date,time:o.time,dir:o.dir,base:BASE,baseOn:false,reason:o.reason||'',pts,pidx,pax:grp.map(x=>x.p),lead,stops:[],ppt:{},addr:{}};syncDraft(d);return d}
+  const d={date:o.date,time:o.time,dir:o.dir,base:BASE,baseOn:false,house:!!o.house,reason:o.reason||'',pts,pidx,pax:grp.map(x=>x.p),lead,stops:[],ppt:{},addr:{}};syncDraft(d);return d}
 const pDur=(d,p)=>{const t=paxTimes(d,p);return t?t.end-t.start:0};
 /* who may ride without a companion on this kind of day: taxi day everyone; air day business/premium; ground day business only */
 const canAnchor=(p,ty)=>{const t=emp(p)?.type;return ty==='free'||t==='business'||(ty==='restricted'&&t==='premium')};
@@ -901,6 +901,7 @@ function renderSmart(c){const sm=ui.smart||(ui.smart={date:ymd(new Date(Date.now
       <label>לפי מה קובעים את השעה<select id="sm-dir"><option value="to" ${sm.dir==='to'?'selected':''}>שעת הגעה ל${esc(BASE)}</option><option value="from" ${sm.dir==='from'?'selected':''}>שעת יציאה מ${esc(BASE)}</option></select></label>
       <label>שעה<input type="time" id="sm-time" value="${sm.time}" step="300"></label>
       <label class="row" style="gap:6px;font-weight:400;align-self:end"><input type="checkbox" id="sm-4" ${sm.allow4?'checked':''}> לאפשר 4 נוסעים במונית</label>
+      ${P?`<label class="row" style="gap:6px;font-weight:600;color:var(--ink);align-self:end"><input type="checkbox" id="sm-house" ${sm.house?'checked':''}> 🏠 על חשבון הבית</label>`:''}
     </div>
     ${sm.dir==='to'?`<div class="row" style="gap:10px;flex-wrap:wrap;align-items:end;background:var(--bg);border-radius:10px;padding:10px 12px"><label class="row" style="gap:6px;font-weight:600;color:var(--ink)"><input type="checkbox" id="sm-back" ${sm.back?'checked':''}> גם חזרה הביתה בסיום יום העבודה</label>${sm.back?`<label>שעת סיום משותפת (יציאה מ${esc(BASE)})<input type="time" id="sm-end" value="${sm.end}" step="300"></label>`:''}</div>`:''}
     <label>פירוט לנסיעות לילה (איסוף לפני 06:00 או אחרי 23:00 דורש אישור מנכ״ל)<input id="sm-reason" value="${esc(sm.reason||'')}" placeholder="למשל: תחילת משמרת ב־08:30" maxlength="200"></label>
@@ -1027,7 +1028,7 @@ function renderCheck(bodyOnly){
       <div>נוצלו ${fmt(u)} מתוך ${L} מוניות. המונית הזו תיספר כחריגה ותרד מהסל של החודש הבא.</div>
       <label><input type="checkbox" id="ack" ${ui.ack?'checked':''}> אני מבין/ה שמדובר בחריגה ומאשר/ת אותה</label></div>`:''}
     ${d.pax.length===4&&!blocked?`<label class="tip" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ack4" ${ui.ack4?'checked':''}> המבצעים מאשרים נסיעה של 4 נוסעים במונית אחת</label>`:''}
-    <label class="row" style="gap:6px;font-weight:400"><input type="checkbox" id="f-sec" ${ui.secOk?'checked':''}> 🔒 כבר התקבל אישור אבטחת מידע לנסיעה הזו</label>
+    ${isP(c.id)?`<label class="row" style="gap:6px;font-weight:600;color:var(--ink)"><input type="checkbox" id="f-house" ${d.house?'checked':''}> 🏠 על חשבון הבית (המונית לא יורדת מאף סל)</label>`:''}<label class="row" style="gap:6px;font-weight:400"><input type="checkbox" id="f-sec" ${ui.secOk?'checked':''}> 🔒 כבר התקבל אישור אבטחת מידע לנסיעה הזו</label>
     <button class="btn primary" id="submit" ${can?'':'disabled'}>${ui.editRide?'שמירת השינוי':needs?'שליחה לאישור':'הזמנת מונית'}</button>
     ${blocked?'<div class="note">תקנו את מה שמסומן באדום כדי לשלוח.</div>':''}`;
 }
@@ -1058,8 +1059,8 @@ function editProblem(r,d){const nt=at(d.date,d.time);if(r.ts-Date.now()<3*H)retu
   return ''}
 /* creates a ride from a checked draft (used by the order form and by the smart planner) */
 function createRide(d,c){const nd=[];if(d.pax.length===1)nd.push('single');if(isNight(d))nd.push('night');
-    const needs=nd.length;const over=!isP(c.id)&&used(c.id)+1>limit(c);
-    const r={id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,unplanned:!!planGap(ui.cid,ymd(new Date(at(d.date,d.time))),d.pax),createdAt:Date.now()};S.rides.push(r);return r}
+    const house=!!(d.house&&isP(ui.cid)),needs=nd.length;const over=!house&&!isP(c.id)&&used(c.id)+1>limit(c);
+    const r={id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,house:house||undefined,unplanned:!house&&!!planGap(ui.cid,ymd(new Date(at(d.date,d.time))),d.pax),createdAt:Date.now()};S.rides.push(r);return r}
 function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   const past=r.ts<Date.now(), dead=['cancelled','merged','late'].includes(r.status), cls=clientsOf(r), s=sched(r);
   const names=r.pax.map(p=>`${leadOf(r)===p?'<b title="אחראי/ת הנסיעה">★</b>':''}${esc(emp(p)?.name||'')}`).join(', ');
@@ -1088,7 +1089,7 @@ function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   </div></details>`;
   return `<div class="ride ${dead||past?'dim':''}">${stripe(cls)}<div class="t num">${hm(new Date(r.ts))}<div class="note" style="font-family:var(--font-body);font-weight:400;font-size:.72rem">${r.dir==='to'?'הגעה':'יציאה'}</div></div>
     <div style="min-width:0;display:grid;gap:3px"><div class="row" style="gap:6px"><span class="logos">${cls.map(c=>opsLogo(c,22)).join('')}</span><span class="route">${route(r)}</span>${isUrgent(r)&&!dead?'<span class="st st-late">⚡</span>':''}${statusOf(r)}${mode==='disp'&&!(dead&&r.status!=='late')?`<span class="note num">${money(cost(r))}</span>`:''}</div>
-      ${mode==='client'&&live?secChip(r):''}<div class="note r2">👥 ${names}${s?` · ${r.dir==='to'?'איסוף':'יציאה'} <b class="num">${hm(new Date(s.start))}</b>`:''}${drv?` · 🚕 ${driverTxt(r)}`:''}</div>
+      ${mode==='client'&&live?secChip(r):''}${r.house?'<span class="st st-active" style="justify-self:start">🏠 על חשבון הבית · לא יורדת מאף סל</span>':''}<div class="note r2">👥 ${names}${s?` · ${r.dir==='to'?'איסוף':'יציאה'} <b class="num">${hm(new Date(s.start))}</b>`:''}${drv?` · 🚕 ${driverTxt(r)}`:''}</div>
       ${r.reconfirm&&(r.changes||[]).length&&(mode==='disp'||mode==='dview'||mode==='client')&&!dead?`<div class="tip" style="padding:6px 10px">✏️ <b>שונתה${mode==='disp'?' · לאשר מחדש':''}:</b> ${esc(chgTxt(r))}</div>`:''}${r.reason&&(mode==='ceo'||mode==='mgr')?`<div class="reason">📝 ${esc(r.reason)}</div>`:''}${drvForm}${more}</div>
     <div class="acts">${acts}</div>${late}</div>`;
 }
@@ -1315,7 +1316,7 @@ function renderDispatcher(){
         <tr><th>סה"כ</th><th>צפון</th><th>מרכז</th><th>סה"כ</th><th>צפון</th><th>מרכז</th></tr></thead>
       <tbody>${rows.map(x=>`<tr><td>${esc(x.c.name)}</td>${K.map(k=>`<td class="num">${fmt(x[k])}</td>`).join('')}<td class="num"><b>${money(x.s)}</b></td></tr>`).join('')}</tbody>
       <tfoot><tr><td><b>סה"כ</b></td>${K.map(k=>`<td class="num"><b>${fmt(sum(k))}</b></td>`).join('')}<td class="num"><b>${money(tot)}</b></td></tr></tfoot></table></div>
-      <div class="note">כולל נסיעות מאושרות, ממתינות וביטולים מאוחרים. מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים. מונית שעוברת בתחנה צפונית לנתניה נספרת ומתומחרת כצפון. העמוד הזה גלוי רק לסדרן.</div>${renderHist(cur)}`;
+      <div class="note">${(()=>{const h=inM.filter(r=>r.house);return h.length?`<b>בנוסף: ${h.length} מוניות על חשבון הבית (${money(h.reduce((a,r)=>a+cost(r),0))}), שלא נספרות באף סל.</b> `:''})()}כולל נסיעות מאושרות, ממתינות וביטולים מאוחרים. מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים. מונית שעוברת בתחנה צפונית לנתניה נספרת ומתומחרת כצפון. העמוד הזה גלוי רק לסדרן.</div>${renderHist(cur)}`;
   }else if(ui.tab==='quotas'){
     body=`<div class="tablewrap"><table><thead><tr><th>לוגו</th><th>צבע</th><th>שם המבצעים (לחצו לעריכה)</th>${PROD?'':'<th>סיסמת כניסה</th><th>טלפון בוס גדול (משמש כסיסמה שלו)</th>'}<th>סל חודשי</th><th>ירד מהחודש הקודם (מחושב אוטומטית)</th><th>נוצל</th><th>ניצול</th><th></th><th>המבצעים רואים את הסל</th></tr></thead><tbody>${S.clients.map(c=>{const u=used(c.id),L=limit(c),p=u/L;
       return `<tr><td><div class="row" style="gap:6px;flex-wrap:nowrap">${opsLogo(c.id,30)}<label class="btn small" style="display:inline-block;color:var(--ink);font-weight:600">העלאה<input type="file" accept="image/*" data-ologo="${c.id}" id="lg-${c.id}" hidden></label>${c.logo?`<button class="btn small danger" data-ologodel="${c.id}" aria-label="הסרת לוגו">✕</button>`:''}</div></td><td><input type="color" id="col-${c.id}" data-ocolor="${c.id}" value="${opsColor(c.id)}" aria-label="צבע של ${esc(c.name)}" style="width:38px;height:30px;padding:2px"></td><td><input id="nm-${c.id}" data-name="${c.id}" value="${esc(c.name)}" aria-label="שם המבצעים" style="width:160px"></td>${PROD?'':`<td><input id="cpw-${c.id}" data-cpw="${c.id}" value="${esc(c.pw||'')}" style="width:90px" class="num" autocomplete="off" aria-label="סיסמת כניסה של ${esc(c.name)}"></td><td><input id="bph-${c.id}" data-bphone="${c.id}" inputmode="tel" value="${esc(c.bossPhone?fmtPh(c.bossPhone):'')}" placeholder="050-1234567" style="width:118px" class="num" autocomplete="off" aria-label="טלפון הבוס הגדול של ${esc(c.name)}"></td>`}<td><input type="number" min="0" id="q-${c.id}" data-quota="${c.id}" value="${c.quota}" class="num"></td><td class="num">${carryOf(c)||'—'}</td>
@@ -1336,7 +1337,7 @@ function renderDispatcher(){
     <div class="row"></div>`;
   }
   const npq=paxReq().filter(q=>q.status==='pending').length;
-  if(ADM){app.innerHTML=`<div class="row" style="justify-content:space-between"><h1 style="font-size:1.4rem">המנהלת</h1></div>
+  if(ADM){app.innerHTML=`<div class="row" style="justify-content:space-between"><h1 style="font-size:1.4rem">${ui.role==='princess'?'ניהול':'המנהלת'}</h1></div>
     ${(npq||ceoPending().length)?`<div class="alerts">${ceoPending().length?`<span class="alert bad">${ceoPending().length} נסיעות לילה ממתינות לאישור מנכ״ל</span>`:''}${npq?`<span class="alert warn">${npq} בקשות נוסעים לאישור</span>`:''}</div>`:''}
     <section class="panel"><div class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-tab="${k}"${k==='ceo'?' class="tab-ceo"':''} aria-selected="${ui.tab===k}">${l}${n?`<span class="count">${n}</span>`:''}</button>`).join('')}</div>${body}</section>`;return}
   app.innerHTML=`<div class="row" style="justify-content:space-between"><h1 style="font-size:1.4rem">לוח סדרן</h1><span class="row" style="gap:6px"><button class="btn small" id="sound" aria-pressed="${ui.sound}">${ui.sound?'🔔 התראה קולית פועלת':'🔕 התראה קולית כבויה'}</button></span></div>
@@ -1402,7 +1403,7 @@ const G={
    {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','"★ נסיכות"'),'נפתח עמוד ההזמנות של הנסיכות. בתפריט למעלה יש גם "המנהלת", ו"עמוד סדרן" לצפייה בסטטוס ההזמנות בלבד (בלי אישור ובלי פרטי נהג).']},
    {h:'אישור נוסע בודד של יבא',go:'adm-approvals',steps:['בלשונית "ממתין להחרגה" נסיעות של יבא עם נוסע בודד מופיעות עם הכפתורים "אישור (נסיכות)" ו"דחייה".','האישור שלך מחליף את אישור הבוס הגדול של יבא. אחריו ההזמנה עוברת לסדרן (או למנכ״ל, אם זו גם נסיעת לילה).','הבוס הגדול של יבא עדיין יכול לאשר בעצמו. מי שמאשר ראשון קובע.']},
    {h:'נוסעים ומי פנוי באלנבי',go:'ops-pax',steps:['בלשונית "נוסעים" רואים את כל הנוסעים מכל המבצעים. אפשר לערוך או להסיר.','להוספת נוסע בוחרים לאיזה מבצעים הוא שייך, וממלאים שם, סוג וטלפון. הנוסע נכנס אחרי אישור המנהלת.','ב"מי פנוי באלנבי" מופיעות הצעות לאחד הזמנות שהנסיכות הזמינה עם הזמנות אחרות. האישור שלך נחשב אישור של המבצעים של הנוסעים בהזמנה שלך.']},
-   {h:'הזמנה לכל הנוסעים',go:'ops',steps:['אחרי הכניסה נפתח ישר עמוד ההזמנות של הנסיכות. מכל עמוד אחר חוזרים אליו ב"מבצעים" בתפריט למעלה.','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
+   {h:'הזמנה לכל הנוסעים',go:'ops',steps:['🏠 על חשבון הבית: לפני השליחה מסמנים "על חשבון הבית". המונית לא יורדת מאף סל, ובמעקב היא מופיעה בנפרד. אפשר גם בתכנון החכם.','אחרי הכניסה נפתח ישר עמוד ההזמנות של הנסיכות. מכל עמוד אחר חוזרים אליו ב"מבצעים" בתפריט למעלה.','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
   ]},
   ceo:{title:'מנכ״ל',intro:'המנכ״ל מאשר נסיעות לילה ויכול להאציל את הסמכות לבוסים גדולים.',
    quick:['נכנסים כ"מנכ״ל".','"אישור" או "דחייה" לכל נסיעה בין 23:00 ל־06:00.','רוצים שבוס גדול יאשר בעצמו? "האצלת סמכות".'],
@@ -1418,7 +1419,7 @@ const RULES=`<div class="tablewrap"><table style="min-width:420px"><thead><tr><t
   <ul class="note" style="margin:0;padding-inline-start:18px;display:grid;gap:2px"><li>מזמינים לפחות 3 שעות לפני האיסוף הראשון.</li><li>נוסע בודד דורש אישור של הבוס הגדול. 4 נוסעים דורשים אישור של המבצעים בזמן ההזמנה. נסיעה בין 23:00 ל־06:00 דורשת אישור של המנכ״ל.</li><li>עד 4 נוסעים במונית, ורק לערים המותרות.</li><li>ביום אווירי וביום קרקעי אי אפשר להזמין 45 דקות לפני ואחרי טיסה או מיניבוס.</li><li>ביטול אחרי שהמונית הוזמנה, או פחות מ־3 שעות לפני, נספר בסל.</li></ul>`;
 function renderGuide(){const GR=ROLEG[ui.role]||['ops'];if(!GR.includes(ui.grole))ui.grole=GR[0];const r=ui.grole,g=G[r];
   app.innerHTML=`<section class="panel"><h1 style="font-size:1.4rem">הוראות שימוש</h1><div class="note">${GR.length>1?'בחרו תפקיד. ':''}למעלה סיכום קצר, ולמטה הסבר לכל פעולה עם כפתור "לנסות עכשיו" שמעביר ישר למקום.</div>
-    <div class="tabs" role="tablist">${[['adm','המנהלת'],['princess','★ נסיכות'],['ops','מבצעים'],['boss','בוס גדול'],['disp','סדרן'],['ceo','מנכ״ל']].filter(([k])=>GR.includes(k)).sort((a,b)=>GR.indexOf(a[0])-GR.indexOf(b[0])).map(([k,l])=>`<button role="tab" data-grole="${k}" aria-selected="${r===k}">${l}</button>`).join('')}</div>
+    <div class="tabs" role="tablist">${[['adm',ui.role==='princess'?'ניהול':'המנהלת'],['princess','★ נסיכות'],['ops','מבצעים'],['boss','בוס גדול'],['disp','סדרן'],['ceo','מנכ״ל']].filter(([k])=>GR.includes(k)).sort((a,b)=>GR.indexOf(a[0])-GR.indexOf(b[0])).map(([k,l])=>`<button role="tab" data-grole="${k}" aria-selected="${r===k}">${l}</button>`).join('')}</div>
     <div><h2>${g.title}</h2><div class="note">${g.intro}</div></div>
     </section>
     <section class="panel quick"><h2>בקצרה: ${g.quick.length} צעדים</h2><ol class="qsteps">${g.quick.map(x=>`<li>${x}</li>`).join('')}</ol></section>
@@ -1552,7 +1553,7 @@ function render(){
   document.getElementById('nav-client').setAttribute('aria-pressed',ui.page==='client');
   document.getElementById('nav-disp').setAttribute('aria-pressed',ui.page==='dispatcher');
   document.getElementById('nav-guide').setAttribute('aria-pressed',ui.page==='guide');
-  document.getElementById('nav-adm').setAttribute('aria-pressed',ui.page==='admin');
+  document.getElementById('nav-adm').setAttribute('aria-pressed',ui.page==='admin');document.getElementById('nav-adm').textContent=ui.role==='princess'?'ניהול':'המנהלת';
   ui.page==='guide'?renderGuide():ui.page==='client'?renderClient():renderDispatcher();
   if(!ui.role)app.insertAdjacentHTML('afterbegin',loginChooser());
   checkArrivals();paintOnline();
@@ -1683,7 +1684,7 @@ document.addEventListener('click',e=>{
       mark(r,'changed');ui.editRide=null;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;save();
       toast(r.status==='pending'?'השינוי נשמר. ההזמנה ממתינה לאישור החרגה ואז לסדרן':'השינוי נשמר ונשלח לסדרן לאישור מחדש');render();return}
     const nr=createRide(d,c),needs=!!nr.needs;
-    d.reason='';d.base='';d.baseOn=false;ui.ack4=false;ui.secOk=false;d.pax=[];d.stops=[];d.stopAddr=[];d.destAddr='';d.lead=null;d.ppt={};d.addr={};d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};ui.ack=false;save();{const up=S.rides[S.rides.length-1].unplanned;toast((needs?'ההזמנה ממתינה לאישור הבוס הגדול':'ההזמנה נשלחה לסדרן')+(up?' · 📅 שימו לב: מחוץ לתכנון החודשי':''))}render();return}
+    d.reason='';d.base='';d.baseOn=false;d.house=false;ui.ack4=false;ui.secOk=false;d.pax=[];d.stops=[];d.stopAddr=[];d.destAddr='';d.lead=null;d.ppt={};d.addr={};d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};ui.ack=false;save();{const up=S.rides[S.rides.length-1].unplanned;toast((needs?'ההזמנה ממתינה לאישור הבוס הגדול':'ההזמנה נשלחה לסדרן')+(up?' · 📅 שימו לב: מחוץ לתכנון החודשי':''))}render();return}
   if(t.dataset.cancel){const r=S.rides.find(x=>x.id===t.dataset.cancel);
     const who=cancelActor(),opsSide=ui.page==='client';
     if(!opsSide||(r.status!=='active'&&r.ts-Date.now()>=3*H)){r.status='cancelled';r.cancelBy={...who,at:Date.now()};mark(r,opsSide?'cancelled':'dispcancel');save();toast(opsSide?'ההזמנה בוטלה. לא נספרת בסל':'ההזמנה בוטלה');render()}else{ui.confirm=r.id;render()}return}
@@ -1754,7 +1755,7 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
 document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
   if(ui.smart&&ui.sub==='smart'&&ui.page==='client'){const sm=ui.smart;
     if(t.id==='sm-date'){sm.date=t.value;sm.plan=null;render();return}if(t.id==='sm-dir'){sm.dir=t.value;sm.plan=null;render();return}
-    if(t.id==='sm-time'){sm.time=t.value;sm.plan=null;render();return}if(t.id==='sm-4'){sm.allow4=t.checked;sm.plan=null;render();return}if(t.id==='sm-back'){sm.back=t.checked;sm.plan=null;render();return}if(t.id==='sm-end'){sm.end=t.value;sm.plan=null;render();return}
+    if(t.id==='sm-time'){sm.time=t.value;sm.plan=null;render();return}if(t.id==='sm-4'){sm.allow4=t.checked;sm.plan=null;render();return}if(t.id==='sm-house'){sm.house=t.checked;if(sm.plan)sm.plan.forEach(x=>{x.d.house=t.checked});render();return}if(t.id==='sm-back'){sm.back=t.checked;sm.plan=null;render();return}if(t.id==='sm-end'){sm.end=t.value;sm.plan=null;render();return}
     if(t.dataset.smp){const p=t.dataset.smp;if(t.checked)sm.sel[p]=lastCity(p)||emp(p)?.city||'';else delete sm.sel[p];sm.plan=null;render();return}
     if(t.dataset.smc){sm.sel[t.dataset.smc]=t.value.trim();sm.plan=null;render();return}
     if(t.id==='sm-reason'){sm.reason=t.value;if(sm.plan)sm.plan.forEach(x=>{x.d.reason=t.value;smCheck(x)});render();return}
@@ -1779,6 +1780,7 @@ document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
     c.pw=v;save();toast(`הסיסמה של ${c.name} עודכנה`);return}
   if(t.dataset.quota){client(t.dataset.quota).quota=Math.max(0,+t.value||0);save();render();return}
   if(t.id==='f-sec'){ui.secOk=t.checked;return}
+  if(t.id==='f-house'){d.house=t.checked;renderCheck();return}
   if(t.id==='ack'){ui.ack=t.checked;renderCheck(true);return}
   if(t.id==='ack4'){ui.ack4=t.checked;renderCheck(true);return}
   if(t.id==='f-dir'){d.dir=t.value;render();return}
