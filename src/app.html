@@ -979,7 +979,9 @@ const SEC={pending:['⏳','אבטחת מידע: ממתין לאישור','sec-p'
 const secOf=r=>r.sec||'pending';
 const secChip=r=>{const[i,t,c]=SEC[secOf(r)];return `<button type="button" class="secchip ${c}" data-sec="${r.id}" title="לחיצה מחליפה: ממתין ← אושר ← לא נדרש">🔒 ${t}</button>`};
 const secMissing=cid=>S.rides.filter(r=>['pending','awaiting','active'].includes(r.status)&&r.ts>Date.now()&&(isP(cid)?r.by===PID:clientsOf(r).includes(cid))&&secOf(r)==='pending').sort((a,b)=>a.ts-b.ts);
-function rideRow(r,mode,cid){
+/* princess on the dispatcher page: view only (status), no confirming, cancelling or driver details */
+const RO=()=>ui.role==='princess'&&ui.page==='dispatcher';
+function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   const past=r.ts<Date.now(), dead=['cancelled','merged','late'].includes(r.status), cls=clientsOf(r), s=sched(r);
   const names=r.pax.map(p=>`${leadOf(r)===p?'<b title="אחראי/ת הנסיעה">★</b>':''}${esc(emp(p)?.name||'')}`).join(', ');
   const live=!past&&!dead, drv=(r.driverPhone||r.driverName)&&!dead;
@@ -989,6 +991,7 @@ function rideRow(r,mode,cid){
     else if(mode==='pboss')acts=`<button class="btn small primary" data-pok="${r.id}">אישור (נסיכות)</button><button class="btn small danger" data-pno="${r.id}">דחייה</button>`;
     else if(mode==='mgr')acts=`<button class="btn small primary" data-mgrok="${r.id}">אישור</button><button class="btn small danger" data-mgrno="${r.id}">דחייה</button>`;
     else if(mode==='client')acts=`<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
+    else if(mode==='dview')acts='';
     else acts=(r.status==='awaiting'?`<button class="btn small primary" data-confirm="${r.id}">אישור</button>`:'')+`<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
   }
   const late=ui.confirm===r.id?`<div class="lateconfirm">${lateWhy(r)}: הביטול ייחשב כאילו הנסיעה יצאה, והיא תיספר בסל. <button class="btn small danger" data-latecancel="${r.id}">לבטל בכל זאת</button><button class="btn small" data-keep="1">השאר</button></div>`:'';
@@ -1170,11 +1173,12 @@ function renderDispatcher(){
   const awn=S.rides.filter(r=>r.status==='awaiting').length;
   const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','אישור נוסעים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',0]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):k==='approvals'?true:ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
   if(ADM){const ORD=['calendar','approvals','paxreq','quotas','costs','ceo','users'];tabs.sort((a,b)=>ORD.indexOf(a[0])-ORD.indexOf(b[0]))}
+  if(RO())tabs.splice(0,tabs.length,...tabs.filter(([k])=>k==='board'));
   if(!tabs.some(([k])=>k===ui.tab))ui.tab=tabs[0][0];
   let body='';
   if(ui.tab==='board'){
     const up=S.rides.filter(r=>r.ts>Date.now()-2*H&&r.status!=='merged').sort((a,b)=>a.ts-b.ts);
-    body=`<div class="rides">${up.length?groupByDay(up).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}${isFree(ds)?' <span class="tag t-day">יום מוניות</span>':''}<span class="note">${rs.filter(r=>!['cancelled'].includes(r.status)).length} מוניות</span></div>`+rs.map(r=>rideRow(r,'disp')).join('')).join(''):'<div class="empty">אין נסיעות קרובות.</div>'}</div>`;
+    body=`${RO()?'<div class="tip">👁 צפייה בלבד: כאן רואים את הסטטוס של כל ההזמנות והנהגים. אישור הזמנות ופרטי נהג נעשים על ידי הסדרן.</div>':''}<div class="rides">${up.length?groupByDay(up).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}${isFree(ds)?' <span class="tag t-day">יום מוניות</span>':''}<span class="note">${rs.filter(r=>!['cancelled'].includes(r.status)).length} מוניות</span></div>`+rs.map(r=>rideRow(r,'disp')).join('')).join(''):'<div class="empty">אין נסיעות קרובות.</div>'}</div>`;
   }else if(ui.tab==='users'){body=renderUsers();
   }else if(ui.tab==='ceo'){body=ui.ceoAuthed?renderCeo():PROD?'<div class="empty">אישור נסיעות לילה שמור למנכ״ל. המשתמש שלך לא מוגדר כמנכ״ל.</div>':`<form class="gate ceo-panel panel" id="ceogate2"><h3>★ אזור המנכ״ל</h3><div class="note">אישור נסיעות לילה שמור למנכ״ל בלבד. הכניסה בסיסמת מנכ״ל (בדוגמה: 9999).</div><label>סיסמת מנכ״ל<input type="password" id="ceopw2"></label><div class="note" id="ceoerr2" style="color:var(--bad)" hidden>סיסמה שגויה.</div><button class="btn primary">כניסה</button></form>`;
   }else if(ui.tab==='approvals'){
@@ -1306,7 +1310,7 @@ const G={
   princess:{title:'★ נסיכות',intro:'הנסיכות מזמינה מוניות לכל הנוסעים מכל המבצעים, ויש לה את עמוד המנהלת חוץ מאישורי מנכ״ל, סיסמאות ואיפוס נתונים. היא לא נכנסת לעמודים של מבצעים אחרים.',
    quick:['נכנסים כ"נסיכות". נפתח ישר עמוד ההזמנות של הנסיכות.','"ממתין להחרגה": מאשרים או דוחים נסיעות של יבא עם נוסע בודד.','לוח שנה, ממתין להחרגה, אישור נוסעים, סלים ומעקב: בדיוק כמו אצל המנהלת. ההוראות בלשונית "המנהלת".','מזמינים כרגיל, לכל נוסע מכל המבצעים. לעמוד המנהלת עוברים בתפריט למעלה.'],
    sections:[
-   {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','"★ נסיכות"'),'נפתח עמוד ההזמנות של הנסיכות. בתפריט למעלה יש גם "עמוד סדרן" ו"המנהלת".']},
+   {h:'כניסה',go:'ops',steps:[LOGIN('מבצעים','"★ נסיכות"'),'נפתח עמוד ההזמנות של הנסיכות. בתפריט למעלה יש גם "המנהלת", ו"עמוד סדרן" לצפייה בסטטוס ההזמנות בלבד (בלי אישור ובלי פרטי נהג).']},
    {h:'אישור נוסע בודד של יבא',go:'adm-approvals',steps:['בלשונית "ממתין להחרגה" נסיעות של יבא עם נוסע בודד מופיעות עם הכפתורים "אישור (נסיכות)" ו"דחייה".','האישור שלך מחליף את אישור הבוס הגדול של יבא. אחריו ההזמנה עוברת לסדרן (או למנכ״ל, אם זו גם נסיעת לילה).','הבוס הגדול של יבא עדיין יכול לאשר בעצמו. מי שמאשר ראשון קובע.']},
    {h:'נוסעים ומי פנוי באלנבי',go:'ops-pax',steps:['בלשונית "נוסעים" רואים את כל הנוסעים מכל המבצעים. אפשר לערוך או להסיר.','להוספת נוסע בוחרים לאיזה מבצעים הוא שייך, וממלאים שם, סוג וטלפון. הנוסע נכנס אחרי אישור המנהלת.','ב"מי פנוי באלנבי" מופיעות הצעות לאחד הזמנות שהנסיכות הזמינה עם הזמנות אחרות. האישור שלך נחשב אישור של המבצעים של הנוסעים בהזמנה שלך.']},
    {h:'הזמנה לכל הנוסעים',go:'ops',steps:['אחרי הכניסה נפתח ישר עמוד ההזמנות של הנסיכות. מכל עמוד אחר חוזרים אליו ב"מבצעים" בתפריט למעלה.','ב"נסיכות" מופיעים בהזמנה כל הנוסעים מכל המבצעים.','כל מונית יורדת מהסל של המבצעים של הנוסעים שבה. ההזמנה מסומנת "הוזמנה ע״י נסיכות".','שאר ההזמנה זהה להזמנה רגילה (ראו בלשונית "מבצעים").']}
@@ -1466,6 +1470,7 @@ document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest
 document.addEventListener('click',e=>{
   try{ui.ac??=new (window.AudioContext||window.webkitAudioContext)()}catch(_){}
   const t=e.target.closest('button');if(!t)return;
+  if(RO()&&t.closest('#app')&&!(t.dataset.tab||t.dataset.nav||t.id==='sound'||t.id==='logout'||t.tagName==='SUMMARY')){toast('לנסיכות יש צפייה בלבד בעמוד הסדרן');return}
   if(t.id==='sound'){ui.sound=!ui.sound;if(ui.sound)beep();render();return}
   if(t.dataset.confirm){const r=S.rides.find(x=>x.id===t.dataset.confirm);r.status='active';r.confirmedAt=Date.now();mark(r,'confirmed');save();
     toast('ההזמנה אושרה. מבצעים קיבלו התראה');render();return}
