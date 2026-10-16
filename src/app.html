@@ -822,12 +822,12 @@ function myMergesP(){return suggestions().filter(({a,b})=>a.by===PID||b.by===PID
 function renderMerge(c){
   const list=isP(c.id)?myMergesP():myMerges(c.id);
   app.innerHTML=subTabs(c)+`<section class="panel"><h2>מי פנוי באלנבי</h2>
-    <div class="note">ההזמנות שלכם שאפשר לאחד עם הזמנה אחרת באופן יעיל: אותו כיוון, נקודות קרובות (עד 10 ק״מ זו מזו), תוספת של עד 15 דקות לזמן הנסיעה של כל נוסע, הפרש של עד 15 דקות בין ההזמנות ועד 3 נוסעים. המסלול המאוחד מסודר אוטומטית מהנקודה הרחוקה לקרובה. האיחוד קורה רק כשכל המבצעים המעורבים מאשרים, ואז הוא עובר לסדרן לאישור סופי. אם מבצעים אחרים לא מאשרים, הנסיעות נשארות כפי שהוזמנו.</div>
+    <div class="note">ההזמנות שלכם שאפשר לאחד עם הזמנה אחרת באופן יעיל: אותו כיוון, תחנה נוספת שנמצאת עד 10 ק״מ מהמסלול (גם בין שתי הזמנות שלכם), תוספת של עד 15 דקות לזמן הנסיעה של כל נוסע, הפרש של עד 15 דקות בין ההזמנות ועד 3 נוסעים. המסלול המאוחד מסודר אוטומטית מהנקודה הרחוקה לקרובה. האיחוד קורה רק כשכל המבצעים המעורבים מאשרים, ואז הוא עובר לסדרן לאישור סופי. אם מבצעים אחרים לא מאשרים, הנסיעות נשארות כפי שהוזמנו.</div>
     ${list.length?list.map(x=>{const waiting=x.cl.filter(y=>!x.v.includes(y));
       return `<div class="sugg"><div class="row"><b>${dayLabel(ymd(new Date(x.a.ts)))} · ${route(x.m)}</b>${x.voted?`<span class="st st-active">אישרתם${x.meetVoted?' עם נקודת מפגש':''} · ממתין לאישור ${waiting.map(y=>esc(client(y).name)).join(', ')}</span>`:`<span class="row" style="gap:6px"><button class="btn small primary" data-mok="${x.key}">מאשרים איחוד</button><button class="btn small" data-dismiss="${x.key}">לא מאשרים · להשאיר כפי שהוזמן</button></span>`}</div>
         <div class="note num">ההזמנות: ${hm(new Date(x.a.ts))} ו־${hm(new Date(x.b.ts))} · אחרי איחוד: ${x.m.dir==='to'?'הגעה':'יציאה'} ב־${hm(new Date(x.a.ts))}</div>
         <div class="note" style="color:var(--ink)">⏱ ${schedTxt(x.m)}</div>
-        <div class="note num">יעילות: הנקודות במרחק של עד ${x.ev.maxKm} ק״מ זו מזו · תוספת זמן נסיעה לנוסע: ${x.ev.extra?`עד ${x.ev.extra} דק׳`:"ללא"} · שינוי שעה להזמנה השנייה: ${x.ev.shift} דק׳</div>
+        <div class="note num">יעילות: ${x.ev.maxKm?`תחנה נוספת במרחק של עד ${x.ev.maxKm} ק״מ מהמסלול`:'אותן תחנות'} · תוספת זמן נסיעה לנוסע: ${x.ev.extra?`עד ${x.ev.extra} דק׳`:"ללא"} · שינוי שעה להזמנה השנייה: ${x.ev.shift} דק׳</div>
         <div class="split num">${x.m.pax.length} נוסעים · ${x.cl.map(y=>`${esc(client(y).name)}: ${fmt2(share(x.m,y))} מונית מהסל`).join(' · ')}</div>
         ${x.ev.meet&&points(x.m).length>1?`<div class="tip"><b>💡 אפשרות חסכונית יותר: נקודת מפגש משותפת</b><br>כל הנוסעים מגיעים בעצמם ל<b>${esc(x.ev.meet.addr)}, ${esc(x.ev.meet.city)}</b> (עד ${x.ev.meet.km} ק״מ מכל נקודה), והמונית אוספת את כולם מנקודה אחת.${x.ev.meet.saved?` חוסך כ־${x.ev.meet.saved} דק׳ נסיעה.`:''}<div class="note" style="color:var(--ink)">⏱ ${schedTxt(x.ev.meet.m)}</div>${x.voted?'':`<div class="row" style="margin-top:6px"><button class="btn small primary" data-mok="${x.key}|meet">מאשרים איחוד עם נקודת מפגש</button></div>`}</div>`:''}</div>`}).join(''):'<div class="empty">אין כרגע הזמנות שאפשר לאחד.</div>'}</section>`;
 }
@@ -1065,8 +1065,14 @@ const distKm=(x,y)=>{if(x===y)return 0;const A=GEO[x],B=GEO[y];if(!A||!B)return 
 function mergedRide(a,b){const cs=[...new Set([...points(a),...points(b)])].sort((x,y)=>a.dir==='to'?minsOf(y)-minsOf(x):minsOf(x)-minsOf(y));
   const pp=r=>Object.fromEntries(r.pax.map(p=>[p,ptOf(r,p)]));
   return {pax:[...a.pax,...b.pax],dir:a.dir,ts:a.ts,dest:a.dir==='to'?cs[0]:cs[cs.length-1],stops:a.dir==='to'?cs.slice(1):cs.slice(0,-1),ppt:{...pp(a),...pp(b)},addr:{...(a.addr||{}),...(b.addr||{})},lead:leadOf(a)}}
-function mergeEval(a,b){const m=mergedRide(a,b),pts=points(m),sm=sched(m);if(!sm)return null;let maxKm=0;
-  pts.forEach(x=>pts.forEach(y=>{maxKm=Math.max(maxKm,distKm(x,y))}));
+/* distance (km) from a point to a ride's route: the polyline through its stations and the main station */
+function kmToRoute(c,r){const P=geoOf(c),line=(r.dir==='to'?[...points(r),baseOf(r)]:[baseOf(r),...points(r)]).map(geoOf).filter(Boolean);if(!P||!line.length)return Infinity;
+  const k=Math.cos(P[0]*Math.PI/180),xy=g=>[(g[1]-P[1])*111.32*k,(g[0]-P[0])*110.57];let best=Infinity;
+  for(let i=0;i<line.length;i++){const A=xy(line[i]);if(i===0){best=Math.min(best,Math.hypot(A[0],A[1]));continue}const Bp=xy(line[i-1]),dx=A[0]-Bp[0],dy=A[1]-Bp[1],L=dx*dx+dy*dy;
+    const t=L?Math.max(0,Math.min(1,-(Bp[0]*dx+Bp[1]*dy)/L)):0;best=Math.min(best,Math.hypot(Bp[0]+t*dx,Bp[1]+t*dy))}return best}
+function mergeEval(a,b){const m=mergedRide(a,b),pts=points(m),sm=sched(m);if(!sm)return null;
+  /* the extra stations of one ride must lie within 10 km of the other ride's route (not of a single point) */
+  const off=(x,y)=>Math.max(0,...points(x).filter(c=>!points(y).includes(c)).map(c=>kmToRoute(c,y)));const maxKm=Math.min(off(b,a),off(a,b));
   const dur=(r,s,p)=>{const st=s.stops.find(x=>x.pt===ptOf(r,p));return st?(r.dir==='to'?s.end-st.t:st.t-s.start):0};
   let extra=0;[a,b].forEach(r=>{const so=sched(r);if(so)r.pax.forEach(p=>{extra=Math.max(extra,(dur(m,sm,p)-dur(r,so,p))/MIN)})});
   extra=Math.max(0,Math.round(extra));
