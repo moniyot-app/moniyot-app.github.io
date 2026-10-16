@@ -280,6 +280,8 @@ td input{width:80px}
 @media (max-width:760px){.auth{grid-template-columns:1fr;margin:16px auto;border-radius:14px}
   .auth-hero{padding:18px 20px;grid-template-columns:auto 1fr;align-items:center;gap:14px}.auth-hero img{width:52px;height:52px;border-radius:13px}
   .auth-hero h1{font-size:1.4rem;margin:0}.auth-hero p{font-size:.9rem}.auth-hero ul{display:none}.auth-form{padding:22px 20px}}
+.chgbox{border:2px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:8px 12px;display:grid;gap:6px;margin:4px 0}
+.chgt{border-collapse:collapse;font-size:.9rem;width:100%}.chgt th{text-align:start;font-weight:600;color:var(--muted);padding:2px 6px}.chgt td{padding:3px 6px;border-top:1px solid var(--line);vertical-align:top}.chgt .was{text-decoration:line-through;color:var(--muted)}.chgt .now{font-weight:700;color:var(--ink)}
 </style>
 
 <div class="top"><div class="top-in">
@@ -1071,11 +1073,25 @@ function draftFromRide(r){const pts=(r.dir==='to'?[r.dest,...(r.stops||[])]:[...
   r.pax.forEach(p=>{const i=pts.findIndex(x=>x.city===ptOf(r,p));if(i>=0&&!pts[i].addr)pts[i].addr=(r.addr||{})[p]||''});
   const pidx={};r.pax.forEach(p=>{pidx[p]=Math.max(0,pts.findIndex(x=>x.city===ptOf(r,p)))});const t=new Date(r.ts);
   return {...ui.draft,date:ymd(t),time:hm(t),dir:r.dir,pts,pidx,pax:[...r.pax],lead:r.lead,base:r.base||'',baseOn:!!r.base,reason:r.reason||''}}
-function chgTxt(r){const c=(r.changes||[]).slice(-1)[0];if(!c)return '';const p=c.prev,o=[];
-  if(p.ts!==r.ts)o.push(`שעה ${hm(new Date(p.ts))} ← ${hm(new Date(r.ts))}`);
-  const add=r.pax.filter(x=>!p.pax.includes(x)),rm=p.pax.filter(x=>!r.pax.includes(x));if(add.length)o.push('נוסף: '+add.map(x=>emp(x)?.name||'').join(', '));if(rm.length)o.push('ירד: '+rm.map(x=>emp(x)?.name||'').join(', '));
-  if(JSON.stringify([p.dest,...p.stops])!==JSON.stringify([r.dest,...(r.stops||[])]))o.push('מסלול: '+route(r));
-  return o.length?o.join(' · '):'עודכנו כתובות או פרטים'}
+/* what the ops changed in their last edit: [label, before, after] */
+function chgLines(r){const c=(r.changes||[]).slice(-1)[0];if(!c)return [];const p=c.prev,o=[],nm=x=>emp(x)?.name||'',same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  const rt=x=>(x.dir==='to'?[x.dest,...(x.stops||[])]:[...(x.stops||[]),x.dest]).join(' ← ');
+  if(p.ts!==r.ts)o.push([r.dir==='to'?'שעת הגעה':'שעת יציאה',hm(new Date(p.ts)),hm(new Date(r.ts))]);
+  const add=r.pax.filter(x=>!p.pax.includes(x)),rm=p.pax.filter(x=>!r.pax.includes(x));
+  if(add.length||rm.length)o.push(['נוסעים',p.pax.map(nm).join(', '),r.pax.map(nm).join(', ')+(add.length?` (נוסף: ${add.map(nm).join(', ')})`:'')+(rm.length?` (ירד: ${rm.map(nm).join(', ')})`:'')]);
+  const pr={...r,dest:p.dest,stops:p.stops};if(rt(pr)!==rt(r))o.push([r.dir==='to'?'תחנות איסוף':'תחנות הורדה',rt(pr),rt(r)]);
+  r.pax.filter(x=>p.pax.includes(x)).forEach(x=>{const a=(p.ppt||{})[x],b=(r.ppt||{})[x];if(a&&b&&a!==b)o.push([`תחנה של ${nm(x)}`,a,b])});
+  const ad=x=>{const m={};Object.entries(x.addr||{}).forEach(([k,v])=>{const c2=(x.ppt||{})[k];if(c2&&v)m[c2]=v});return m},A=ad(p),Bm=ad(r);
+  [...new Set([...Object.keys(A),...Object.keys(Bm)])].forEach(c2=>{if((A[c2]||'')!==(Bm[c2]||''))o.push([`כתובת ב${c2}`,A[c2]||'—',Bm[c2]||'—'])});
+  if(p.lead!==r.lead)o.push(['אחראי/ת',nm(p.lead),nm(r.lead)]);
+  if((p.base||'')!==(r.base||''))o.push([r.dir==='to'?'תחנת יעד':'תחנת מוצא',p.base||BASE,r.base||BASE]);
+  if((p.reason||'')!==(r.reason||''))o.push(['פירוט לנסיעת לילה',p.reason||'—',r.reason||'—']);
+  return o}
+function chgTxt(r){const L=chgLines(r);return L.length?L.map(([k,a,b])=>`${k}: ${a} ← ${b}`).join(' · '):'לא השתנה דבר מהותי'}
+function chgBox(r,mode){const c=(r.changes||[]).slice(-1)[0],L=chgLines(r);if(!c)return '';
+  return `<div class="chgbox"><div class="row" style="gap:8px;justify-content:space-between;flex-wrap:wrap"><b>✏️ ${mode==='disp'?'המבצעים שינו את ההזמנה · צריך לאשר מחדש':'ההזמנה שונתה · ממתינה לאישור מחדש של הסדרן'}</b><span class="note">${esc(client(c.by)?.name||'')} · ${hm(new Date(c.at))}${p0(c)}</span></div>
+    ${L.length?`<table class="chgt"><thead><tr><th>מה</th><th>לפני</th><th>אחרי</th></tr></thead><tbody>${L.map(([k,a,b])=>`<tr><td>${esc(k)}</td><td class="was">${esc(a)}</td><td class="now">${esc(b)}</td></tr>`).join('')}</tbody></table>`:'<div class="note">לא השתנה דבר מהותי.</div>'}</div>`}
+const p0=c=>c.prev&&c.prev.status==='active'?' · המונית כבר הייתה מוזמנת':'';
 function editProblem(r,d){const nt=at(d.date,d.time);if(r.ts-Date.now()<3*H)return 'אפשר לשנות רק עד 3 שעות לפני הנסיעה';
   if(d.date!==ymd(new Date(r.ts)))return 'שינוי תאריך הוא שינוי גדול מדי. בטלו את ההזמנה והזמינו מחדש';
   if(d.dir!==r.dir)return 'שינוי כיוון הנסיעה הוא שינוי גדול מדי. בטלו את ההזמנה והזמינו מחדש';
@@ -1116,7 +1132,7 @@ function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   return `<div class="ride ${dead||past?'dim':''}">${stripe(cls)}<div class="t num">${hm(new Date(r.ts))}<div class="note" style="font-family:var(--font-body);font-weight:400;font-size:.72rem">${r.dir==='to'?'הגעה':'יציאה'}</div></div>
     <div style="min-width:0;display:grid;gap:3px"><div class="row" style="gap:6px"><span class="logos">${cls.map(c=>opsLogo(c,22)).join('')}</span><span class="route">${route(r)}</span>${isUrgent(r)&&!dead?'<span class="st st-late">⚡</span>':''}${statusOf(r)}${mode==='disp'&&!(dead&&r.status!=='late')?`<span class="note num">${money(cost(r))}</span>`:''}</div>
       ${mode==='client'&&live?secChip(r):''}${r.house?'<span class="st st-active" style="justify-self:start">🏠 על חשבון הבית · לא יורדת מאף סל</span>':''}<div class="note r2">👥 ${names}${s?` · ${r.dir==='to'?'איסוף':'יציאה'} <b class="num">${hm(new Date(s.start))}</b>`:''}${drv?` · 🚕 ${driverTxt(r)}`:''}</div>
-      ${r.reconfirm&&(r.changes||[]).length&&(mode==='disp'||mode==='dview'||mode==='client')&&!dead?`<div class="tip" style="padding:6px 10px">✏️ <b>שונתה${mode==='disp'?' · לאשר מחדש':''}:</b> ${esc(chgTxt(r))}</div>`:''}${r.reason&&(mode==='ceo'||mode==='mgr')?`<div class="reason">📝 ${esc(r.reason)}</div>`:''}${drvForm}${more}</div>
+      ${r.reconfirm&&(r.changes||[]).length&&(mode==='disp'||mode==='dview'||mode==='client')&&!dead?chgBox(r,mode):''}${r.reason&&(mode==='ceo'||mode==='mgr')?`<div class="reason">📝 ${esc(r.reason)}</div>`:''}${drvForm}${more}</div>
     <div class="acts">${acts}</div>${late}</div>`;
 }
 
@@ -1368,7 +1384,8 @@ function renderDispatcher(){
     <section class="panel"><div class="tabs" role="tablist">${tabs.map(([k,l,n])=>`<button role="tab" data-tab="${k}"${k==='ceo'?' class="tab-ceo"':''} aria-selected="${ui.tab===k}">${l}${n?`<span class="count">${n}</span>`:''}</button>`).join('')}</div>${body}</section>`;return}
   app.innerHTML=`<div class="row" style="justify-content:space-between"><h1 style="font-size:1.4rem">לוח סדרן</h1><span class="row" style="gap:6px"><button class="btn small" id="sound" aria-pressed="${ui.sound}">${ui.sound?'🔔 התראה קולית פועלת':'🔕 התראה קולית כבויה'}</button></span></div>
     ${(()=>{const urg=S.rides.filter(r=>r.status==='awaiting'&&isUrgent(r)).length,lineDue=new Date().getHours()>=22&&!lineOf(ymd(new Date(Date.now()+DAY)));
-      const act=[awn?`<button class="alert" data-tab="board">🚕 ${awn} הזמנות חדשות ממתינות לאישורך${urg?` (מתוכן ${urg} ⚡ מתפרצות)`:''}</button>`:'',lineDue?'<button class="alert" data-tab="line">🌙 הגיע זמן יישור הקו של מחר</button>':'',(()=>{const n=routeTips().length;return n?`<button class="alert" data-tab="board" data-openroutes="1">🧭 ${n} נסיעות עם מסלול שאפשר לקצר</button>`:''})()].filter(Boolean);
+      const chg=S.rides.filter(r=>r.status==='awaiting'&&r.reconfirm&&r.ts>Date.now()).length;
+      const act=[chg?`<button class="alert bad" data-tab="board">✏️ ${chg} הזמנות שהמבצעים שינו ממתינות לאישור מחדש</button>`:'',awn-chg>0?`<button class="alert" data-tab="board">🚕 ${awn-chg} הזמנות חדשות ממתינות לאישורך${urg?` (מתוכן ${urg} ⚡ מתפרצות)`:''}</button>`:'',lineDue?'<button class="alert" data-tab="line">🌙 הגיע זמן יישור הקו של מחר</button>':'',(()=>{const n=routeTips().length;return n?`<button class="alert" data-tab="board" data-openroutes="1">🧭 ${n} נסיעות עם מסלול שאפשר לקצר</button>`:''})()].filter(Boolean);
       const st=S.clients.map(c=>{const p=used(c.id)/limit(c),pb=pend.filter(r=>clientsOf(r).includes(c.id)).length;return `<span class="ops-st ${p>1?'bad':p>=.9?'warn':''}" data-tip="${esc(c.name)} · ${fmt(used(c.id))} מתוך ${limit(c)} מוניות${pb?` · ${pb} ממתינות להחרגה (בוס גדול או מנכ״ל)`:''}">${opsDot(c.id)}${esc(c.name)} <b class="num">${Math.round(p*100)}%</b>${p>1?' חריגה':''}${pb?` · ⏳${pb}`:''}</span>`}).join('');
       return `<div class="agrid"><div class="abox act" role="region" aria-label="התראות לפעולה"><div class="ah">⚡ לפעולה</div>${act.length?`<div class="alerts">${act.join('')}</div>`:'<div class="note">אין כרגע משהו שמחכה לך. 👍</div>'}</div>
         <div class="abox info" role="region" aria-label="התראות לידיעה"><div class="ah">ℹ️ לידיעה · סטטוס המבצעים</div><div class="alerts">${st}</div><div class="note">אחוז ניצול הסל החודשי. ⏳ = נסיעות שממתינות להחרגה של בוס גדול או מנכ״ל.</div></div></div>`})()}
@@ -1703,7 +1720,7 @@ document.addEventListener('click',e=>{
     if(ui.editRide){const r=S.rides.find(x=>x.id===ui.editRide);if(!r||!canEdit(r)){ui.editRide=null;toast('אי אפשר לשנות את ההזמנה הזו יותר');render();return}
       const pr=editProblem(r,d);if(pr){toast(pr);return}
       const nd=[];if(d.pax.length===1&&!(isP(ui.cid)&&r.house))nd.push('single');if(isNight(d))nd.push('night');const same=JSON.stringify([...nd].sort())===JSON.stringify([...needsOf(r)].sort());
-      (r.changes??=[]).push({at:Date.now(),by:ui.cid,prev:{ts:r.ts,pax:[...r.pax],dest:r.dest,stops:[...(r.stops||[])]}});
+      (r.changes??=[]).push({at:Date.now(),by:ui.cid,prev:JSON.parse(JSON.stringify({ts:r.ts,pax:r.pax,dest:r.dest,stops:r.stops||[],lead:r.lead,ppt:r.ppt||{},addr:r.addr||{},base:r.base||'',reason:r.reason||'',status:r.status}))});
       Object.assign(r,{ts:at(d.date,d.time),dest:d.dest,stops:[...d.stops],pax:[...d.pax],lead:d.lead,base:(d.base||'').trim(),reason:isNight(d)?(d.reason||'').trim():'',ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()]))});
       if(!same){r.needs=nd.length?nd:null;r.approvedBy=[];r.ceoOk=false;r.pOk=false}
       r.status=needBoss(r)||needCeo(r)?'pending':'awaiting';r.confirmedAt=null;r.reconfirm=true;if(r.sms)r.sms.sent={};if(r.cal)makeCalLinks(r);
