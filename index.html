@@ -432,6 +432,12 @@ function rideBlock(r){const s=sched(r);if(!s)return null;
 const mName=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('he-IL',{month:'long',year:'numeric'})};
 const clientsOf=r=>[...new Set(r.pax.map(p=>emp(p)?.cid).filter(Boolean))];
 
+/* compare an order with the unit's own monthly plan (תכנון חודשי) */
+function planGap(cid,ds,pax){if(!cid||isP(cid)||!ds)return null;const plan=((S.plans||{})[cid]||{})[ds.slice(0,7)];
+  const mine=pax.filter(p=>emp(p)?.cid===cid).length;if(!mine)return null;const add=mine/pax.length;
+  if(!plan||!Object.keys(plan).length)return {none:true};
+  const planned=+plan[ds]||0,used=S.rides.filter(r=>COUNTS.includes(r.status)&&ymd(new Date(r.ts))===ds).reduce((a,r)=>a+share(r,cid),0);
+  return used+add>planned+0.001?{planned,used,add}:null}
 function check(d){ // d: {date,time,dir,dest,pax[]}
   const out=[];const add=(k,t)=>out.push({k,t});
   const n=d.pax.length;
@@ -469,6 +475,7 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
   else{if(!types.includes('business'))add('block','יום קרקעי: חייב להיות במונית לפחות נוסע ביזנס אחד. פרימיום ותיירים יכולים רק להצטרף אליו');else add('ok','יום קרקעי: יש במונית נוסע ביזנס');}
   if(isNight(d)&&!(d.reason||'').trim())add('block','נסיעת לילה: כתבו פירוט של הבקשה, כדי שהמאשר/ת יוכלו להחליט');
   if(isNight(d))add('appr',deleg(ui.cid,sD)?'נסיעת לילה (23:00–06:00): דורש אישור של הבוס הגדול (בסמכות שהאציל המנכ״ל). ההזמנה תמתין לאישור':'נסיעת לילה (23:00–06:00): דורש אישור של המנכ״ל. ההזמנה תמתין לאישור');
+  {const g=!isNaN(ts)&&planGap(ui.cid,sD,d.pax);if(g)add('warn',g.none?'📅 עוד לא מילאתם תכנון חודשי לחודש הזה. ההזמנה תסומן "מחוץ לתכנון"':g.planned?`📅 מחוץ לתכנון: ב${dayLabel(sD)} תכננתם ${fmt(g.planned)} מוניות, וכבר הוזמנו ${fmt(g.used)}. ההזמנה תסומן "מחוץ לתכנון"`:`📅 מחוץ לתכנון: לא תכננתם מוניות ב${dayLabel(sD)}. ההזמנה תסומן "מחוץ לתכנון"`)}
   if(n===1)add('appr','נוסע יחיד: דורש אישור של הבוס הגדול. ההזמנה תמתין לאישור');
   if(n===4)add('warn','4 נוסעים: נדרש אישור של המבצעים. סמנו את האישור למטה');
   if(n>=2&&n<=3)add('ok',`${n} נוסעים במונית`);
@@ -519,7 +526,7 @@ const cancelActor=()=>ui.role==='princess'?{k:'princess'}:ui.page==='client'?(ui
 const lateWhy=r=>r.status==='active'?'המונית כבר הוזמנה':'פחות מ־3 שעות לנסיעה';
 const dmy=ms=>{const d=new Date(ms);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`};
 const ROLEBY={admin:'המנהלת',princess:'נסיכות',boss:'בוס גדול',disp:'הסדרן'};
-function excTxt(r){const n=needsOf(r).map(k=>NEEDS[k]);if(r.over)n.push('חריגה מהסל');if(!n.length)return 'לא נדרשה';
+function excTxt(r){const n=needsOf(r).map(k=>NEEDS[k]);if(r.over)n.push('חריגה מהסל');if(r.unplanned)n.push('מחוץ לתכנון');if(!n.length)return 'לא נדרשה';
   const ok=[(r.approvedBy||[]).length?'אישר: בוס גדול':'',r.ceoOk?'אישר: מנכ״ל':'',needsOf(r).includes('four')&&!needsOf(r).some(k=>k!=='four')&&r.status!=='pending'?'אישרו: המבצעים':''].filter(Boolean);
   return n.join(', ')+(ok.length?' · '+ok.join(', '):r.status==='pending'?' · ממתין לאישור':'')}
 function histRows(mo){return S.rides.filter(r=>r.status!=='merged'&&ymd(new Date(r.ts)).slice(0,7)===mo).sort((a,b)=>a.ts-b.ts).map(r=>{const pts=points(r);
@@ -1227,7 +1234,7 @@ const G={
    {h:'🔒 אבטחת מידע',go:'ops',steps:['כמעט כל נסיעה צריכה אישור אבטחת מידע. זה מעקב פנימי שלכם.','אם האישור כבר התקבל, מסמנים "כבר התקבל אישור אבטחת מידע" לפני השליחה.','אחר כך, ב"ההזמנות שלי", לחיצה על 🔒 מחליפה בין: ממתין ← אושר ← לא נדרש.','בראש העמוד מופיעה תזכורת לנסיעות קרובות בלי אישור.']},
    {h:'נוסעים: הוספה, עריכה והסרה',go:'ops-pax',steps:['בלשונית "נוסעים" ← "הוספת נוסע": שם, סוג (ביזנס, פרימיום או תיירים) וטלפון נייד. בלי טלפון הנוסע לא יקבל הודעה עם פרטי הנסיעה.','שומרים על פרטיות: רק שם פרטי ואות ראשונה של שם המשפחה, למשל "דנה כ.". כתבתם שם מלא? הוא יקוצר לבד. אם כבר יש "דנה כ." במאגר, נשמרת אות נוספת ("דנה כה.").','"שליחה לאישור המנהלת". הנוסע יופיע בהזמנות אחרי שהמנהלת תאשר. ייתכן שהיא תתקן פרטים לפני האישור.','עריכה: "עריכה" ליד הנוסע ← משנים ← שליחה לאישור. עד האישור הפרטים הישנים בתוקף.','הסרה: "הסרה" ← אישור. הנוסע יורד מיד, בלי לחכות לאישור.']},
    {h:'מי פנוי באלנבי: חיסכון במוניות',go:'ops-merge',steps:['כאן מופיעות הצעות לאחד הזמנה שלכם עם הזמנה קרובה של מבצעים אחרים.','רואים את המסלול המאוחד, השעות, כמה זמן מתווסף וכמה מונית תרד לכם מהסל.','"מאשרים איחוד" או "לא מאשרים". האיחוד קורה רק אם כל המבצעים אישרו.']},
-   {h:'תכנון חודשי',go:'ops-plan',steps:['לוח השנה זהה ללוח של המנהלת: צהוב יום מוניות, כחול יום אווירי עם שעות הטיסות, ירוק יום קרקעי עם שעות המיניבוסים. ימים שעברו מופיעים בהיר.','מתכננים מוניות בעיקר בימי מוניות. בימים אוויריים וקרקעיים יש מענה חלופי (טיסה או מיניבוס), ולכן משאירים רק רזרבה קטנה לחריגים.','רושמים בכל יום כמה מוניות מתכננים, או לוחצים "⚡ תכנון אוטומטי" ומתקנים.','בתחתית: פיזור מומלץ, קצב החודש וטיפים לחיסכון.']},
+   {h:'תכנון חודשי',go:'ops-plan',steps:['לוח השנה זהה ללוח של המנהלת: צהוב יום מוניות, כחול יום אווירי עם שעות הטיסות, ירוק יום קרקעי עם שעות המיניבוסים. ימים שעברו מופיעים בהיר.','מתכננים מוניות בעיקר בימי מוניות. בימים אוויריים וקרקעיים יש מענה חלופי (טיסה או מיניבוס), ולכן משאירים רק רזרבה קטנה לחריגים.','רושמים בכל יום כמה מוניות מתכננים, או לוחצים "⚡ תכנון אוטומטי" ומתקנים.','בתחתית: פיזור מומלץ, קצב החודש וטיפים לחיסכון.','הזמנה ביום שלא תכננתם בו, או מעבר למספר שתכננתם, מקבלת התראה כתומה "📅 מחוץ לתכנון" בבדיקת ההזמנה. אפשר להזמין, וההזמנה מסומנת כך גם אצל המנהלת בהיסטוריה.']},
    {h:'הסל החודשי',steps:['בראש העמוד: כמה מוניות נוצלו ומה נשאר.','מונית משותפת עם מבצעים אחרים נספרת לפי מספר הנוסעים שלכם, למשל ⅓ מונית.','מותר לחרוג, אבל החריגה יורדת מהסל של החודש הבא. לפני השליחה תופיע אזהרה שצריך לאשר.']}
   ],rules:true},
   boss:{title:'בוס גדול',intro:'הבוס הגדול מאשר נסיעות עם נוסע בודד ושומר שהן לא יעברו 25% מהנסיעות.',
@@ -1498,8 +1505,8 @@ document.addEventListener('click',e=>{
   if(t.id==='submit'){const d=ui.draft,c=client(ui.cid);syncDraft(d);const res=check(d);const bl=res.find(x=>x.k==='block');if(bl){toast(bl.t);renderCheck();return}
     const nd=[];if(d.pax.length===1)nd.push('single');if(isNight(d))nd.push('night');
     const needs=nd.length;const over=!isP(c.id)&&used(c.id)+1>limit(c);
-    S.rides.push({id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,createdAt:Date.now()});
-    d.reason='';d.base='';d.baseOn=false;ui.ack4=false;ui.secOk=false;d.pax=[];d.stops=[];d.stopAddr=[];d.destAddr='';d.lead=null;d.ppt={};d.addr={};d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};ui.ack=false;save();toast(needs?'ההזמנה ממתינה לאישור הבוס הגדול':'ההזמנה נשלחה לסדרן');render();return}
+    S.rides.push({id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,unplanned:!!planGap(ui.cid,ymd(new Date(at(d.date,d.time))),d.pax),createdAt:Date.now()});
+    d.reason='';d.base='';d.baseOn=false;ui.ack4=false;ui.secOk=false;d.pax=[];d.stops=[];d.stopAddr=[];d.destAddr='';d.lead=null;d.ppt={};d.addr={};d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};ui.ack=false;save();{const up=S.rides[S.rides.length-1].unplanned;toast((needs?'ההזמנה ממתינה לאישור הבוס הגדול':'ההזמנה נשלחה לסדרן')+(up?' · 📅 שימו לב: מחוץ לתכנון החודשי':''))}render();return}
   if(t.dataset.cancel){const r=S.rides.find(x=>x.id===t.dataset.cancel);
     const who=cancelActor(),opsSide=ui.page==='client';
     if(!opsSide||(r.status!=='active'&&r.ts-Date.now()>=3*H)){r.status='cancelled';r.cancelBy={...who,at:Date.now()};mark(r,opsSide?'cancelled':'dispcancel');save();toast(opsSide?'ההזמנה בוטלה. לא נספרת בסל':'ההזמנה בוטלה');render()}else{ui.confirm=r.id;render()}return}
