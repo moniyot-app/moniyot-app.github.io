@@ -1327,7 +1327,7 @@ function renderDispatcher(){
   const sug=suggestions();
   const hot=S.clients.map(c=>({c,p:used(c.id)/limit(c)})).filter(x=>x.p>=.9).sort((a,b)=>b.p-a.p);
   const awn=S.rides.filter(r=>r.status==='awaiting').length;
-  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','אישור נוסעים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',0]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):k==='approvals'?true:ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
+  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','אישור נוסעים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',(PW_HELP||[]).length]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):k==='approvals'?true:ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
   if(ADM){const ORD=['calendar','approvals','paxreq','quotas','costs','ceo','users','online'];tabs.sort((a,b)=>ORD.indexOf(a[0])-ORD.indexOf(b[0]))}
   if(RO())tabs.splice(0,tabs.length,...tabs.filter(([k])=>k==='board'));
   if(!tabs.some(([k])=>k===ui.tab))ui.tab=tabs[0][0];
@@ -1554,7 +1554,8 @@ async function loadMember(user){AUTH.user=user;
   else if(R.includes('ceo')&&!R.includes('ops')&&!R.includes('princess')){ui.role='ceo';ui.admAuthed=true;ui.tab='ceo'}
   else{ui.role='ops';const cid=R.includes('princess')?PID:data.cid;ui.cid=cid;ui.cAuth=cid;if(R.includes('boss'))ui.mgrAuthed=[cid]}
   ui.page={admin:'admin',princess:'client',ceo:'admin',disp:'dispatcher',ops:'client'}[ui.role];if(MGR())ui.tab='calendar';if(ui.role==='princess')ui.sub='orders';if(ui.role==='disp')ui.tab='board';
-  DB=sbDb(AUTH.sb);render();initDb();joinPresence()}
+  DB=sbDb(AUTH.sb);render();initDb();joinPresence();
+  if(ui.role==='admin')AUTH.sb.from('pw_help').select('*').eq('done',false).order('at',{ascending:false}).then(({data,error})=>{if(!error){PW_HELP=data||[];if(PW_HELP.length)toast(`🔑 ${PW_HELP.length} בקשות לתזכורת סיסמה מחכות לך בלשונית "סיסמאות"`);render()}})}
 const RMAIL=k=>'noampatishi+'+k+'@gmail.com'; /* role accounts: never emailed (confirmation is off) */
 const roleKeys=()=>[...S.clients.flatMap(c=>[{k:'ops-'+c.id,label:'מבצעים · '+c.name,roles:['ops'],cid:c.id},{k:'boss-'+c.id,label:'בוס גדול · '+c.name,roles:['ops','boss'],cid:c.id}]),
   {k:'princess',label:'★ נסיכות',roles:['princess'],cid:null},{k:'disp',label:'סדרן',roles:['disp'],cid:null},{k:'ceo',label:'מנכ״ל',roles:['ceo'],cid:null}];
@@ -1576,7 +1577,8 @@ function renderAuth(){
     app.innerHTML=box(`<form id="authf" style="display:grid;gap:12px"><label>מי נכנס/ת?<select id="au-r">${opts}</select></label>
       <label>סיסמה<input type="password" id="au-p" autocomplete="current-password" required></label>${msg}
       <button class="btn primary">כניסה</button><div class="note">את הסיסמה מקבלים מהמנהלת.</div>
-      <button type="button" class="btn small" data-aumode="admin" style="justify-self:start">כניסת המנהלת (במייל)</button></form>`);return}
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn small" id="forgot">שכחתי את הסיסמה</button><button type="button" class="btn small" data-aumode="admin">כניסת המנהלת (במייל)</button></div>
+      <div id="forgotbox" ${AUTH.forgot?'':'hidden'} style="display:grid;gap:8px;background:var(--bg);border-radius:10px;padding:10px 12px"></div></form>`);paintForgot();return}
   app.innerHTML=box(`<form id="authf" style="display:grid;gap:12px"><div class="note"><b>כניסת המנהלת</b></div>
     ${m==='newpw'?'<div class="note">בחרו סיסמה חדשה.</div>':`<label>מייל<input type="email" id="au-e" autocomplete="email" required dir="ltr" value="${esc(AUTH.tryEmail||(lastGet().startsWith('admin:')?lastGet().slice(6):''))}"></label>`}
     ${m==='reset'?'':`<label>${m==='admin'?'סיסמה':'סיסמה חדשה (לפחות 8 תווים)'}<input type="password" id="au-p" autocomplete="${m==='admin'?'current-password':'new-password'}" minlength="${m==='admin'?1:8}" required></label>`}
@@ -1584,6 +1586,13 @@ function renderAuth(){
     <button class="btn primary">${m==='admin'?'כניסה':m==='signup'?'יצירת סיסמה וכניסה':m==='reset'?'שליחת קישור לאיפוס':'שמירת הסיסמה'}</button>
     ${m==='admin'?'<div class="row" style="justify-content:space-between"><button type="button" class="btn small" data-aumode="signup">פעם ראשונה? יצירת סיסמה</button><button type="button" class="btn small" data-aumode="reset">שכחתי סיסמה</button></div>':''}
     ${m==='newpw'?'':'<button type="button" class="btn small" data-aumode="role" style="justify-self:start">חזרה לכניסה רגילה</button>'}</form>`)}
+/* forgot password: a hint per role, or a request the manager sees in "סיסמאות" */
+const pwHint=k=>/^boss-/.test(k)?'רמז: מה מספר הטלפון שלך?':/^ops-/.test(k)?'רמז: מספר המבצעים פעמיים':'';
+function paintForgot(){const b=document.getElementById('forgotbox');if(!b||!AUTH.forgot)return;const sel=document.getElementById('au-r'),k=sel?.value||'',lbl=sel?.selectedOptions[0]?.textContent||'';
+  b.hidden=false;b.innerHTML=AUTH.forgotSent?`<div class="note" style="color:var(--ok);font-weight:700">✓ הבקשה נשלחה למנהלת. היא תחזור אליך עם הסיסמה.</div>`:
+  `${pwHint(k)?`<div style="font-weight:700">💡 ${pwHint(k)}</div>`:''}<div class="note">לא מצליחים? שלחו בקשה למנהלת, והיא תזכיר לכם את הסיסמה של "${esc(lbl)}".</div>
+   <label>השם שלך וטלפון (כדי שהמנהלת תדע למי לחזור)<input id="fg-name" maxlength="60" placeholder="למשל: דנה, 050-1234567"></label>
+   <button type="button" class="btn small primary" id="fgsend" style="justify-self:start">שליחת בקשה למנהלת</button>`}
 async function authSubmit(){const g=id=>(document.getElementById(id)?.value||'').trim(),m=AUTH.mode,sb=AUTH.sb;AUTH.msg='';
   const fail=t=>{AUTH.msg=t;renderAuth();setTimeout(()=>{const p=document.getElementById('au-p');if(p){p.value='';p.focus()}})};if(document.getElementById('au-e'))AUTH.tryEmail=g('au-e');
   if((m==='role'||m==='login')&&g('au-r')==='train'){location.href='train.html';return}
@@ -1594,11 +1603,12 @@ async function authSubmit(){const g=id=>(document.getElementById(id)?.value||'')
     if(data.session)return loadMember(data.user);AUTH.mode='admin';return fail('נשלח אליכם מייל אישור. אשרו אותו ואז היכנסו')}
   if(m==='reset'){const {error}=await sb.auth.resetPasswordForEmail(g('au-e'),{redirectTo:location.origin+location.pathname});AUTH.mode='admin';return fail(error?'לא הצלחנו לשלוח: '+error.message:'אם המייל קיים, נשלח אליו קישור לאיפוס הסיסמה')}
   if(m==='newpw'){const {data,error}=await sb.auth.updateUser({password:g('au-p')});if(error)return fail('לא הצלחנו לשמור: '+error.message);AUTH.mode='role';history.replaceState(null,'',location.pathname);return loadMember(data.user)}}
-let USERS=null;
+let USERS=null,PW_HELP=null;
 function renderUsers(){
+  if(PW_HELP===null){PW_HELP=[];AUTH.sb.from('pw_help').select('*').eq('done',false).order('at',{ascending:false}).then(({data})=>{PW_HELP=data||[];render()})}
   if(!USERS){AUTH.sb.from('members').select('*').order('email').then(({data})=>{USERS=data||[];render()});return '<div class="note">טוען…</div>'}
   const by=e=>USERS.find(u=>u.email===e);
-  return `<div class="note">לכל תפקיד יש סיסמה אחת. מי שיודע/ת את הסיסמה נכנס/ת: בוחרים במסך הכניסה "מי נכנס/ת" ומקלידים אותה. סיסמה צריכה להיות לפחות 6 תווים. כדי לחסום מישהו, פשוט מחליפים את הסיסמה.</div>
+  return `${PW_HELP.length?`<div class="over" role="alert"><strong>🔑 ${PW_HELP.length} בקשות לתזכורת סיסמה</strong>${PW_HELP.map(q=>`<div class="row" style="gap:8px;justify-content:space-between;flex-wrap:wrap"><span><b>${esc(q.role)}</b> · ${esc(q.note||'')} · <span class="note">${dmy(new Date(q.at).getTime())} ${hm(new Date(q.at))}</span></span><button class="btn small" data-pwdone="${q.id}">טופל</button></div>`).join('')}</div>`:''}<div class="note">לכל תפקיד יש סיסמה אחת. מי שיודע/ת את הסיסמה נכנס/ת: בוחרים במסך הכניסה "מי נכנס/ת" ומקלידים אותה. סיסמה צריכה להיות לפחות 6 תווים. כדי לחסום מישהו, פשוט מחליפים את הסיסמה.</div>
     <div class="tablewrap"><table><thead><tr><th>תפקיד</th><th>סיסמה</th><th></th></tr></thead><tbody>${roleKeys().map(r=>{const u=by(RMAIL(r.k));return `<tr><td>${r.cid?opsLogo(r.cid,18):''}${esc(r.label)}</td>
       <td><input id="rp-${r.k}" class="num" value="${esc(u&&u.pw||'')}" placeholder="${u?'':'לא הוגדרה'}" minlength="6" autocomplete="off" style="width:140px" dir="ltr"></td>
       <td><button class="btn small primary" data-rpsave="${r.k}">${u?'שמירה':'הפעלה'}</button>${u?' <span class="st st-active">פעיל</span>':''}</td></tr>`}).join('')}</tbody></table></div>`}
@@ -1685,6 +1695,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.editride){const r=S.rides.find(x=>x.id===t.dataset.editride);if(!r||!canEdit(r))return;ui.editRide=r.id;ui.draft=draftFromRide(r);ui.sub='orders';render();scrollTo(0,0);toast('ההזמנה נטענה לטופס. שנו ושמרו');return}
   if(t.dataset.editx){ui.editRide=null;const d=ui.draft;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;render();return}
   if(t.dataset.finepaid){if(ui.role!=='admin')return;const r=S.rides.find(x=>x.id===t.dataset.finepaid);r.finePaid=r.finePaid?null:Date.now();save();toast(r.finePaid?'הקנס סומן כשולם':'הסימון בוטל');render();return}
+  if(t.dataset.pwdone){const id=+t.dataset.pwdone;AUTH.sb.from('pw_help').update({done:true}).eq('id',id).then(()=>{PW_HELP=PW_HELP.filter(q=>q.id!==id);render()});return}
   if(t.dataset.dbed){ui.dbEd=t.dataset.dbed;render();setTimeout(()=>document.getElementById('db-'+ui.dbEd)?.focus());return}
   if(t.dataset.dbx){ui.dbEd=null;render();return}
   if(t.dataset.dbsave){const r=S.rides.find(x=>x.id===t.dataset.dbsave),v=(document.getElementById('db-'+r.id)?.value||'').trim();
@@ -1792,6 +1803,9 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.id==='clogout'&&ui.role!=='admin'){fullLogout();return}
   if(t.id==='clogout'){ui.cAuth=null;ui.mgrAuthed=[];ui.sub='orders';try{sessionStorage.removeItem('taxi-client')}catch(_){}render();return}
   if(PROD&&(t.id==='admlogout'||t.id==='glogout'||t.id==='authout'||t.id==='logout'||t.id==='clogout'&&ui.role!=='admin')){AUTH.sb.auth.signOut().finally(()=>{try{localStorage.removeItem(KEY)}catch(_){}location.reload()});return}
+  if(t.id==='forgot'){AUTH.forgot=!AUTH.forgot;AUTH.forgotSent=false;const b=document.getElementById('forgotbox');if(b){b.hidden=!AUTH.forgot;paintForgot()}return}
+  if(t.id==='fgsend'){const sel=document.getElementById('au-r'),n=(document.getElementById('fg-name')?.value||'').trim();if(!n){toast('כתבו שם וטלפון, כדי שהמנהלת תדע למי לחזור');return}
+    t.disabled=true;AUTH.sb.rpc('request_pw_help',{r:sel.selectedOptions[0].textContent,n}).then(({error})=>{if(error){t.disabled=false;toast('לא הצלחנו לשלוח. נסו שוב או פנו למנהלת ישירות');return}AUTH.forgotSent=true;paintForgot()});return}
   if(t.dataset.aumode){AUTH.mode=t.dataset.aumode;AUTH.msg='';renderAuth();return}
   if(t.dataset.rpsave){rolePwSave(t.dataset.rpsave);return}
   if(t.id==='admlogout'||t.id==='glogout'){fullLogout();return}
@@ -1826,7 +1840,7 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
     S.blocked.push({id:'b'+Date.now(),date:g('bd'),from:g('bf'),to:g('bt'),note:g('bn').trim()||'הסעה חלופית'});save();render();return}
 });
 document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
-  if(t.id==='au-r'){const p=document.getElementById('au-p'),tr=t.value==='train';if(p){p.required=!tr;p.closest('label').hidden=tr}return}
+  if(t.id==='au-r'){const p=document.getElementById('au-p'),tr=t.value==='train';if(p){p.required=!tr;p.closest('label').hidden=tr}AUTH.forgotSent=false;paintForgot();return}
   if(ui.smart&&ui.sub==='smart'&&ui.page==='client'){const sm=ui.smart;
     if(t.id==='sm-date'){sm.date=t.value;sm.plan=null;render();return}if(t.id==='sm-dir'){sm.dir=t.value;sm.plan=null;render();return}
     if(t.id==='sm-time'){sm.time=t.value;sm.plan=null;render();return}if(t.id==='sm-4'){sm.allow4=t.checked;sm.plan=null;render();return}if(t.id==='sm-house'){sm.house=t.checked;sm.plan=null;render();return}if(t.id==='sm-back'){sm.back=t.checked;sm.plan=null;render();return}if(t.id==='sm-end'){sm.end=t.value;sm.plan=null;render();return}

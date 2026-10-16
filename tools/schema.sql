@@ -150,3 +150,17 @@ create or replace function public.get_link(k text) returns jsonb
 language sql stable security definer set search_path = public as $$ select data from public.links where links.k = get_link.k $$;
 revoke all on public.links from anon;
 grant execute on function public.get_link(text) to anon, authenticated;
+-- v6: "forgot password" requests to the manager
+create table if not exists public.pw_help(id bigint generated always as identity primary key, role text not null, note text, at timestamptz default now(), done boolean default false);
+alter table public.pw_help enable row level security;
+drop policy if exists pw_admin on public.pw_help;
+create policy pw_admin on public.pw_help for all to authenticated using (public.has_role('admin')) with check (public.has_role('admin'));
+revoke all on public.pw_help from anon;
+create or replace function public.request_pw_help(r text, n text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if (select count(*) from public.pw_help where at > now() - interval '1 hour') >= 30 then raise exception 'too many requests'; end if;
+  insert into public.pw_help(role, note) values (left(coalesce(r,''),60), left(coalesce(n,''),120));
+end $$;
+revoke all on function public.request_pw_help(text,text) from public;
+grant execute on function public.request_pw_help(text,text) to anon, authenticated;
