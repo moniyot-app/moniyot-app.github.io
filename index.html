@@ -576,7 +576,7 @@ function statusOf(r){
   if(r.status==='cancelled')return `<span class="st st-cancelled">בוטלה${esc(byTxt(r))}</span>`;
   if(r.status==='late')return `<span class="st st-late">בוטלה${esc(byTxt(r))}${r.lateWhy?' אחרי ש'+(r.lateWhy==='ordered'?'המונית הוזמנה':'נשארו פחות מ־3 שעות'):' מאוחר'} · נספרת בסל</span>`;
   if(r.ts<Date.now())return '<span class="st st-done">בוצעה</span>';
-  if(r.status==='awaiting')return '<span class="st st-new">חדשה · ממתינה לסדרן</span>';
+  if(r.status==='awaiting')return r.reconfirm?'<span class="st st-new">✏️ שונתה · ממתינה לאישור מחדש</span>':'<span class="st st-new">חדשה · ממתינה לסדרן</span>';
   if(r.status==='pending')return `<span class="st st-pending" title="${needsOf(r).map(k=>NEEDS[k]).join(', ')}">ממתינה ל${[needBoss(r)?'בוס גדול':'',needCeo(r)?'מנכ״ל':''].filter(Boolean).join(' ו')||'בוס גדול'}</span>`;
   return '<span class="st st-active">מאושרת</span>';
 }
@@ -670,7 +670,7 @@ function groupByDay(list){const g={};list.forEach(r=>{(g[ymd(new Date(r.ts))]??=
 /* ---------- client page ---------- */
 function subTabs(c){return `${ui.welcome?`<div class="tip welcome"><span>👋 פעם ראשונה כאן? בהוראות השימוש מוסבר בפשטות איך רושמים נוסעים ומזמינים מונית.</span><span class="row" style="gap:6px"><button class="btn small primary" data-welcome="guide">להוראות השימוש</button><button class="btn small" data-welcome="hide">הסתרה</button></span></div>`:''}<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span>${ui.role==='admin'?'<button class="btn small" id="clogout">החלפת מבצעים</button>':''}</div>
   ${isP(c.id)?`<div class="tip">★ <b>הרשאת נסיכות:</b> אפשר להזמין מוניות לכל הנוסעים מכל המבצעים. כל מונית יורדת מהסל של המבצעים שהנוסעים שייכים אליהם, לפי מספר הנוסעים.</div><div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMergesP().filter(x=>!x.voted).length?`<span class="count soft">${myMergesP().filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button></div>${noticeBox(c.id)}`:`<div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMerges(c.id).filter(x=>!x.voted).length?`<span class="count soft">${myMerges(c.id).filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="plan" aria-selected="${ui.sub==='plan'}">תכנון חודשי</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button><button role="tab" class="tab-boss" data-sub="manager" aria-selected="${ui.sub==='manager'}"><span aria-hidden="true">★</span> בוס גדול${mgrPending(c.id).length?`<span class="count">${mgrPending(c.id).length}</span>`:''}</button></div>${noticeBox(c.id)}`}`}
-const UPD={confirmed:['ok','✓ הסדרן אישר: המונית הוזמנה'],driver:['ok','🚕 התקבלו פרטי נהג'],tod:['info','✓ ההחרגה אושרה. ההזמנה עברה לסדרן'],bossok:['info','✓ הבוס הגדול אישר. ממתינה עוד לאישור'],ceook:['info','✓ המנכ״ל אישר. ממתינה עוד לאישור'],
+const UPD={changed:['info','✏️ ההזמנה שונתה וממתינה לאישור מחדש של הסדרן'],confirmed:['ok','✓ הסדרן אישר: המונית הוזמנה'],driver:['ok','🚕 התקבלו פרטי נהג'],tod:['info','✓ ההחרגה אושרה. ההזמנה עברה לסדרן'],bossok:['info','✓ הבוס הגדול אישר. ממתינה עוד לאישור'],ceook:['info','✓ המנכ״ל אישר. ממתינה עוד לאישור'],
   bossno:['bad','✕ הבוס הגדול דחה את ההחרגה. ההזמנה בוטלה'],ceono:['bad','✕ המנכ״ל דחה את נסיעת הלילה. ההזמנה בוטלה'],cancelled:['bad','✕ ההזמנה בוטלה'],dispcancel:['bad','✕ הסדרן ביטל את ההזמנה'],late:['bad','✕ ההזמנה בוטלה אחרי שהמונית הוזמנה או פחות מ־3 שעות לפני. נספרת בסל'],merged:['info','🔗 ההזמנה אוחדה עם הזמנה אחרת'],route:['info','🧭 הסדרן שינה את סדר התחנות כדי לקצר את הנסיעה. שעות האיסוף עודכנו']};
 const mark=(r,k)=>{r.upd={k,at:Date.now(),by:ui.page==='client'?ui.cid:null};r.seenBy=[]};
 const updOf=r=>r.upd?.k||(r.status==='active'&&r.confirmedAt?'confirmed':(r.driverPhone||r.driverName)&&['active','awaiting'].includes(r.status)?'driver':null);
@@ -885,7 +885,7 @@ function renderClient(){if(ui.role==='princess'){ui.cid=PID;ui.cAuth=PID}
   app.innerHTML=subTabs(c)+`
   ${isP(c.id)||hideQ(c)?'':`<section class="panel"><h2>${esc(c.name)}</h2>${meter(c)}</section>`}
   <div class="grid2">
-    <section class="panel" aria-labelledby="h-order"><h2 id="h-order">הזמנת מונית</h2>
+    <section class="panel" aria-labelledby="h-order"${ui.editRide?' style="border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)"':''}><h2 id="h-order">${ui.editRide?'שינוי הזמנה':'הזמנת מונית'}</h2>${ui.editRide?`<div class="tip">✏️ <b>משנים הזמנה קיימת.</b> אפשר להזיז את השעה עד שעה, להוסיף, להסיר או להחליף נוסע אחד, ולעדכן כתובות ותחנות. אחרי השמירה הסדרן יאשר את ההזמנה מחדש. <button type="button" class="btn small" data-editx="1">ביטול השינוי</button></div>`:''}
       <div class="fields">
         <label>תאריך<input type="date" id="f-date" value="${d.date}"></label>
         <label>לפי מה קובעים את השעה<select id="f-dir"><option value="to" ${d.dir==='to'?'selected':''}>שעת הגעה ליעד (כמה תחנות איסוף)</option><option value="from" ${d.dir==='from'?'selected':''}>שעת יציאה מהמוצא (כמה תחנות הורדה)</option></select></label>
@@ -958,7 +958,7 @@ function renderCheck(bodyOnly){
     ${d.pax.length?`<div class="eyebrow">3. אחראי/ת הנסיעה</div><div class="row" style="gap:6px">${d.pax.map(p=>`<label class="pchip lead" style="display:flex;gap:6px;align-items:center"><input type="radio" name="lead" id="ld-${p}" value="${p}" ${d.lead===p?'checked':''}>${esc(emp(p).name)}</label>`).join('')}</div>`:''}
     <div id="checkbody" style="display:grid;gap:14px"></div>`}
   const res=check(d),blocked=res.some(x=>x.k==='block');
-  const u=used(c.id),L=limit(c),over=!isP(c.id)&&!hideQ(c)&&d.pax.length&&u+1>L;
+  const u=used(c.id),L=limit(c),over=!ui.editRide&&!isP(c.id)&&!hideQ(c)&&d.pax.length&&u+1>L;
   const needs=res.some(x=>x.k==='appr'),can=!blocked&&(!over||ui.ack)&&(d.pax.length!==4||ui.ack4);
   document.getElementById('checkbody').innerHTML=`${sched(d)?`<div class="eyebrow">לוח זמנים משוער</div><div class="note" style="color:var(--ink)">${schedTxt(d)}</div>`:''}
     <ul class="checks">${res.map(x=>`<li class="${x.k}">${esc(x.t)}</li>`).join('')}</ul>
@@ -967,7 +967,7 @@ function renderCheck(bodyOnly){
       <label><input type="checkbox" id="ack" ${ui.ack?'checked':''}> אני מבין/ה שמדובר בחריגה ומאשר/ת אותה</label></div>`:''}
     ${d.pax.length===4&&!blocked?`<label class="tip" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ack4" ${ui.ack4?'checked':''}> המבצעים מאשרים נסיעה של 4 נוסעים במונית אחת</label>`:''}
     <label class="row" style="gap:6px;font-weight:400"><input type="checkbox" id="f-sec" ${ui.secOk?'checked':''}> 🔒 כבר התקבל אישור אבטחת מידע לנסיעה הזו</label>
-    <button class="btn primary" id="submit" ${can?'':'disabled'}>${needs?'שליחה לאישור':'הזמנת מונית'}</button>
+    <button class="btn primary" id="submit" ${can?'':'disabled'}>${ui.editRide?'שמירת השינוי':needs?'שליחה לאישור':'הזמנת מונית'}</button>
     ${blocked?'<div class="note">תקנו את מה שמסומן באדום כדי לשלוח.</div>':''}`;
 }
 /* internal ops tracking: was the information-security approval received for this ride */
@@ -977,6 +977,24 @@ const secChip=r=>{const[i,t,c]=SEC[secOf(r)];return `<button type="button" class
 const secMissing=cid=>S.rides.filter(r=>['pending','awaiting','active'].includes(r.status)&&r.ts>Date.now()&&(isP(cid)?r.by===PID:clientsOf(r).includes(cid))&&secOf(r)==='pending').sort((a,b)=>a.ts-b.ts);
 /* princess on the dispatcher page: view only (status), no confirming, cancelling or driver details */
 const RO=()=>ui.role==='princess'&&ui.page==='dispatcher';
+/* ops may change a ride (also after approval) until 3 hours before; the dispatcher re-approves it */
+const canEdit=r=>['pending','awaiting','active'].includes(r.status)&&r.ts-Date.now()>=3*H&&(isP(ui.cid)?r.by===PID:clientsOf(r).includes(ui.cid));
+function draftFromRide(r){const pts=(r.dir==='to'?[r.dest,...(r.stops||[])]:[...(r.stops||[]),r.dest]).map(c=>({city:c,addr:''}));
+  r.pax.forEach(p=>{const i=pts.findIndex(x=>x.city===ptOf(r,p));if(i>=0&&!pts[i].addr)pts[i].addr=(r.addr||{})[p]||''});
+  const pidx={};r.pax.forEach(p=>{pidx[p]=Math.max(0,pts.findIndex(x=>x.city===ptOf(r,p)))});const t=new Date(r.ts);
+  return {...ui.draft,date:ymd(t),time:hm(t),dir:r.dir,pts,pidx,pax:[...r.pax],lead:r.lead,base:r.base||'',baseOn:!!r.base,reason:r.reason||''}}
+function chgTxt(r){const c=(r.changes||[]).slice(-1)[0];if(!c)return '';const p=c.prev,o=[];
+  if(p.ts!==r.ts)o.push(`שעה ${hm(new Date(p.ts))} ← ${hm(new Date(r.ts))}`);
+  const add=r.pax.filter(x=>!p.pax.includes(x)),rm=p.pax.filter(x=>!r.pax.includes(x));if(add.length)o.push('נוסף: '+add.map(x=>emp(x)?.name||'').join(', '));if(rm.length)o.push('ירד: '+rm.map(x=>emp(x)?.name||'').join(', '));
+  if(JSON.stringify([p.dest,...p.stops])!==JSON.stringify([r.dest,...(r.stops||[])]))o.push('מסלול: '+route(r));
+  return o.length?o.join(' · '):'עודכנו כתובות או פרטים'}
+function editProblem(r,d){const nt=at(d.date,d.time);if(r.ts-Date.now()<3*H)return 'אפשר לשנות רק עד 3 שעות לפני הנסיעה';
+  if(d.date!==ymd(new Date(r.ts)))return 'שינוי תאריך הוא שינוי גדול מדי. בטלו את ההזמנה והזמינו מחדש';
+  if(d.dir!==r.dir)return 'שינוי כיוון הנסיעה הוא שינוי גדול מדי. בטלו את ההזמנה והזמינו מחדש';
+  if(Math.abs(nt-r.ts)>60*60000)return 'אפשר להזיז את השעה עד שעה. לשינוי גדול יותר בטלו והזמינו מחדש';
+  const a=new Set(r.pax),b=new Set(d.pax),diff=[...a].filter(x=>!b.has(x)).length+[...b].filter(x=>!a.has(x)).length;
+  if(diff>2)return 'אפשר להוסיף, להסיר או להחליף נוסע אחד בלבד. לשינוי גדול יותר בטלו והזמינו מחדש';
+  return ''}
 function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   const past=r.ts<Date.now(), dead=['cancelled','merged','late'].includes(r.status), cls=clientsOf(r), s=sched(r);
   const names=r.pax.map(p=>`${leadOf(r)===p?'<b title="אחראי/ת הנסיעה">★</b>':''}${esc(emp(p)?.name||'')}`).join(', ');
@@ -986,7 +1004,7 @@ function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
     if(mode==='ceo')acts=`<button class="btn small primary" data-ceook="${r.id}">אישור</button><button class="btn small danger" data-ceono="${r.id}">דחייה</button>`;
     else if(mode==='pboss')acts=`<button class="btn small primary" data-pok="${r.id}">אישור (נסיכות)</button><button class="btn small danger" data-pno="${r.id}">דחייה</button>`;
     else if(mode==='mgr')acts=`<button class="btn small primary" data-mgrok="${r.id}">אישור</button><button class="btn small danger" data-mgrno="${r.id}">דחייה</button>`;
-    else if(mode==='client')acts=`<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
+    else if(mode==='client')acts=`${canEdit(r)?`<button class="btn small" data-editride="${r.id}">שינוי</button>`:''}<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
     else if(mode==='dview')acts='';
     else acts=(r.status==='awaiting'?`<button class="btn small primary" data-confirm="${r.id}">אישור</button>`:'')+`<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
   }
@@ -1006,7 +1024,7 @@ function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   return `<div class="ride ${dead||past?'dim':''}">${stripe(cls)}<div class="t num">${hm(new Date(r.ts))}<div class="note" style="font-family:var(--font-body);font-weight:400;font-size:.72rem">${r.dir==='to'?'הגעה':'יציאה'}</div></div>
     <div style="min-width:0;display:grid;gap:3px"><div class="row" style="gap:6px"><span class="logos">${cls.map(c=>opsLogo(c,22)).join('')}</span><span class="route">${route(r)}</span>${isUrgent(r)&&!dead?'<span class="st st-late">⚡</span>':''}${statusOf(r)}${mode==='disp'&&!(dead&&r.status!=='late')?`<span class="note num">${money(cost(r))}</span>`:''}</div>
       ${mode==='client'&&live?secChip(r):''}<div class="note r2">👥 ${names}${s?` · ${r.dir==='to'?'איסוף':'יציאה'} <b class="num">${hm(new Date(s.start))}</b>`:''}${drv?` · 🚕 ${driverTxt(r)}`:''}</div>
-      ${r.reason&&(mode==='ceo'||mode==='mgr')?`<div class="reason">📝 ${esc(r.reason)}</div>`:''}${more}</div>
+      ${r.reconfirm&&(r.changes||[]).length&&(mode==='disp'||mode==='dview'||mode==='client')&&!dead?`<div class="tip" style="padding:6px 10px">✏️ <b>שונתה${mode==='disp'?' · לאשר מחדש':''}:</b> ${esc(chgTxt(r))}</div>`:''}${r.reason&&(mode==='ceo'||mode==='mgr')?`<div class="reason">📝 ${esc(r.reason)}</div>`:''}${more}</div>
     <div class="acts">${acts}</div>${late}</div>`;
 }
 
@@ -1268,6 +1286,7 @@ const G={
    {h:'הזמנת מונית',go:'ops',steps:['בלשונית "הזמנות" בוחרים תאריך, ואם השעה היא שעת הגעה ליעד או שעת יציאה מהמוצא, ומזינים שעה.','שלב 1: מסמנים עד 4 נוסעים.','שלב 2, מסלול: בוחרים תחנת מוצא ותחנת יעד. בכל תחנת איסוף או הורדה מקלידים עיר: ✓ מותרת, ✕ לא מותרת. אחר כך כותבים כתובת מדויקת.','ב"מי עולה כאן?" לוחצים על הנוסעים שנאספים בתחנה. נוסע שנאסף ממקום אחר מקבל תחנה משלו ("+ הוספת נקודת איסוף").','אם יש סדר תחנות קצר יותר, תופיע הצעה "💡 סדר יעיל יותר". לחיצה אחת מסדרת מחדש.','שלב 3: בוחרים אחראי/ת נסיעה.','בודקים את "בדיקת ההזמנה" בצד: ירוק תקין, כתום דורש תשומת לב, אדום חוסם. מתקנים ולוחצים "הזמנת מונית".'],tip:'העיר שמופיעה ליד נוסע היא העיר שממנה נסע בפעם האחרונה. שעות האיסוף המשוערות מחושבות לבד.'},
    {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–06:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
    {h:'📱 שליחת פרטי הנסיעה לנוסעים',go:'ops',steps:['כשמגיעים פרטי הנהג, בהתראה למעלה מופיע "📱 שליחה לנוסעים". אפשר גם לפתוח "פרטים" ליד הנסיעה.','ב"הודעה לנוסעים" לוחצים ליד כל נוסע "וואטסאפ" או "SMS".','ההודעה נפתחת מוכנה בטלפון שלכם: שעה, מסלול, מאיפה נאסף, פרטי הנהג, האחראי/ת וקישור קצר להוספה ליומן. לוחצים "שליחה".','ליד מי שקיבל מופיע ✓ נשלח, ולמעלה כמה נשלחו מתוך כמה.'],tip:'נוסע בלי טלפון במאגר לא יופיע ברשימה. עדכנו לו טלפון בלשונית "נוסעים".'},
+   {h:'שינוי הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "שינוי" ליד הנסיעה. ההזמנה נטענת לטופס.','אפשר: להזיז את השעה עד שעה, להוסיף, להסיר או להחליף נוסע אחד, ולעדכן תחנות וכתובות. התאריך והכיוון לא משתנים.','לוחצים "שמירת השינוי". גם הזמנה שכבר אושרה חוזרת לסדרן לאישור מחדש. אם השינוי יוצר החרגה חדשה (למשל נוסע בודד), היא תחכה קודם לאישור.','אפשר לשנות עד 3 שעות לפני הנסיעה. שינוי גדול יותר: מבטלים ומזמינים מחדש.']},
    {h:'ביטול הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "ביטול" ליד הנסיעה.','לא נספר בסל: ביטול לפני שהסדרן הזמין מונית, ויותר מ־3 שעות לפני הנסיעה.','נספר בסל: ביטול אחרי שהמונית כבר הוזמנה, או פחות מ־3 שעות לפני הנסיעה. המערכת תבקש אישור לפני כן.','ליד כל ביטול כתוב מי ביטל.']},
    {h:'🔒 אבטחת מידע',go:'ops',steps:['כמעט כל נסיעה צריכה אישור אבטחת מידע. זה מעקב פנימי שלכם.','אם האישור כבר התקבל, מסמנים "כבר התקבל אישור אבטחת מידע" לפני השליחה.','אחר כך, ב"ההזמנות שלי", לחיצה על 🔒 מחליפה בין: ממתין ← אושר ← לא נדרש.','בראש העמוד מופיעה תזכורת לנסיעות קרובות בלי אישור.']},
    {h:'נוסעים: הוספה, עריכה והסרה',go:'ops-pax',steps:['בלשונית "נוסעים" ← "הוספת נוסע": שם, סוג (ביזנס, פרימיום או תיירים) וטלפון נייד. בלי טלפון הנוסע לא יקבל הודעה עם פרטי הנסיעה.','שומרים על פרטיות: רק שם פרטי ואות ראשונה של שם המשפחה, למשל "דנה כ.". כתבתם שם מלא? הוא יקוצר לבד. אם כבר יש "דנה כ." במאגר, נשמרת אות נוספת ("דנה כה.").','"שליחה לאישור המנהלת". הנוסע יופיע בהזמנות אחרי שהמנהלת תאשר. ייתכן שהיא תתקן פרטים לפני האישור.','עריכה: "עריכה" ליד הנוסע ← משנים ← שליחה לאישור. עד האישור הפרטים הישנים בתוקף.','הסרה: "הסרה" ← אישור. הנוסע יורד מיד, בלי לחכות לאישור.']},
@@ -1285,7 +1304,7 @@ const G={
    quick:['נכנסים כ"סדרן" ומשאירים את ההתראה הקולית פעילה.','"לוח הזמנות": הזמנה חדשה ← מזמינים מונית ← "אישור הזמנה".','מגיעים פרטי נהג ← "שליחת פרטי נהג". המבצעים מקבלים אותם ושולחים לנוסעים.','כל ערב (בערך 23:00): "יישור קו" ← "יישור קו וסגירה" ← שליחה לחברת המוניות.','⚡ מתפרצת = הזמנה שנכנסה אחרי סגירת הקו. מטפלים מיד.'],
    sections:[
    {h:'כניסה',go:'disp',steps:[LOGIN('סדרן','"סדרן"'),'כפתור 🔔 בראש הלוח מפעיל או משתיק צליל על כל הזמנה חדשה.']},
-   {h:'אישור הזמנה חדשה',go:'disp',steps:['בלשונית "לוח הזמנות" ההתראות מחולקות: לפעולה (צריך לטפל) ולידיעה (סטטוס של המבצעים).','הזמנה חדשה מסומנת "חדשה · ממתינה לסדרן".','מזמינים מונית מחברת המוניות ולוחצים "אישור הזמנה". המבצעים מקבלים התראה.','"🚕 סיכום לנהג" פותח את פרטי הנסיעה והכתובות להעתקה.','אם יש סדר תחנות קצר יותר, מופיעה הצעה לסדר מחדש.']},
+   {h:'אישור הזמנה חדשה',go:'disp',steps:['בלשונית "לוח הזמנות" ההתראות מחולקות: לפעולה (צריך לטפל) ולידיעה (סטטוס של המבצעים).','הזמנה חדשה מסומנת "חדשה · ממתינה לסדרן". הזמנה שהמבצעים שינו מסומנת "✏️ שונתה · ממתינה לאישור מחדש", עם מה שהשתנה. מאשרים אותה שוב.','מזמינים מונית מחברת המוניות ולוחצים "אישור הזמנה". המבצעים מקבלים התראה.','"🚕 סיכום לנהג" פותח את פרטי הנסיעה והכתובות להעתקה.','אם יש סדר תחנות קצר יותר, מופיעה הצעה לסדר מחדש.']},
    {h:'פרטי נהג',go:'disp',steps:['בפרטי הנסיעה ממלאים שם וטלפון של הנהג ולוחצים "שליחת פרטי נהג". אפשר גם לפני האישור.','המבצעים מקבלים את הפרטים מיד, והם שולחים לנוסעים את ההודעה.','ב"📱 הודעה לנוסעים" רואים למי כבר נשלח (✓) ולמי עוד לא.']},
    {h:'ממתין להחרגה',go:'disp-approvals',steps:['כאן רואים נסיעות שמחכות לבוס הגדול או למנכ״ל. זה למעקב בלבד, הסדרן לא מאשר כאן.','אחרי האישור הנסיעה מגיעה ל"לוח הזמנות".']},
    {h:'יישור קו לילי',go:'disp-line',steps:['בלשונית "יישור קו" מופיעות כל הנסיעות של מחר לפי שעות, עם כתובות, נוסעים וטלפונים.','אם יש הזמנות שעוד לא אושרו, תופיע אזהרה. מאשרים אותן קודם.','"יישור קו וסגירה".','שולחים לחברת המוניות: "העתקה כטקסט" לוואטסאפ או למייל, "העתקה לאקסל" או "הורדת קובץ".','הזמנה שנכנסת אחרי הסגירה מסומנת ⚡ ומשמיעה צליל כפול.']},
@@ -1469,11 +1488,11 @@ function render(){
 function beep(){try{const ac=ui.ac;if(!ac)return;if(ac.state==='suspended')ac.resume();
   [[0,784],[.2,1046],[.4,784]].forEach(([d,f])=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);const t=ac.currentTime+d;
     g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.3,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.17);o.start(t);o.stop(t+.18)})}catch(e){}}
-const awIds=()=>S.rides.filter(r=>r.status==='awaiting').map(r=>r.id);
+const awIds=()=>S.rides.filter(r=>r.status==='awaiting').map(r=>r.id+'~'+(r.changes||[]).length);
 const ntIds=cid=>notices(cid).map(r=>r.id+':'+updOf(r)+':'+(r.upd?.at||'')+':'+(r.driverPhone||'')+':'+(r.driverName||''));
 function checkArrivals(){
   if(ui.page==='dispatcher'&&ui.authed){const aw=awIds(),fresh=aw.filter(id=>!ui.knownAw.includes(id));ui.knownAw=aw;
-    if(fresh.length){const urg=fresh.some(id=>isUrgent(S.rides.find(r=>r.id===id)));if(ui.sound){beep();if(urg)setTimeout(beep,700)}toast(urg?'⚡ נכנסה הזמנה מתפרצת! טפלו בה מיד':fresh.length===1?'נכנסה הזמנה חדשה':`נכנסו ${fresh.length} הזמנות חדשות`)}}
+    if(fresh.length){const urg=fresh.some(id=>{const r=S.rides.find(r=>r.id===id.split('~')[0]);return r&&isUrgent(r)});if(ui.sound){beep();if(urg)setTimeout(beep,700)}toast(urg?'⚡ נכנסה הזמנה מתפרצת! טפלו בה מיד':fresh.length===1?(fresh[0].endsWith('~0')?'נכנסה הזמנה חדשה':'✏️ הזמנה שונתה וממתינה לאישור מחדש'):`נכנסו ${fresh.length} הזמנות חדשות או שינויים`)}}
   if(ui.page==='client'){const n=ntIds(ui.cid),fresh=n.filter(id=>!ui.knownNt.includes(id));ui.knownNt=n;if(fresh.length){toast('🔔 התקבל עדכון על הזמנה');if(ui.sound)beep()}}
 }
 window.addEventListener('storage',e=>{if(e.key!==KEY||!e.newValue)return;try{S=JSON.parse(e.newValue)}catch(_){return}render()});
@@ -1487,7 +1506,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('button');if(!t)return;
   if(RO()&&t.closest('#app')&&!(t.dataset.tab||t.dataset.nav||t.id==='sound'||t.id==='logout'||t.tagName==='SUMMARY')){toast('לנסיכות יש צפייה בלבד בעמוד הסדרן');return}
   if(t.id==='sound'){ui.sound=!ui.sound;if(ui.sound)beep();render();return}
-  if(t.dataset.confirm){const r=S.rides.find(x=>x.id===t.dataset.confirm);r.status='active';r.confirmedAt=Date.now();mark(r,'confirmed');save();
+  if(t.dataset.confirm){const r=S.rides.find(x=>x.id===t.dataset.confirm);r.status='active';r.reconfirm=false;r.confirmedAt=Date.now();mark(r,'confirmed');save();
     toast('ההזמנה אושרה. מבצעים קיבלו התראה');render();return}
   if(t.dataset.phone){const r=S.rides.find(x=>x.id===t.dataset.phone);const ph=(document.getElementById('ph-'+r.id)?.value||'').replace(/\D/g,''),nm=(document.getElementById('dn-'+r.id)?.value||'').trim();
     if(!ph&&!nm){toast('הקלידו שם או טלפון של הנהג');return}
@@ -1504,6 +1523,8 @@ document.addEventListener('click',e=>{
   if(t.dataset.openroutes){ui.openR=routeTips().map(r=>r.id)}
   if(t.dataset.tab){ui.tab=t.dataset.tab;render();return}
   if(t.dataset.opensms){const id=t.dataset.opensms;ui.sub='orders';ui.openR=[...new Set([...(ui.openR||[]),id])];render();setTimeout(()=>{const el=document.querySelector(`details[data-rid="${id}"]`);el&&el.scrollIntoView({behavior:'smooth',block:'center'})},50);return}
+  if(t.dataset.editride){const r=S.rides.find(x=>x.id===t.dataset.editride);if(!r||!canEdit(r))return;ui.editRide=r.id;ui.draft=draftFromRide(r);ui.sub='orders';render();scrollTo(0,0);toast('ההזמנה נטענה לטופס. שנו ושמרו');return}
+  if(t.dataset.editx){ui.editRide=null;const d=ui.draft;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;render();return}
   if(t.dataset.dbed){ui.dbEd=t.dataset.dbed;render();setTimeout(()=>document.getElementById('db-'+ui.dbEd)?.focus());return}
   if(t.dataset.dbx){ui.dbEd=null;render();return}
   if(t.dataset.dbsave){const r=S.rides.find(x=>x.id===t.dataset.dbsave),v=(document.getElementById('db-'+r.id)?.value||'').trim();
@@ -1566,6 +1587,15 @@ document.addEventListener('click',e=>{
   if(t.dataset.addpt){const d=ui.draft;d.pts.push({city:'',addr:''});renderRoute();renderCheck();document.getElementById('pc-'+(d.pts.length-1))?.focus();return}
   if(t.dataset.delpt){const d=ui.draft,i=+t.dataset.delpt;d.pts.splice(i,1);const n={};Object.entries(d.pidx||{}).forEach(([p,v])=>{if(v<i)n[p]=v;else if(v>i)n[p]=v-1});d.pidx=n;renderRoute();renderCheck();return}
   if(t.id==='submit'){const d=ui.draft,c=client(ui.cid);syncDraft(d);const res=check(d);const bl=res.find(x=>x.k==='block');if(bl){toast(bl.t);renderCheck();return}
+    if(ui.editRide){const r=S.rides.find(x=>x.id===ui.editRide);if(!r||!canEdit(r)){ui.editRide=null;toast('אי אפשר לשנות את ההזמנה הזו יותר');render();return}
+      const pr=editProblem(r,d);if(pr){toast(pr);return}
+      const nd=[];if(d.pax.length===1)nd.push('single');if(isNight(d))nd.push('night');const same=JSON.stringify([...nd].sort())===JSON.stringify([...needsOf(r)].sort());
+      (r.changes??=[]).push({at:Date.now(),by:ui.cid,prev:{ts:r.ts,pax:[...r.pax],dest:r.dest,stops:[...(r.stops||[])]}});
+      Object.assign(r,{ts:at(d.date,d.time),dest:d.dest,stops:[...d.stops],pax:[...d.pax],lead:d.lead,base:(d.base||'').trim(),reason:isNight(d)?(d.reason||'').trim():'',ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()]))});
+      if(!same){r.needs=nd.length?nd:null;r.approvedBy=[];r.ceoOk=false;r.pOk=false}
+      r.status=needBoss(r)||needCeo(r)?'pending':'awaiting';r.confirmedAt=null;r.reconfirm=true;if(r.sms)r.sms.sent={};if(r.cal)makeCalLinks(r);
+      mark(r,'changed');ui.editRide=null;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;save();
+      toast(r.status==='pending'?'השינוי נשמר. ההזמנה ממתינה לאישור החרגה ואז לסדרן':'השינוי נשמר ונשלח לסדרן לאישור מחדש');render();return}
     const nd=[];if(d.pax.length===1)nd.push('single');if(isNight(d))nd.push('night');
     const needs=nd.length;const over=!isP(c.id)&&used(c.id)+1>limit(c);
     S.rides.push({id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,over,unplanned:!!planGap(ui.cid,ymd(new Date(at(d.date,d.time))),d.pax),createdAt:Date.now()});
