@@ -1651,7 +1651,7 @@ function actionItems(){const out=[],R=ui.role,add=(key,text)=>out.push({key,text
       if(R==='ops'&&(ui.mgrAuthed||[]).includes(cid))mgrPending(cid).forEach(r=>add('bo:'+r.id,`★ נסיעה עם נוסע בודד ממתינה לאישורך (בוס גדול) · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`));
       if(R==='princess')S.rides.filter(r=>r.status==='pending'&&r.ts>Date.now()&&pBossOf(r).length&&needBoss(r)).forEach(r=>add('pb:'+r.id,`נסיעה של יבא עם נוסע בודד ממתינה לאישורך · ${hm(new Date(r.ts))}`))}}
   if(R==='admin'){paxReq().filter(q=>q.status==='pending').forEach(q=>add('px:'+q.id,`בקשת נוסע ממתינה לאישורך · ${q.name} (${client(q.cid)?.name||''})`));(PW_HELP||[]).forEach(q=>add('pw:'+q.id,`🔑 בקשה לתזכורת סיסמה · ${q.role}`))}
-  if((R==='admin'||R==='ceo')&&ui.ceoAuthed)ceoPending().forEach(r=>add('ceo:'+r.id,`🌙 נסיעת לילה ממתינה לאישור מנכ״ל · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`));
+  if(R==='ceo'&&ui.ceoAuthed)ceoPending().forEach(r=>add('ceo:'+r.id,`🌙 נסיעת לילה ממתינה לאישור מנכ״ל · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`));
   return out}
 function checkActions(){const items=actionItems(),keys=items.map(x=>x.key);
   if(ui.knownAct==null||ui.knownActRole!==ui.role){ui.knownAct=keys;ui.knownActRole=ui.role;return}
