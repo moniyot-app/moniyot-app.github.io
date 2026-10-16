@@ -1892,6 +1892,12 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
   if(f.id==='add-block'){const g=id=>document.getElementById(id).value;if(g('bf')>=g('bt')){toast('שעת הסיום חייבת להיות אחרי שעת ההתחלה');return}
     S.blocked.push({id:'b'+Date.now(),date:g('bd'),from:g('bf'),to:g('bt'),note:g('bn').trim()||'הסעה חלופית'});save();render();return}
 });
+/* phones: a date/time wheel fires input/change on every turn, and re-drawing the page closed it mid-pick.
+   While the picker is open we hold the events and apply the value once the field is left */
+const PICK=['time','date','datetime-local','month'],touch=()=>{try{return matchMedia('(pointer:coarse)').matches}catch(_){return false}};
+['input','change'].forEach(ty=>document.addEventListener(ty,e=>{const t=e.target;if(t&&PICK.includes(t.type)&&!t._commit&&touch()&&document.activeElement===t){t._dirty=true;e.stopImmediatePropagation()}},true));
+document.addEventListener('focusout',e=>{const t=e.target;if(!t||!PICK.includes(t.type)||!t._dirty)return;t._dirty=false;t._commit=true;
+  try{t.dispatchEvent(new Event('input',{bubbles:true}));t.dispatchEvent(new Event('change',{bubbles:true}))}finally{t._commit=false}});
 document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
   if(t.id==='au-r'){const p=document.getElementById('au-p'),tr=t.value==='train';if(p){p.required=!tr;p.closest('label').hidden=tr}AUTH.forgotSent=false;paintForgot();return}
   if(t.dataset.pcity&&ui.draft&&document.getElementById('routebox')){renderRoute();renderCheck();return}
