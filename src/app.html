@@ -425,7 +425,10 @@ const COUNTS=['active','pending','awaiting','late'];
 const inMonth=ts=>{const d=new Date(ts),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()};
 const share=(r,cid)=>r.pax.length?r.pax.filter(p=>emp(p)?.cid===cid).length/r.pax.length:0;
 const used=cid=>S.rides.filter(r=>COUNTS.includes(r.status)&&inMonth(r.ts)).reduce((a,r)=>a+share(r,cid),0);
-const limit=c=>c.quota-c.carry;
+/* carry-over: what a unit went over its quota last month comes off this month's basket (computed from the rides, never stored) */
+const prevMonthUsed=cid=>{const n=new Date(),p=new Date(n.getFullYear(),n.getMonth()-1,1);return S.rides.filter(r=>{const d=new Date(r.ts);return COUNTS.includes(r.status)&&d.getFullYear()===p.getFullYear()&&d.getMonth()===p.getMonth()}).reduce((a,r)=>a+share(r,cid),0)};
+const carryOf=c=>!c||isP(c.id)?0:Math.max(0,Math.ceil(prevMonthUsed(c.id)-c.quota-0.001));
+const limit=c=>c.quota-carryOf(c);
 const money=n=>Math.round(n).toLocaleString('he-IL')+' ₪';
 const isNorth=r=>[r.dest,...(r.stops||[])].some(x=>S.north.includes(x));
 const cost=r=>isNorth(r)?S.prices.north:S.prices.south;
@@ -539,7 +542,7 @@ function meter(c,extra=0){if(hideQ(c))return '';
   return `<div class="meter">
     <div class="meter-top"><div><div class="eyebrow">ניצול הסל החודש</div>
       <div class="big num">${fmt(u)} <span style="font-size:1rem;color:var(--muted)">מתוך ${L} מוניות</span></div></div>
-      <div class="note num">${u>L?`<b style="color:var(--bad)">חריגה של ${fmt(u-L)} מוניות</b> · תרד מהסל של החודש הבא`:`נשארו ${fmt(L-u)} מוניות`}${c.carry?` · ירדו ${c.carry} מהחודש הקודם`:''}</div></div>
+      <div class="note num">${u>L?`<b style="color:var(--bad)">חריגה של ${fmt(u-L)} מוניות</b> · תרד מהסל של החודש הבא`:`נשארו ${fmt(L-u)} מוניות`}${carryOf(c)?` · ירדו ${carryOf(c)} מהחודש הקודם`:''}</div></div>
     <div class="bar" role="img" aria-label="ניצול ${Math.round(pct*100)} אחוז"><i class="${cls}" style="width:${Math.min(100,pct*100)}%"></i><b title="90%"></b></div>
   </div>`;
 }
@@ -1225,7 +1228,7 @@ function renderDispatcher(){
       <div class="note">כולל נסיעות מאושרות, ממתינות וביטולים מאוחרים. מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים. מונית שעוברת בתחנה צפונית לנתניה נספרת ומתומחרת כצפון. העמוד הזה גלוי רק לסדרן.</div>${renderHist(cur)}`;
   }else if(ui.tab==='quotas'){
     body=`<div class="tablewrap"><table><thead><tr><th>לוגו</th><th>צבע</th><th>שם המבצעים (לחצו לעריכה)</th>${PROD?'':'<th>סיסמת כניסה</th><th>טלפון בוס גדול (משמש כסיסמה שלו)</th>'}<th>סל חודשי</th><th>ירד מהחודש הקודם (מחושב אוטומטית)</th><th>נוצל</th><th>ניצול</th><th></th><th>המבצעים רואים את הסל</th></tr></thead><tbody>${S.clients.map(c=>{const u=used(c.id),L=limit(c),p=u/L;
-      return `<tr><td><div class="row" style="gap:6px;flex-wrap:nowrap">${opsLogo(c.id,30)}<label class="btn small" style="display:inline-block;color:var(--ink);font-weight:600">העלאה<input type="file" accept="image/*" data-ologo="${c.id}" id="lg-${c.id}" hidden></label>${c.logo?`<button class="btn small danger" data-ologodel="${c.id}" aria-label="הסרת לוגו">✕</button>`:''}</div></td><td><input type="color" id="col-${c.id}" data-ocolor="${c.id}" value="${opsColor(c.id)}" aria-label="צבע של ${esc(c.name)}" style="width:38px;height:30px;padding:2px"></td><td><input id="nm-${c.id}" data-name="${c.id}" value="${esc(c.name)}" aria-label="שם המבצעים" style="width:160px"></td>${PROD?'':`<td><input id="cpw-${c.id}" data-cpw="${c.id}" value="${esc(c.pw||'')}" style="width:90px" class="num" autocomplete="off" aria-label="סיסמת כניסה של ${esc(c.name)}"></td><td><input id="bph-${c.id}" data-bphone="${c.id}" inputmode="tel" value="${esc(c.bossPhone?fmtPh(c.bossPhone):'')}" placeholder="050-1234567" style="width:118px" class="num" autocomplete="off" aria-label="טלפון הבוס הגדול של ${esc(c.name)}"></td>`}<td><input type="number" min="0" id="q-${c.id}" data-quota="${c.id}" value="${c.quota}" class="num"></td><td class="num">${c.carry?c.carry:'—'}</td>
+      return `<tr><td><div class="row" style="gap:6px;flex-wrap:nowrap">${opsLogo(c.id,30)}<label class="btn small" style="display:inline-block;color:var(--ink);font-weight:600">העלאה<input type="file" accept="image/*" data-ologo="${c.id}" id="lg-${c.id}" hidden></label>${c.logo?`<button class="btn small danger" data-ologodel="${c.id}" aria-label="הסרת לוגו">✕</button>`:''}</div></td><td><input type="color" id="col-${c.id}" data-ocolor="${c.id}" value="${opsColor(c.id)}" aria-label="צבע של ${esc(c.name)}" style="width:38px;height:30px;padding:2px"></td><td><input id="nm-${c.id}" data-name="${c.id}" value="${esc(c.name)}" aria-label="שם המבצעים" style="width:160px"></td>${PROD?'':`<td><input id="cpw-${c.id}" data-cpw="${c.id}" value="${esc(c.pw||'')}" style="width:90px" class="num" autocomplete="off" aria-label="סיסמת כניסה של ${esc(c.name)}"></td><td><input id="bph-${c.id}" data-bphone="${c.id}" inputmode="tel" value="${esc(c.bossPhone?fmtPh(c.bossPhone):'')}" placeholder="050-1234567" style="width:118px" class="num" autocomplete="off" aria-label="טלפון הבוס הגדול של ${esc(c.name)}"></td>`}<td><input type="number" min="0" id="q-${c.id}" data-quota="${c.id}" value="${c.quota}" class="num"></td><td class="num">${carryOf(c)||'—'}</td>
         <td class="num">${fmt(u)} / ${L}</td><td style="min-width:120px"><div class="bar"><i class="${p>1?'bad':p>=.9?'warn':''}" style="width:${Math.min(100,p*100)}%"></i><b></b></div></td>
         <td>${p>1?`<span class="st st-late num">חריגה ${fmt(u-L)}</span>`:p>=.9?'<span class="st st-pending">מעל 90%</span>':''}</td><td><label class="row" style="gap:6px;font-weight:400"><input type="checkbox" data-hideq="${c.id}" ${(c.hideQuota??/מגדל|יבא/.test(c.name||''))?'':'checked'}> ${(c.hideQuota??/מגדל|יבא/.test(c.name||''))?'מוסתר':'גלוי'}</label></td></tr>`}).join('')}</tbody></table></div>
       <div class="note">מבצעים שהסל מוסתר מהם לא רואים כמה מוניות יש להם ומה נשאר, ולא מקבלים המלצות שמבוססות על הסל. הם עדיין מתכננים ומזמינים כרגיל, ואת רואה הכל.</div>${ui.role==='admin'?renderReset():''}`;
@@ -1489,8 +1492,8 @@ document.addEventListener('click',e=>{
     if(!dl){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([histCSV(mo)],{type:'text/csv;charset=utf-8'}));a.download=fn;document.body.appendChild(a);a.click();a.remove();toast('הקובץ ירד');return}
     try{await dl.save({filename:fn,data:histCSV(mo)});toast('הקובץ נשמר')}catch(e){if(e&&e.code!=='declined')toast('לא ניתן להוריד כרגע')}})();return}
   if(t.dataset.reset){if(ui.role!=='admin')return;if((document.getElementById('rstconf')?.value||'').trim()!=='איפוס'){toast('כדי לאפס, הקלידו "איפוס" בתיבה');return}
-    const all=t.dataset.reset==='all';S.rides=[];S.mergeVotes={};if(S.lines)S.lines={};if(S.dismissed)S.dismissed=[];if(all){S.employees=[];S.paxReq=[];ui.draft.pax=[]}
-    document.getElementById('rstconf').value='';save();toast(all?'האפליקציה אופסה: אין נוסעים ואין הזמנות':'כל ההזמנות נמחקו. הנוסעים נשארו');render();return}
+    const all=t.dataset.reset==='all';S.clients.forEach(c=>{delete c.carry});S.rides=[];S.mergeVotes={};if(S.lines)S.lines={};if(S.dismissed)S.dismissed=[];if(all){S.employees=[];S.paxReq=[];ui.draft.pax=[]}
+    document.getElementById('rstconf').value='';save();toast(all?'האפליקציה אופסה: אין נוסעים, אין הזמנות ואין ירידה מהחודש הקודם':'כל ההזמנות נמחקו, והירידה מהחודש הקודם אופסה. הנוסעים נשארו');render();return}
   if(t.dataset.paxed){ui.paxEd=t.dataset.paxed;render();setTimeout(()=>{const i=document.getElementById('pe-name');i&&i.focus()});return}
   if(t.dataset.paxedx){ui.paxEd=null;render();return}
   if(t.dataset.paxedok){const q=paxReq().find(x=>x.id===t.dataset.paxedok),v=id=>{const el=document.getElementById(id);return el?el.value.trim():null};
