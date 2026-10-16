@@ -1148,14 +1148,15 @@ function renderDispatcher(){
   const sug=suggestions();
   const hot=S.clients.map(c=>({c,p:used(c.id)/limit(c)})).filter(x=>x.p>=.9).sort((a,b)=>b.p-a.p);
   const awn=S.rides.filter(r=>r.status==='awaiting').length;
-  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','אישור נוסעים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',0]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):k==='approvals'?true:ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
-  if(ADM){const ORD=['calendar','approvals','paxreq','quotas','costs','ceo','users'];tabs.sort((a,b)=>ORD.indexOf(a[0])-ORD.indexOf(b[0]))}
+  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','אישור נוסעים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',0],['online','מחוברים עכשיו',onlineList().length]].filter(([k])=>k==='users'||k==='online'?(ADM&&PROD&&ui.role==='admin'):k==='approvals'?true:ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
+  if(ADM){const ORD=['calendar','approvals','paxreq','quotas','costs','ceo','users','online'];tabs.sort((a,b)=>ORD.indexOf(a[0])-ORD.indexOf(b[0]))}
   if(RO())tabs.splice(0,tabs.length,...tabs.filter(([k])=>k==='board'));
   if(!tabs.some(([k])=>k===ui.tab))ui.tab=tabs[0][0];
   let body='';
   if(ui.tab==='board'){
     const up=S.rides.filter(r=>r.ts>Date.now()-2*H&&r.status!=='merged').sort((a,b)=>a.ts-b.ts);
     body=`${RO()?'<div class="tip">👁 צפייה בלבד: כאן רואים את הסטטוס של כל ההזמנות והנהגים. אישור הזמנות ופרטי נהג נעשים על ידי הסדרן.</div>':''}<div class="rides">${up.length?groupByDay(up).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}${isFree(ds)?' <span class="tag t-day">יום מוניות</span>':''}<span class="note">${rs.filter(r=>!['cancelled'].includes(r.status)).length} מוניות</span></div>`+rs.map(r=>rideRow(r,'disp')).join('')).join(''):'<div class="empty">אין נסיעות קרובות.</div>'}</div>`;
+  }else if(ui.tab==='online'){body=renderOnline();
   }else if(ui.tab==='users'){body=renderUsers();
   }else if(ui.tab==='ceo'){body=ui.ceoAuthed?renderCeo():PROD?'<div class="empty">אישור נסיעות לילה שמור למנכ״ל. המשתמש שלך לא מוגדר כמנכ״ל.</div>':`<form class="gate ceo-panel panel" id="ceogate2"><h3>★ אזור המנכ״ל</h3><div class="note">אישור נסיעות לילה שמור למנכ״ל בלבד. הכניסה בסיסמת מנכ״ל (בדוגמה: 9999).</div><label>סיסמת מנכ״ל<input type="password" id="ceopw2"></label><div class="note" id="ceoerr2" style="color:var(--bad)" hidden>סיסמה שגויה.</div><button class="btn primary">כניסה</button></form>`;
   }else if(ui.tab==='approvals'){
@@ -1281,6 +1282,7 @@ const G={
    {h:'סלים',go:'adm-quotas',steps:[PROD?'לכל אחד מהמבצעים קובעים שם, לוגו, צבע וסל חודשי.':'לכל אחד מהמבצעים קובעים שם, לוגו, צבע, סיסמה, טלפון בוס גדול וסל חודשי.','רואים כמה כל אחד ניצל. מעל 90% מופיעה התראה.','בעמודה "המבצעים רואים את הסל" אפשר להסתיר את הסל ממבצעים מסוימים (כרגע מגדל ויבא). הם לא יראו כמה מוניות יש להם ומה נשאר, ויתכננו ויזמינו כרגיל.']},
    {h:'מעקב, היסטוריה ותחקיר',go:'adm-costs',steps:['בוחרים חודש ורואים לכל המבצעים: מוניות, צפון ומרכז, נוסע בודד וההוצאה. חריגות מהסל מופיעות בבירור למעלה.','בתחתית, "היסטוריית מוניות": לכל נסיעה מתי הוזמנה, לאיזה מועד, מי הזמין, מי נסע, אם נדרשה החרגה ואיזו, הסטטוס והנהג.','"הורדה לאקסל" מוריד את החודש כקובץ.','ליד נסיעה שכבר יצאה, "📝 הוספת תחקיר" שומר הערות לשימור. הן נכנסות גם לקובץ.']},
    {h:'★ מנכ״ל: נסיעות לילה',go:'adm-ceo',steps:['נסיעה בין 23:00 ל־06:00 צריכה אישור מנכ״ל.',PROD?'בלשונית "★ מנכ״ל" לוחצים "אישור" או "דחייה". אחרי האישור (ושל הבוס הגדול, אם נדרש) ההזמנה עוברת לסדרן.':'בלשונית "★ מנכ״ל" (בנתוני הדוגמה הסיסמה 9999) לוחצים "אישור" או "דחייה".','האצלת סמכות: אפשר לתת לבוס הגדול של מבצעים מסוימים לאשר נסיעות לילה בעצמו, לתמיד או עד תאריך, ולבטל בכל רגע.']},
+   {h:'מי מחובר עכשיו',go:'adm-online',steps:['בלשונית "מחוברים עכשיו" רואים מי האפליקציה פתוחה אצלו ברגע זה, מאיזה מכשיר (טלפון או מחשב) וממתי.','הרשימה מתעדכנת לבד. רק המנהלת רואה אותה.']},
    {h:'צפייה בעמודים אחרים',steps:['בתפריט למעלה עוברים ל"מבצעים" או ל"עמוד סדרן".','כמנהלת נכנסים לכל אחד מהמבצעים בלי סיסמה, ורואים בדיוק מה שהם רואים. "החלפת מבצעים" עובר לאחרים.']},
    {h:'איפוס נתונים',go:'adm-quotas',steps:['בתחתית לשונית "סלים". "מחיקת הזמנות" מוחק את כל ההזמנות וההיסטוריה ומשאיר את הנוסעים. "איפוס מלא" מוחק גם את הנוסעים ובקשות הנוסעים.','נשארים: המבצעים והסלים, לוח השנה, ההגדרות והסיסמאות.','אי אפשר לבטל. מורידים קודם את ההיסטוריה לאקסל, מקלידים "איפוס" ולוחצים על הכפתור. רק המנהלת רואה אותו.']}
   ]},
@@ -1344,6 +1346,16 @@ async function prodBoot(){
   AUTH.sb.auth.onAuthStateChange((ev,ses)=>{if(ev==='PASSWORD_RECOVERY'){AUTH.state='login';AUTH.mode='newpw';render()}});
   const {data}=await AUTH.sb.auth.getSession();
   if(data&&data.session&&AUTH.mode!=='newpw')await loadMember(data.session.user);else{AUTH.state='login';render()}}
+/* who is connected right now (Supabase realtime presence; nothing is stored) */
+let ONLINE={};
+function joinPresence(){try{if(AUTH.pres)return;const ch=AUTH.sb.channel('online',{config:{presence:{key:AUTH.user.id}}});AUTH.pres=ch;
+  const me={who:AUTH.member?.name||ROLEL[ui.role]||'',role:ui.role,at:Date.now(),dev:/Mobi|Android|iPhone/i.test(navigator.userAgent)?'טלפון':'מחשב'};
+  ch.on('presence',{event:'sync'},()=>{ONLINE=ch.presenceState();if(ui.page==='admin'&&!typing())render()})
+    .subscribe(st=>{if(st==='SUBSCRIBED')ch.track(me)})}catch(e){}}
+const onlineList=()=>Object.values(ONLINE).map(a=>a&&a[0]).filter(Boolean).sort((a,b)=>(a.who||'').localeCompare(b.who||'','he'));
+function renderOnline(){const L=onlineList(),ago=t=>{const m=Math.max(0,Math.round((Date.now()-t)/60000));return m<1?'עכשיו':m<60?`לפני ${m} דק׳`:`לפני ${Math.floor(m/60)} שע׳`};
+  return `<div class="note">מי שהאפליקציה פתוחה אצלו ברגע זה. הרשימה מתעדכנת לבד. מי שסגר את האפליקציה יורד מהרשימה תוך כחצי דקה.</div>
+  ${L.length?`<div style="display:grid;gap:6px;margin-top:8px">${L.map(x=>`<div class="emp-row"><span style="flex:1"><span style="color:var(--ok)">●</span> <b>${esc(x.who||'')}</b></span><span class="note">${esc(x.dev||'')} · נכנס/ה ${ago(x.at)}</span></div>`).join('')}</div>`:'<div class="empty">אין כרגע אף אחד מחובר.</div>'}`}
 async function loadMember(user){AUTH.user=user;
   const {data,error}=await AUTH.sb.from('members').select('*').eq('email',(user.email||'').toLowerCase()).maybeSingle();
   if(error||!data){AUTH.state='nomember';render();return}
@@ -1355,7 +1367,7 @@ async function loadMember(user){AUTH.user=user;
   else if(R.includes('ceo')&&!R.includes('ops')&&!R.includes('princess')){ui.role='ceo';ui.admAuthed=true;ui.tab='ceo'}
   else{ui.role='ops';const cid=R.includes('princess')?PID:data.cid;ui.cid=cid;ui.cAuth=cid;if(R.includes('boss'))ui.mgrAuthed=[cid]}
   ui.page={admin:'admin',princess:'client',ceo:'admin',disp:'dispatcher',ops:'client'}[ui.role];if(MGR())ui.tab='calendar';if(ui.role==='princess')ui.sub='orders';if(ui.role==='disp')ui.tab='board';
-  DB=sbDb(AUTH.sb);render();initDb()}
+  DB=sbDb(AUTH.sb);render();initDb();joinPresence()}
 const RMAIL=k=>'noampatishi+'+k+'@gmail.com'; /* role accounts: never emailed (confirmation is off) */
 const roleKeys=()=>[...S.clients.flatMap(c=>[{k:'ops-'+c.id,label:'מבצעים · '+c.name,roles:['ops'],cid:c.id},{k:'boss-'+c.id,label:'בוס גדול · '+c.name,roles:['ops','boss'],cid:c.id}]),
   {k:'princess',label:'★ נסיכות',roles:['princess'],cid:null},{k:'disp',label:'סדרן',roles:['disp'],cid:null},{k:'ceo',label:'מנכ״ל',roles:['ceo'],cid:null}];
