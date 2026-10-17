@@ -518,6 +518,7 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
     else if(lm.length)add('warn',`נקודת הציון ב${lm.map(z=>nm(z.x)).join(', ')} לא נמצאה במפה. ודאו שהיא בעיר הנכונה`);
     else add('ok',G.length&&G.every(z=>z.g.k==='ok')?'הכתובות נמצאו במפה בערים שהוזנו':'הכתובות של התחנות נראות תקינות');}}
   if(!(d.base||'').trim())add('block',`בחרו ${d.dir==='to'?'תחנת יעד':'תחנת מוצא'}`);
+  else{const unk=[...new Set([baseOf(d),...(d.pts||[]).map(x=>x.city)])].filter(n=>n&&!geoOf(n));if(unk.length)add('warn',`לא מצאנו במפה את ${unk.join(', ')}. זמני הנסיעה משוערים בלבד. כדאי לכתוב שם מוכר יותר (למשל "בסיס רמת דוד")`)}
   if(!d.pax.includes(d.lead))add('block','בחרו אחראי/ת נסיעה מבין הנוסעים');
   const ts=startTs(d);
   const sD=isNaN(ts)?d.date:ymd(new Date(ts)), sT=isNaN(ts)?d.time:hm(new Date(ts));
@@ -677,7 +678,14 @@ const DWELL=3,SPARE=5;
 /* travel times from real coordinates: road distance from air distance, speed by trip length (city ~35, regional ~60, highway ~95 km/h), adjusted for the hour */
 const BASEGEO=[30.776,34.667]; /* מחנה רמון = בסיס רמון בנגב */
 const geoOf=name=>{name=(name||'').trim();if(!name)return null;if(name===BASE||name.includes('רמון'))return BASEGEO;if(GEO[name])return GEO[name];
-  const k=Object.keys(GEO).sort((a,b)=>b.length-a.length).find(k=>name.includes(k));return k?GEO[k]:null};
+  const k=Object.keys(GEO).sort((a,b)=>b.length-a.length).find(k=>name.includes(k));if(k)return GEO[k];
+  if(PG[name])return PG[name].g||null;pgAsk(name);return null};
+/* a place we don't know (a base, a junction…): look it up once on the map, keep it on the device */
+const PG=(()=>{try{return JSON.parse(localStorage.getItem('pgeo-v1')||'{}')}catch(_){return {}}})();let pgT=null,pgWant='';
+function pgAsk(n){if(n.length<3||typeof fetch!=='function')return;pgWant=n;clearTimeout(pgT);pgT=setTimeout(async()=>{const q=pgWant;if(PG[q])return;
+  try{const r=await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=il&accept-language=he&q='+encodeURIComponent(q))).json();
+    PG[q]=r&&r[0]?{g:[+r[0].lat,+r[0].lon]}:{none:1};try{localStorage.setItem('pgeo-v1',JSON.stringify(PG))}catch(_){}
+    if(document.getElementById('checkpanel')){renderRoute();renderCheck()}}catch(_){}},900)}
 const hav=(A,B)=>{const R=6371,r=Math.PI/180,dp=(B[0]-A[0])*r,dl=(B[1]-A[1])*r,h=Math.sin(dp/2)**2+Math.cos(A[0]*r)*Math.cos(B[0]*r)*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
 const traffic=ts=>{if(ts==null||isNaN(ts))return 1;const d=new Date(ts),w=d.getDay(),m=d.getHours()*60+d.getMinutes();
   if(m>=1320||m<360)return .8;if(w===5||w===6)return 1;if((m>=390&&m<=570)||(m>=930&&m<=1140))return 1.45;return 1.1};
@@ -1243,7 +1251,10 @@ const GEO={'רעננה':[32.184,34.871],'כפר סבא':[32.175,34.907],'הרצ�
   'באר שבע':[31.252,34.791],'בית שמש':[31.747,34.988],'נצרת':[32.700,35.303],'רהט':[31.393,34.754],'קריית אתא':[32.806,35.106],'נהריה':[33.006,35.095],'עפולה':[32.608,35.289],'אום אל-פחם':[32.519,35.153],'אילת':[29.558,34.952],
   'עכו':[32.928,35.076],'אלעד':[32.052,34.951],'כרמיאל':[32.919,35.295],'טבריה':[32.795,35.531],'קריית מוצקין':[32.837,35.078],'קריית ביאליק':[32.833,35.085],'קריית ים':[32.849,35.069],'קריית שמונה':[33.208,35.570],'צפת':[32.965,35.496],
   'דימונה':[31.069,35.033],'אופקים':[31.314,34.620],'נתיבות':[31.421,34.588],'שדרות':[31.525,34.596],'יקנעם':[32.659,35.110],'אור עקיבא':[32.509,34.920],'טירה':[32.234,34.950],'מעלה אדומים':[31.777,35.298],'אריאל':[32.106,35.187],
-  'טירת כרמל':[32.761,34.972],'נשר':[32.766,35.044],'מגדל העמק':[32.676,35.241],'בית שאן':[32.497,35.497],'ערד':[31.259,35.212],'שפרעם':[32.806,35.170],'מעלות-תרשיחא':[33.016,35.272],'סח׳נין':[32.864,35.297],'מצפה רמון':[30.610,34.801],'ירוחם':[30.988,34.931]};
+  'טירת כרמל':[32.761,34.972],'נשר':[32.766,35.044],'מגדל העמק':[32.676,35.241],'בית שאן':[32.497,35.497],'ערד':[31.259,35.212],'שפרעם':[32.806,35.170],'מעלות-תרשיחא':[33.016,35.272],'סח׳נין':[32.864,35.297],'מצפה רמון':[30.610,34.801],'ירוחם':[30.988,34.931],
+  /* bases and other common pick-up places */
+  'רמת דוד':[32.665,35.180],'חצור':[31.762,34.727],'חצור הגלילית':[32.981,35.543],'תל נוף':[31.839,34.822],'חצרים':[31.234,34.663],'נבטים':[31.208,35.012],'פלמחים':[31.897,34.690],'עובדה':[29.940,34.936],
+  'הקריה':[32.073,34.788],'קריה':[32.073,34.788],'צריפין':[31.958,34.844],'גלילות':[32.143,34.809],'שדה דב':[32.105,34.782],'נתב״ג':[32.005,34.885],'נתבג':[32.005,34.885],'נמל התעופה':[32.005,34.885]};
 const MAXKM=10,MAXEXTRA=15;
 BIGCITIES.forEach(([n,a,b])=>{GEO[n]??=[a,b]});
 const distKm=(x,y)=>{if(x===y)return 0;const A=GEO[x],B=GEO[y];if(!A||!B)return Math.abs(minsOf(x)-minsOf(y));
