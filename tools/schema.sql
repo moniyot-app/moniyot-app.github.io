@@ -164,3 +164,11 @@ begin
 end $$;
 revoke all on function public.request_pw_help(text,text) from public;
 grant execute on function public.request_pw_help(text,text) to anon, authenticated;
+
+-- v8: ops add and edit their own passengers directly (no manager approval); managers can still fix anything
+drop policy if exists p_ops_ins on public.people;
+create policy p_ops_ins on public.people for insert to authenticated
+  with check (cid is not null and cid = public.my_cid());
+drop policy if exists p_ops_upd on public.people;
+create policy p_ops_upd on public.people for update to authenticated
+  using (cid is not null and cid = public.my_cid()) with check (cid = public.my_cid());
