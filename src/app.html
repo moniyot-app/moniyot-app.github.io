@@ -487,15 +487,30 @@ const genFor=ds=>(dayType(ds)==='normal'?(S.genBus||[]):S.genFlights).map(g=>{co
 /* taxi days can have minibuses too (marked per day in the calendar, same times as a ground day). They block nothing:
    everyone stays eligible for a taxi, the smart planner just offers the minibus to people next to a station */
 const busFor=ds=>(S.genBus||[]).map(g=>{const t=isWinter(ds)&&g.winter?g.winter:g.from;return {from:t,to:t,note:g.note}});
-const freeBus=ds=>dayType(ds)==='free'&&!!(S.freeBus||{})[ds];
-const busWins=ds=>dayType(ds)==='normal'?winsOf(ds):freeBus(ds)?busFor(ds):[];
+/* direction of a minibus / flight: 'to' = arrives at the base, 'from' = leaves it, '' = both */
+const wDir=w=>w.dirSet?(w.dir||''):(w.dir||(/יציאה/.test(w.note||'')?'from':/הגעה/.test(w.note||'')?'to':''));
+const DIRN={to:'הגעה לבסיס',from:'יציאה מהבסיס','':'שני הכיוונים'};
+const flFor=ds=>(S.genFlights||[]).map(g=>{const t=isWinter(ds)&&g.winter?g.winter:g.from;return {from:t,to:t,note:g.note}});
+/* extras: a minibus on a day that isn't a ground day, or a transport flight (תובלה) on a day that isn't an air day.
+   They follow the same 45-minute rule in their own direction; eligibility stays by the day's type */
+const xKinds=ds=>{const t=dayType(ds);return [t!=='normal'?'bus':'',t!=='restricted'?'fl':''].filter(Boolean)};
+const xWinsOf=ds=>{let L=(S.xWins||{})[ds];
+  if(!L){L=[];if((S.freeBus||{})[ds])busFor(ds).forEach((g,i)=>L.push({id:'xb'+i,kind:'bus',from:g.from,to:g.from,dir:wDir(g),dirSet:1}));if((S.xFlight||{})[ds])flFor(ds).forEach((g,i)=>L.push({id:'xf'+i,kind:'fl',from:g.from,to:g.from,dir:wDir(g),dirSet:1}))}
+  const K=xKinds(ds);return L.filter(w=>K.includes(w.kind)).map(w=>({...w,date:ds,x:true})).sort((a,b)=>a.from.localeCompare(b.from))};
+const xOwn=ds=>{(S.xWins??={});if(!S.xWins[ds])S.xWins[ds]=xWinsOf(ds).map(({id,kind,from,to,dir})=>({id,kind,from,to,dir,dirSet:1}));if(S.freeBus)delete S.freeBus[ds];if(S.xFlight)delete S.xFlight[ds];return S.xWins[ds]};
+const KN={bus:{n:'מיניבוס',i:'🚐'},fl:{n:'טיסת תובלה',i:'✈'}};
+const xTxt=(ds,sep=' ')=>xWinsOf(ds).map(w=>`${KN[w.kind].i} ${w.from}${wDir(w)==='to'?'↓':wDir(w)==='from'?'↑':''}`).join(sep);
+/* every minibus/flight of the day that counts for the 45-minute rule: the day's own ones and the extras */
+const allWins=ds=>[...(hasWinDay(ds)?winsOf(ds).map(w=>({...w,kind:dayType(ds)==='normal'?'bus':'fl'})):[]),...xWinsOf(ds)];
+const busWins=ds=>allWins(ds).filter(w=>w.kind==='bus');
 const winsOf=ds=>(hasOwn(ds)?S.blocked.filter(b=>b.date===ds):genFor(ds).map((g,i)=>({...g,id:'g'+i,date:ds,gen:true}))).sort((a,b)=>a.from.localeCompare(b.from));
 const ownWins=ds=>{if(hasOwn(ds))return;S.ownWins.push(ds);genFor(ds).forEach((g,i)=>S.blocked.push({...g,id:'b'+Date.now()+'_'+i,date:ds}))};
 const blockAt=(ds,t)=>hasWinDay(ds)?winsOf(ds).find(b=>toM(t)>=toM(b.from)-BUF&&toM(t)<toM(b.to)+BUF):null;
 const winTxt=b=>b.from===b.to?b.from:`${b.from}–${b.to}`;
-function rideBlock(r){const s=sched(r);if(!s)return null;
-  for(const ds of new Set([ymd(new Date(s.start)),ymd(new Date(s.end))])){if(!hasWinDay(ds))continue;
-    for(const w of winsOf(ds)){const a=at(ds,w.from)-BUF*MIN,b=at(ds,w.to)+BUF*MIN;if(s.start<b&&s.end>a)return w}}
+/* 45-minute rule, by direction: a ride to the base is blocked only by a minibus/flight that arrives at the base within 45 minutes
+   of the ride's arrival; a ride from the base only by one that leaves within 45 minutes of the ride's departure */
+function rideBlock(r){const s=sched(r);if(!s)return null;const T=r.dir==='to'?s.end:s.start,ds=ymd(new Date(T));
+  for(const w of allWins(ds)){const dr=wDir(w);if(dr&&dr!==r.dir)continue;const a=at(ds,w.from)-BUF*MIN,b=at(ds,w.to||w.from)+BUF*MIN;if(T>=a&&T<=b)return w}
   return null}
 const mName=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('he-IL',{month:'long',year:'numeric'})};
 const clientsOf=r=>[...new Set(r.pax.map(p=>emp(p)?.cid).filter(Boolean))];
@@ -538,11 +553,10 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
   else if(st.length)add('ok',`${st.length+1} נקודות במסלול`);
   const free=isFree(sD);
   const PR=isP(ui.cid)&&!!d.house; /* princess, on the house only: may order even when a flight or minibus is the alternative, for any passenger type */
-  if(free)add('ok','יום מוניות: אין שעות חסומות');
-  else if(PR)add('ok','על חשבון הבית: אין הגבלה של שעות טיסה או מיניבוס');
-  else{const sc=sched(d),en=sc?new Date(sc.end):null,b=rideBlock(d);
-    if(b){const K=WK(b.date||sD);add('block',`${K.day}: ${K.n} ב־${winTxt(b)}${b.note&&b.note!=='טיסה'?` (${b.note})`:''}. אי אפשר להזמין מונית שנוסעת בין ${fromM(toM(b.from)-BUF)} ל־${fromM(toM(b.to)+BUF)}`);}
-    else add('ok','השעה אינה חסומה');}
+  if(PR)add('ok','על חשבון הבית: אין הגבלה של שעות טיסה או מיניבוס');
+  else{const b=rideBlock(d);
+    if(b){const nm=b.kind==='bus'?'מיניבוס':'טיסה',dr=wDir(b);add('block',`${b.x?'יש '+KN[b.kind].n:nm} ב־${winTxt(b)}${dr?` (${DIRN[dr]})`:''}${b.note&&!/^(טיסה|הגעה|יציאה)$/.test(b.note)?` · ${b.note}`:''}. אי אפשר להזמין מונית ש${d.dir==='to'?'מגיעה ל':'יוצאת מ'}${baseOf(d)} בין ${fromM(toM(b.from)-BUF)} ל־${fromM(toM(b.to||b.from)+BUF)}`);}
+    else add('ok',free&&!allWins(sD).length?'יום מוניות: אין שעות חסומות':'השעה אינה חסומה');}
   const types=d.pax.map(p=>emp(p)?.type);
   const dty=dayType(sD);
   if(dty==='free')add('ok','יום מוניות: כל סוגי הנוסעים זכאים');
@@ -917,8 +931,8 @@ function renderPlan(c){const now=new Date(),curK=ymd(now).slice(0,7),nextK=ymd(n
   const cnt=k=>act.filter(x=>x.ty===k).length,TYN={free:'מוניות',normal:'קרקעי',restricted:'אווירי'};
   const dayN=now.getDate(),ndCur=new Date(now.getFullYear(),now.getMonth()+1,0).getDate(),proj=P.usedNow/Math.max(1,dayN)*ndCur;
   const lead=new Date(+mk.slice(0,4),+mk.slice(5)-1,1).getDay();
-  const cells=[...Array(lead).fill('<div aria-hidden="true"></div>'),...P.days.map(x=>x.past?`<div class="pc cal-d past ty-${x.ty}${x.wd===5||x.wd===6?' wk':''}${isAuto(x.ds)?' auto':''}"><span class="num pd">${x.d}</span><small class="num">${x.ty==='free'?'מוניות'+(freeBus(x.ds)?' · 🚐 '+busFor(x.ds).map(b=>b.from).join(' '):''):winsOf(x.ds).length?(x.ty==='normal'?'🚐 ':'')+winsOf(x.ds).map(winTxt).join('<br>'):x.ty==='restricted'?'אווירי':''}</small></div>`:
-    `<div class="pc cal-d ty-${x.ty}${x.wd===5||x.wd===6?' wk':''}${isAuto(x.ds)?' auto':''}${x.ds===ymd(new Date())?' today':''}" data-tip="${dayLabel(x.ds)} · יום ${TYN[x.ty]}${winsOf(x.ds).length?' · '+WK(x.ds).ns+': '+winsOf(x.ds).map(winTxt).join(', '):''} · בתכנון: ${+my[x.ds]||0}"><span class="num pd">${x.d}</span>${mode==='mine'?`<input type="number" min="0" max="30" class="num pin" data-pday="${x.ds}" id="pd-${x.ds}" value="${my[x.ds]??''}" placeholder="0" aria-label="מוניות ב־${dayLabel(x.ds)}">`:`<b class="num pr">${x.rec}</b>`}<small class="num">${x.ty==='free'?'מוניות'+(freeBus(x.ds)?' · 🚐 '+busFor(x.ds).map(b=>b.from).join(' '):''):winsOf(x.ds).length?(x.ty==='normal'?'🚐 ':'')+winsOf(x.ds).map(winTxt).join('<br>'):x.ty==='restricted'?'אווירי':''}</small></div>`)];
+  const cells=[...Array(lead).fill('<div aria-hidden="true"></div>'),...P.days.map(x=>x.past?`<div class="pc cal-d past ty-${x.ty}${x.wd===5||x.wd===6?' wk':''}${isAuto(x.ds)?' auto':''}"><span class="num pd">${x.d}</span><small class="num">${x.ty==='free'?'מוניות':winsOf(x.ds).length?(x.ty==='normal'?'🚐 ':'')+winsOf(x.ds).map(winTxt).join('<br>'):x.ty==='restricted'?'אווירי':''}${xTxt(x.ds)?'<br>'+xTxt(x.ds):''}</small></div>`:
+    `<div class="pc cal-d ty-${x.ty}${x.wd===5||x.wd===6?' wk':''}${isAuto(x.ds)?' auto':''}${x.ds===ymd(new Date())?' today':''}" data-tip="${dayLabel(x.ds)} · יום ${TYN[x.ty]}${winsOf(x.ds).length?' · '+WK(x.ds).ns+': '+winsOf(x.ds).map(winTxt).join(', '):''} · בתכנון: ${+my[x.ds]||0}"><span class="num pd">${x.d}</span>${mode==='mine'?`<input type="number" min="0" max="30" class="num pin" data-pday="${x.ds}" id="pd-${x.ds}" value="${my[x.ds]??''}" placeholder="0" aria-label="מוניות ב־${dayLabel(x.ds)}">`:`<b class="num pr">${x.rec}</b>`}<small class="num">${x.ty==='free'?'מוניות':winsOf(x.ds).length?(x.ty==='normal'?'🚐 ':'')+winsOf(x.ds).map(winTxt).join('<br>'):x.ty==='restricted'?'אווירי':''}${xTxt(x.ds)?'<br>'+xTxt(x.ds):''}</small></div>`)];
   const weeks=[];P.days.forEach(x=>{if(x.past)return;const k=Math.floor((x.d-1+lead)/7);(weeks[k]??={from:x.d,to:x.d,n:0,r:0});weeks[k].to=x.d;weeks[k].n+=val(x);weeks[k].r+=x.rec});
   const wk=weeks.filter(Boolean),wmx=Math.max(1,...wk.map(x=>Math.max(x.n,x.r)));
   const hq=hideQ(c),over=!hq&&myTot>P.Q;
@@ -975,7 +989,7 @@ const busStop=city=>{const g=geoOf(city);if(!g)return null;let b=null;BUSST.forE
 /* the run that fits, taken from the calendar of that day (its own minibus times, or the fixed ones).
    Going there: arriving up to an hour early or 30 min late is still worth it; coming back: leaving up to 30 min early or an hour late */
 const busRun=o=>{const T=at(o.date,o.time);let b=null;
-  busWins(o.date).forEach(g=>{if(!g.from)return;const nt=g.note||'';if(o.dir==='to'&&/יציאה/.test(nt))return;if(o.dir==='from'&&/הגעה/.test(nt))return;
+  busWins(o.date).forEach(g=>{if(!g.from)return;const gd=wDir(g);if(gd&&gd!==o.dir)return;
     const df=(at(o.date,g.from)-T)/MIN,ok=o.dir==='to'?df>=-60&&df<=30:df>=-30&&df<=60;if(ok&&(!b||Math.abs(df)<b.df))b={t:g.from,df:Math.abs(df)}});return b};
 function smartPlanBus(items,o){const R0=smartPlan(items,o),run=o.bus===false?null:busRun(o);if(!run)return {...R0,bus:null};
   const no=o.noBus||{},el=items.filter(x=>!no[x.p]&&busStop(x.city));if(!el.length)return {...R0,bus:null};
@@ -1387,13 +1401,13 @@ function calGrid(ro,fixed){const cm=fixed||ui.calMonth||ymd(new Date()).slice(0,
     const nDays=new Date(y,m,0).getDate(),lead=new Date(y,m-1,1).getDay(),today=ymd(new Date()),sel=ui.calSel||today;
     const cells=[];for(let i=0;i<lead;i++)cells.push('<div aria-hidden="true"></div>');
     for(let dd=1;dd<=nDays;dd++){const ds=`${y}-${pad(m)}-${pad(dd)}`,ty=dayType(ds),w=winsOf(ds),wd=new Date(y,m-1,dd).getDay();
-      cells.push(`<button class="cal-d ty-${ty}${isAuto(ds)?' auto':''}${ds===sel?' sel':''}${ds===today?' today':''}${wd===5||wd===6?' wk':''}" data-day="${ds}" aria-pressed="${ds===sel}" aria-label="${dayLabel(ds)}"><span class="num">${dd}</span>${ty==='free'?`<small>מוניות${freeBus(ds)?'<br>🚐 '+busFor(ds).map(b=>b.from).join('<br>'):''}</small>`:`<small class="num">${w.length?(ty==='normal'?'🚐 ':'')+w.map(winTxt).join('<br>'):ty==='restricted'?'אווירי':''}</small>`}</button>`)}
+      cells.push(`<button class="cal-d ty-${ty}${isAuto(ds)?' auto':''}${ds===sel?' sel':''}${ds===today?' today':''}${wd===5||wd===6?' wk':''}" data-day="${ds}" aria-pressed="${ds===sel}" aria-label="${dayLabel(ds)}"><span class="num">${dd}</span>${ty==='free'?`<small>מוניות${xTxt(ds)?'<br>'+xTxt(ds,'<br>'):''}</small>`:`<small class="num">${w.length?(ty==='normal'?'🚐 ':'')+w.map(winTxt).join('<br>'):ty==='restricted'?'אווירי':''}${xTxt(ds)?'<br>'+xTxt(ds,'<br>'):''}</small>`}</button>`)}
     return `${fixed?`<h3>לוח השנה של המנהלת · ${mName(cm)}</h3>`:`<div class="row" style="justify-content:space-between"><button class="btn small" data-calnav="-1">→ הקודם</button><h3>${mName(cm)}</h3><button class="btn small" data-calnav="1">הבא ←</button></div>`}
     <div class="tablewrap"><div class="cal">${['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'].map(x=>`<div class="cal-h">${x}</div>`).join('')}${cells.join('')}</div></div>
     <div class="row note" style="gap:14px"><span class="row" style="gap:6px"><i class="lg ty-free"></i>יום מוניות</span><span class="row" style="gap:6px"><i class="lg ty-restricted"></i>יום אווירי</span><span class="row" style="gap:6px"><i class="lg wk"></i>שישי–שבת</span><span>אוטומטי: ראשון–חמישי יום אווירי, שישי–שבת יום קרקעי (מסגרת מקווקוות). ${ro?'לחיצה על יום מציגה את הפרטים שלו.':'לחיצה על יום משנה אותו.'}</span></div>
 `}
 function dayInfo(ds){const ty=dayType(ds),w=winsOf(ds);
-  return `<div class="panel" style="background:var(--bg)"><h3>${dayLabel(ds)} · ${ty==='free'?'יום מוניות':ty==='restricted'?'יום אווירי':'יום קרקעי'}</h3>${freeBus(ds)?`<div class="note">🚐 יש גם מיניבוסים ביום הזה: ${busFor(ds).map(b=>`${esc(b.note||'')} <b class="num">${b.from}</b>`).join(' · ')}. כל הזכאים עדיין זכאים למונית.</div>`:''}
+  return `<div class="panel" style="background:var(--bg)"><h3>${dayLabel(ds)} · ${ty==='free'?'יום מוניות':ty==='restricted'?'יום אווירי':'יום קרקעי'}</h3>${xWinsOf(ds).map(w=>`<div class="row" style="gap:8px">${KN[w.kind].i} ${KN[w.kind].n} · <b class="num">${w.from}</b> · ${DIRN[wDir(w)]}<span class="st st-late num">חסום ${wDir(w)==='to'?'להגעה':wDir(w)==='from'?'ליציאה':'להזמנה'} <span dir="ltr">${fromM(toM(w.from)-BUF)}–${fromM(toM(w.from)+BUF)}</span></span></div>`).join('')}
     ${ty==='normal'?`<div class="note">יש מענה במיניבוסים, ולכן מונית רק כשצריך. אי אפשר להזמין מונית שנוסעת 45 דקות לפני ואחרי כל מיניבוס. מונית רק עם נוסע ביזנס. פרימיום ותיירים יכולים להצטרף אליו.</div>${w.map((b,i)=>`<div class="row" style="gap:8px">🚐 מיניבוס ${i+1} · <b class="num">${winTxt(b)}</b>${b.note?' · '+esc(b.note):''}<span class="st st-late num">חסום להזמנה ${fromM(toM(b.from)-BUF)}–${fromM(toM(b.to)+BUF)}</span></div>`).join('')}`:ty==='free'?'<div class="note">כל סוגי הנוסעים זכאים (ביזנס, פרימיום ותיירים).</div>':`<div class="note">יש מענה הגעה חלופי בטיסה. אי אפשר להזמין מונית שנוסעת 45 דקות לפני ואחרי כל טיסה. ביזנס ופרימיום זכאים, ותיירים רק יחד עם אחד מהם.</div>
     ${w.length?w.map((b,i)=>`<div class="row" style="gap:8px">✈ טיסה ${i+1} · <b class="num">${winTxt(b)}</b>${b.note&&b.note!=='טיסה'?' · '+esc(b.note):''}<span class="st st-late num">חסום להזמנה ${fromM(toM(b.from)-BUF)}–${fromM(toM(b.to)+BUF)}</span></div>`).join(''):'<div class="note">אין טיסות ביום הזה.</div>'}`}</div>`}
 function overPanel(mk,rows){const isCur=mk===ymd(new Date()).slice(0,7);
@@ -1452,10 +1466,16 @@ function renderDispatcher(){
     body=calGrid(false)+`
     <div class="panel" style="background:var(--bg)"><h3>${dayLabel(sel)}</h3>
       <div class="row" style="gap:6px">${[['normal','יום קרקעי'],['restricted','יום אווירי'],['free','יום מוניות']].map(([k,l])=>`<button class="btn small${sty===k?' primary':''}" data-daytype="${k}" aria-pressed="${sty===k}">${l}</button>`).join('')}</div>
-      ${sty==='normal'?'<div class="note">יום קרקעי (אוטומטי בשישי–שבת): יש מענה במיניבוסים. מונית רק עם נוסע ביזנס. פרימיום ותיירים יכולים להצטרף אליו.</div>':''}${sty==='free'?`<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px"><label class="row" style="gap:6px;font-weight:600;color:var(--ink)"><input type="checkbox" data-freebus="${sel}" ${freeBus(sel)?'checked':''}> 🚐 יש מיניבוסים ביום הזה</label>${freeBus(sel)?`<span class="note">בשעות של יום קרקעי: ${busFor(sel).map(b=>`${esc(b.note||'')} <b class="num">${b.from}</b>`).join(' · ')}. לא חוסם מוניות. בתכנון החכם יוצע למי שגר ליד תחנה.</span>`:''}</div>`:''}${sty==='free'?'<div class="note">יום מוניות: המגבלות מצומצמות וכל סוגי הנוסעים זכאים (ביזנס, פרימיום ותיירים). 3 שעות מראש, אישור לילה ואישור נוסע בודד עדיין חלים.</div>':''}
-      ${sty!=='free'?`<div class="note">${sty==='normal'?'יום קרקעי: יש מענה במיניבוסים בשעות קבועות. אי אפשר להזמין מונית שנוסעת מ־45 דקות לפני המיניבוס ועד 45 דקות אחריו. מחוץ לשעות האלה מונית רק עם נוסע ביזנס.':'יום אווירי: יש מענה חלופי בטיסה. הזינו את שעות הטיסה. אי אפשר להזמין מונית בכלל מ־45 דקות לפני הטיסה ועד 45 דקות אחריה. מחוץ לשעות האלה זכאים ביזנס ופרימיום, ותיירים רק יחד עם אחד מהם.'}</div>
-        ${sw.length?sw.map((b,i)=>`<div class="row" style="justify-content:space-between;gap:8px"><span class="row" style="gap:6px">${WK(sel).i} ${WK(sel).n} ${i+1} · <input type="time" class="num" id="wfe-${b.id}" data-wedit="${b.id}|from" value="${b.from}" aria-label="שעה ${i+1}">${b.from!==b.to?`–<input type="time" class="num" id="wte-${b.id}" data-wedit="${b.id}|to" value="${b.to}" aria-label="עד שעה, טיסה ${i+1}">`:''}${b.note&&b.note!=='טיסה'?' · '+esc(b.note):''}${b.gen?' <small class="note">(קבוע)</small>':''}</span><span class="row" style="gap:8px"><span class="st st-late num">חסום להזמנה ${fromM(toM(b.from)-BUF)}–${fromM(toM(b.to)+BUF)}</span><button class="btn small danger" data-delblock="${b.id}">הסרה</button></span></div>`).join(''):`<div class="note">לא הוזנו ${WK(sel).ns} ליום הזה. אם יש, הוסיפו אותם כדי לחסום את ההזמנות סביבם.</div>`}
-        <form class="fields" id="add-win"><label>שעת ה${WK(sel).n}<input type="time" id="wf" required></label><label>עד שעה (לא חובה)<input type="time" id="wt"></label><label>הערה<input id="wn" placeholder="למשל טיסת בוקר"></label><button class="btn small primary" style="align-self:end">${sw.length?'הוספת '+WK(sel).n+' נוסף/ת':'הוספת '+WK(sel).n}</button></form>`:''}
+      ${sty==='normal'?'<div class="note">יום קרקעי (אוטומטי בשישי–שבת): יש מענה במיניבוסים. מונית רק עם נוסע ביזנס. פרימיום ותיירים יכולים להצטרף אליו.</div>':''}<div style="display:grid;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px">
+        <b style="font-size:.9rem">תוספות ליום הזה: ${xKinds(sel).map(k=>KN[k].i+' '+(k==='bus'?'מיניבוסים':'טיסות תובלה')).join(' · ')}</b>
+        <div class="note">כלל 45 הדקות חל גם עליהן, בכיוון שלהן: מיניבוס שמגיע לבסיס חוסם מוניות שמגיעות לבסיס סביב השעה שלו, ולא מוניות שיוצאות. הזכאות לפי סוג היום, בלי שינוי.</div>
+        ${xWinsOf(sel).map(w=>`<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><span class="row" style="gap:6px">${KN[w.kind].i} ${KN[w.kind].n} · <input type="time" class="num" data-xwedit="${w.id}" value="${w.from}" aria-label="שעה"> <select data-xwdir="${w.id}" aria-label="כיוון">${['to','from',''].map(k=>`<option value="${k}" ${wDir(w)===k?'selected':''}>${DIRN[k]}</option>`).join('')}</select></span><span class="row" style="gap:8px"><span class="st st-late num">חסום ${wDir(w)==='to'?'להגעה':wDir(w)==='from'?'ליציאה':'להזמנה'} <span dir="ltr">${fromM(toM(w.from)-BUF)}–${fromM(toM(w.from)+BUF)}</span></span><button class="btn small danger" data-xwdel="${w.id}">הסרה</button></span></div>`).join('')}
+        <div class="row" style="gap:6px;flex-wrap:wrap">${xKinds(sel).map(k=>`<button class="btn small" data-xwgen="${k}">+ ${k==='bus'?'מיניבוסים בשעות של יום קרקעי':'טיסות תובלה בשעות של יום אווירי'}</button>`).join('')}</div>
+        <form class="fields" id="add-xw"><label>סוג<select id="xwk">${xKinds(sel).map(k=>`<option value="${k}">${KN[k].i} ${KN[k].n}</option>`).join('')}</select></label><label>שעה<input type="time" id="xwt" required></label><label>כיוון<select id="xwd"><option value="to">הגעה לבסיס</option><option value="from">יציאה מהבסיס</option><option value="">שני הכיוונים</option></select></label><button class="btn small primary" style="align-self:end">הוספה</button></form>
+      </div>${sty==='free'?'<div class="note">יום מוניות: המגבלות מצומצמות וכל סוגי הנוסעים זכאים (ביזנס, פרימיום ותיירים). 3 שעות מראש, אישור לילה ואישור נוסע בודד עדיין חלים.</div>':''}
+      ${sty!=='free'?`<div class="note">${sty==='normal'?'יום קרקעי: יש מענה במיניבוסים בשעות קבועות. אי אפשר להזמין מונית באותו כיוון של המיניבוס, 45 דקות לפני או אחרי השעה שלו (מיניבוס הגעה חוסם הגעה, מיניבוס יציאה חוסם יציאה). מחוץ לזה מונית רק עם נוסע ביזנס.':'יום אווירי: יש מענה חלופי בטיסה. הזינו את שעות הטיסה. אי אפשר להזמין מונית באותו כיוון של הטיסה, 45 דקות לפני או אחרי השעה שלה. מחוץ לשעות האלה זכאים ביזנס ופרימיום, ותיירים רק יחד עם אחד מהם.'}</div>
+        ${sw.length?sw.map((b,i)=>`<div class="row" style="justify-content:space-between;gap:8px"><span class="row" style="gap:6px">${WK(sel).i} ${WK(sel).n} ${i+1} · <input type="time" class="num" id="wfe-${b.id}" data-wedit="${b.id}|from" value="${b.from}" aria-label="שעה ${i+1}">${b.from!==b.to?`–<input type="time" class="num" id="wte-${b.id}" data-wedit="${b.id}|to" value="${b.to}" aria-label="עד שעה, טיסה ${i+1}">`:''}${b.note&&!/^(טיסה|הגעה|יציאה)$/.test(b.note)?' · '+esc(b.note):''} <select data-wdir="${b.id}" aria-label="כיוון">${['to','from',''].map(k=>`<option value="${k}" ${wDir(b)===k?'selected':''}>${DIRN[k]}</option>`).join('')}</select>${b.gen?' <small class="note">(קבוע)</small>':''}</span><span class="row" style="gap:8px"><span class="st st-late num">חסום להזמנה ${fromM(toM(b.from)-BUF)}–${fromM(toM(b.to)+BUF)}</span><button class="btn small danger" data-delblock="${b.id}">הסרה</button></span></div>`).join(''):`<div class="note">לא הוזנו ${WK(sel).ns} ליום הזה. אם יש, הוסיפו אותם כדי לחסום את ההזמנות סביבם.</div>`}
+        <form class="fields" id="add-win"><label>שעת ה${WK(sel).n}<input type="time" id="wf" required></label><label>עד שעה (לא חובה)<input type="time" id="wt"></label><label>כיוון<select id="wd"><option value="to">הגעה לבסיס</option><option value="from">יציאה מהבסיס</option><option value="">שני הכיוונים</option></select></label><label>הערה<input id="wn" placeholder="למשל טיסת בוקר"></label><button class="btn small primary" style="align-self:end">${sw.length?'הוספת '+WK(sel).n+' נוסף/ת':'הוספת '+WK(sel).n}</button></form>`:''}
       <details class="more"><summary>שעות קבועות: טיסות בכל יום אווירי ומיניבוסים בכל יום קרקעי</summary>
         <div class="note">אלה השעות שנחסמות אוטומטית: טיסות בימים אוויריים ומיניבוסים בימים קרקעיים. שינוי ביום מסוים (הוספה או הסרה) משפיע רק על אותו יום.</div>
         <div class="note">שעון ${isWinter(sel)?'חורף':'קיץ'} ביום שנבחר. המעבר בין השעות אוטומטי לפי שעון ישראל.</div>
@@ -1555,7 +1575,7 @@ const G={
    sections:[
    {h:'כניסה וסיסמאות',go:PROD?'adm-users':'adm',steps:PROD?['במסך הכניסה לוחצים "כניסת המנהלת (במייל)" ונכנסים עם המייל והסיסמה שלך. רק לך יש כניסה במייל.','בלשונית "סיסמאות" קובעים סיסמה לכל תפקיד: כל אחד מהמבצעים, כל בוס גדול, נסיכות, סדרן ומנכ״ל (לפחות 6 תווים).','כדי לחסום מישהו, מחליפים לו את הסיסמה.']:['לוחצים למעלה על "המנהלת" ומקלידים את הסיסמה.']},
    {h:'🔔 התראות למכשיר',steps:['בסרגל העליון לוחצים על הפעמון 🔕 ומאשרים בחלון שקופץ. כשההתראות פעילות הוא מתחלף ל־🔔.','מעכשיו כל דבר שמחכה לפעולה שלכם מקפיץ התראה בטלפון או במחשב, גם כשהאפליקציה ברקע.','האפליקציה צריכה להישאר פתוחה (אפשר ברקע). באייפון: קודם מוסיפים את האתר למסך הבית ופותחים משם.']},
-   {h:'לוח שנה וסוגי ימים',go:'adm-calendar',steps:['ראשון–חמישי מסומנים אוטומטית כיום אווירי, שישי–שבת כיום קרקעי. לוחצים על יום כדי לשנות, למשל ליום מוניות.','יום אווירי: הטיסות הקבועות (הגעה 08:25, יציאה 18:00, ובשעון חורף 17:30) ממולאות לבד. אפשר לשנות כל שעה.','יום קרקעי: המיניבוס הקבוע (09:00) ממולא לבד.','45 דקות לפני ואחרי כל טיסה או מיניבוס אי אפשר להזמין מונית.','את השעות הקבועות משנים ב"שעות קבועות". שינוי ביום מסוים משפיע רק עליו.','ביום מוניות אפשר לסמן "🚐 יש מיניבוסים ביום הזה". המיניבוסים יוצאים בשעות של יום קרקעי, לא חוסמים מוניות ולא משנים זכאות. בתכנון החכם המערכת תציע לגרים ליד תחנה בתל אביב (או ליד בסיס חצור) לעלות עליהם במקום מונית.']},
+   {h:'לוח שנה וסוגי ימים',go:'adm-calendar',steps:['ראשון–חמישי מסומנים אוטומטית כיום אווירי, שישי–שבת כיום קרקעי. לוחצים על יום כדי לשנות, למשל ליום מוניות.','יום אווירי: הטיסות הקבועות (הגעה 08:25, יציאה 18:00, ובשעון חורף 17:30) ממולאות לבד. אפשר לשנות כל שעה.','יום קרקעי: המיניבוס הקבוע (09:00) ממולא לבד.','45 דקות לפני ואחרי כל טיסה או מיניבוס אי אפשר להזמין מונית.','את השעות הקבועות משנים ב"שעות קבועות". שינוי ביום מסוים משפיע רק עליו.','בכל יום אפשר להוסיף תוספות: "🚐 גם מיניבוסים" (בשעות של יום קרקעי) ו"✈ גם טיסות תובלה" (בשעות של יום אווירי). התוספות לא חוסמות מוניות ולא משנות זכאות: כללי היום נשארים לפי סוג היום. בתכנון החכם המערכת תציע לגרים ליד תחנה בתל אביב (או ליד בסיס חצור) לעלות עליהם במקום מונית.']},
    {h:'ממתין להחרגה',go:'adm-approvals',steps:['כל הנסיעות שמחכות לבוס גדול (נוסע בודד) או למנכ״ל (נסיעת לילה), מחולקות לשתי רשימות.','זה למעקב. הבוס הגדול מאשר אצלו, ונסיעות לילה מאשרים בלשונית "★ מנכ״ל".']},
    {h:'אישור נוסעים',go:'adm-paxreq',steps:['כאן מופיעות בקשות של המבצעים להוסיף נוסע או לערוך נוסע. בעריכה רואים בדיוק מה משתנה.','"אישור": הנוסע נכנס למאגר כמו שהוא.','"עריכה ואישור": מתקנים שם, סוג, טלפון או עיר ולוחצים "שמירה ואישור".','"לא לאשר": הבקשה נדחית והמבצעים רואים זאת.','הסרת נוסע לא צריכה אישור.']},
    {h:'סלים',go:'adm-quotas',steps:[PROD?'לכל אחד מהמבצעים קובעים שם, לוגו, צבע וסל חודשי.':'לכל אחד מהמבצעים קובעים שם, לוגו, צבע, סיסמה, טלפון בוס גדול וסל חודשי.','רואים כמה כל אחד ניצל. מעל 90% מופיעה התראה.','בעמודה "המבצעים רואים את הסל" אפשר להסתיר את הסל ממבצעים מסוימים (כרגע מגדל ויבא). הם לא יראו כמה מוניות יש להם ומה נשאר, ויתכננו ויזמינו כרגיל.']},
@@ -1930,6 +1950,8 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.planm){ui.planMonth=t.dataset.planm;render();return}
   if(t.dataset.day){ui.calSel=t.dataset.day;render();return}
   if(t.dataset.calnav){const[y,m]=(ui.calMonth||ymd(new Date()).slice(0,7)).split('-').map(Number);const n=new Date(y,m-1+(+t.dataset.calnav),1);ui.calMonth=ymd(n).slice(0,7);render();return}
+  if(t.dataset.xwdel){const ds=ui.calSel||ymd(new Date()),L=xOwn(ds);S.xWins[ds]=L.filter(x=>x.id!==t.dataset.xwdel);save();toast('הוסר');render();return}
+  if(t.dataset.xwgen){const ds=ui.calSel||ymd(new Date()),L=xOwn(ds),k=t.dataset.xwgen;(k==='bus'?busFor(ds):flFor(ds)).forEach((g,i)=>{if(!L.some(x=>x.kind===k&&x.from===g.from))L.push({id:'x'+Date.now()+'_'+i,kind:k,from:g.from,to:g.from,dir:wDir(g),dirSet:1})});save();toast(k==='bus'?'נוספו מיניבוסים':'נוספו טיסות תובלה');render();return}
   if(t.dataset.daytype){const ds=ui.calSel||ymd(new Date()),k=t.dataset.daytype;S.freeDays=S.freeDays.filter(x=>x!==ds);S.restricted=(S.restricted||[]).filter(x=>x!==ds);(S.dayOverride??={})[ds]=k;if(k!=='free'){S.ownWins=(S.ownWins||[]).filter(x=>x!==ds);S.blocked=S.blocked.filter(b=>b.date!==ds);ownWins(ds);if(!S.blocked.some(b=>b.date===ds))genFor(ds).forEach((g,i)=>S.blocked.push({...g,id:'b'+Date.now()+'_'+i,date:ds}))}
     if(k==='free')S.freeDays.push(ds);if(k==='restricted')S.restricted.push(ds);save();toast(k==='restricted'?'סומן כיום אווירי. שעות הטיסות הקבועות נוספו':k==='free'?'סומן כיום מוניות':'סומן כיום קרקעי. שעות המיניבוסים הקבועות נוספו');render();return}
   if(t.dataset.deldest){S.destinations.splice(+t.dataset.deldest,1);save();render();return}
@@ -1973,8 +1995,9 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
   if(f.id==='add-dest'){const v=document.getElementById('nd').value.trim();if(v&&!S.destinations.includes(v)){S.destinations.push(v);if(document.getElementById('nr').value==='north')S.north.push(v)}save();render();return}
   if(f.id==='add-free'){const v=document.getElementById('nf').value;if(v&&!S.freeDays.includes(v))S.freeDays.push(v);save();render();return}
   if(f.id==='gen-f'||f.id==='gen-b'){const kk=f.id.slice(4);(kk==='b'?S.genBus:S.genFlights).forEach((g,i)=>{const v=document.getElementById(kk+'f-'+i).value,w=document.getElementById(kk+'w-'+i).value;if(v){g.from=v;g.to=v}if(w)g.winter=w});save();toast('השעות הקבועות עודכנו');render();return}
+  if(f.id==='add-xw'){const ds=ui.calSel||ymd(new Date()),v=document.getElementById('xwt').value;if(!v)return;xOwn(ds).push({id:'x'+Date.now(),kind:document.getElementById('xwk').value,from:v,to:v,dir:document.getElementById('xwd').value,dirSet:1});save();toast('נוסף');render();return}
   if(f.id==='add-win'){const g0=id=>document.getElementById(id).value;if(!g0('wf'))return;const g=id=>id==='wt'?(g0('wt')||g0('wf')):g0(id);if(g('wf')>g('wt')){toast('שעת הסיום חייבת להיות אחרי שעת הטיסה');return}
-    ownWins(ui.calSel||ymd(new Date()));S.blocked.push({id:'b'+Date.now(),date:ui.calSel||ymd(new Date()),from:g('wf'),to:g('wt'),note:g('wn').trim()});save();toast('השעות נוספו');render();return}
+    ownWins(ui.calSel||ymd(new Date()));S.blocked.push({id:'b'+Date.now(),date:ui.calSel||ymd(new Date()),from:g('wf'),to:g('wt'),note:g('wn').trim(),dir:document.getElementById('wd').value,dirSet:1});save();toast('השעות נוספו');render();return}
   if(f.id==='add-block'){const g=id=>document.getElementById(id).value;if(g('bf')>=g('bt')){toast('שעת הסיום חייבת להיות אחרי שעת ההתחלה');return}
     S.blocked.push({id:'b'+Date.now(),date:g('bd'),from:g('bf'),to:g('bt'),note:g('bn').trim()||'הסעה חלופית'});save();render();return}
 });
@@ -1992,7 +2015,11 @@ document.addEventListener('keydown',e=>{const t=e.target;if(e.key!=='Enter'||e.i
 document.addEventListener('focusout',e=>{const t=e.target;if(!t||!PICK.includes(t.type)||!t._dirty)return;t._dirty=false;t._commit=true;
   try{t.dispatchEvent(new Event('input',{bubbles:true}));t.dispatchEvent(new Event('change',{bubbles:true}))}finally{t._commit=false}});
 document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
-  if(t.dataset.freebus){const ds=t.dataset.freebus;S.freeBus??={};if(t.checked)S.freeBus[ds]=1;else delete S.freeBus[ds];save();toast(t.checked?'נוספו מיניבוסים ליום המוניות':'המיניבוסים הוסרו מהיום');render();return}
+  if(t.tagName==='SELECT'&&t.dataset.xwdir!==undefined||t.dataset.xwedit){const ds=ui.calSel||ymd(new Date()),L=xOwn(ds),w=L.find(x=>x.id===(t.dataset.xwedit||t.dataset.xwdir));if(!w)return;
+    if(t.dataset.xwedit){if(!t.value)return;w.from=w.to=t.value}else{w.dir=t.value;w.dirSet=1}save();toast('עודכן');render();return}
+  if(t.tagName==='SELECT'&&t.dataset.wdir){const id=t.dataset.wdir,ds=ui.calSel||ymd(new Date());let b;
+    if(/^g\d$/.test(id)){const gf=genFor(ds)[+id.slice(1)];ownWins(ds);b=S.blocked.find(x=>x.date===ds&&x.from===gf.from&&x.to===gf.to)}else b=S.blocked.find(x=>x.id===id);
+    if(!b)return;b.dir=t.value;b.dirSet=1;save();toast('הכיוון עודכן');render();return}
   if(t.id==='au-r'){const p=document.getElementById('au-p'),tr=t.value==='train';if(p){p.required=!tr;p.closest('label').hidden=tr}AUTH.forgotSent=false;paintForgot();return}
   if(t.dataset.pcity&&ui.draft&&document.getElementById('routebox')){renderRoute();renderCheck();return}
   if(ui.smart&&ui.sub==='smart'&&ui.page==='client'){const sm=ui.smart;
