@@ -1659,8 +1659,14 @@ const saveStay=()=>{const c=document.getElementById('au-stay');if(c){try{localSt
 /* remember the last page/tab used on this device, to reopen there */
 const LASTPG='ramoniyot-lastpage',savePage=()=>{if(!PROD||AUTH.state!=='in'||!ui.role)return;try{localStorage.setItem(LASTPG,JSON.stringify({role:ui.role,email:AUTH.user?.email,page:ui.page,tab:ui.tab,sub:ui.sub}))}catch(_){}};
 async function prodBoot(){
-  if(!window.supabase||!SB_URL.startsWith('http')){AUTH.state='error';AUTH.msg='לא ניתן להתחבר למאגר. בדקו את החיבור לאינטרנט ונסו שוב.';render();return}
-  AUTH.sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  if(!window.supabase||!SB_URL.startsWith('http')){AUTH.state='error';AUTH.msg='לא ניתן להתחבר למאגר. בדקו את החיבור לאינטרנט ונסו שוב. אם זה מחשב עבודה, ייתכן שהרשת חוסמת את האתר.';render();return}
+  /* the server's clock vs this computer's: a clock that is far off makes every login look invalid */
+  if(typeof fetch==='function')fetch(SB_URL+'/auth/v1/health',{headers:{apikey:SB_KEY}}).then(r=>{const d=Date.parse(r.headers.get('date')||'');if(d&&Math.abs(d-Date.now())>5*6e4){AUTH.clockOff=Math.round((Date.now()-d)/6e4);if(AUTH.state!=='in')renderAuth()}})
+    .catch(()=>{AUTH.netBad=true;if(AUTH.state!=='in')renderAuth()});
+  let canStore=true;try{localStorage.setItem('__t','1');localStorage.removeItem('__t')}catch(_){canStore=false}
+  /* a browser that blocks site storage (strict privacy settings) still gets a session for this tab */
+  const memStore=(()=>{const m={};return {getItem:k=>k in m?m[k]:null,setItem:(k,v)=>{m[k]=String(v)},removeItem:k=>{delete m[k]}}})();
+  AUTH.sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,...(canStore?{}:{storage:memStore})}});
   if(/type=(invite|recovery)/.test(location.hash))AUTH.mode='newpw'; /* link from an invitation or password-reset email: choose a password */
   AUTH.sb.auth.onAuthStateChange((ev,ses)=>{if(ev==='PASSWORD_RECOVERY'){AUTH.state='login';AUTH.mode='newpw';render()}});
   let {data}=await AUTH.sb.auth.getSession();
@@ -1702,13 +1708,13 @@ let LOGINOPTS=null;
 function renderAuth(){
   const box=inner=>`<div class="auth"><aside class="auth-hero"><img src="icons/icon-512.png" alt=""><div><h1>רמוניות</h1><p>הזמנת מוניות לנוסעים, אישורים ומעקב, במקום אחד.</p></div>
     <ul><li>מזמינים מונית בכמה לחיצות</li><li>רואים בזמן אמת מה אושר ומי הנהג</li><li>פרטי הנסיעה נשלחים לנוסעים בהודעה</li></ul></aside>
-    <section class="auth-form"><h2>כניסה</h2>${inner}</section></div>`;
+    <section class="auth-form"><h2>כניסה</h2>${AUTH.clockOff?`<div class="over" role="alert">⏰ השעון של המחשב הזה ${AUTH.clockOff>0?'מקדים':'מאחר'} בכ־${Math.abs(AUTH.clockOff)} דקות. הכניסה לא תעבוד עד שמכוונים את התאריך והשעה במחשב (הגדרות ← שעה ותאריך ← כיוון אוטומטי).</div>`:''}${AUTH.netBad?'<div class="over" role="alert">📡 המחשב הזה לא מצליח להגיע לשרת של האפליקציה. אם זה מחשב עבודה, ייתכן שהרשת חוסמת את הכתובת supabase.co. נסו מרשת אחרת או בקשו מהמחשוב לאשר אותה.</div>':''}${inner}</section></div>`;
   if(AUTH.state==='loading'){app.innerHTML=box('<div class="note">טוען…</div>');return}
   if(AUTH.state==='error'){app.innerHTML=box(`<div class="note" style="color:var(--bad)">${esc(AUTH.msg)}</div><button class="btn" onclick="location.reload()">לנסות שוב</button>`);return}
   if(AUTH.state==='nomember'){app.innerHTML=box(`<div class="note">למשתמש הזה עוד אין הרשאה לאפליקציה. פנו למנהלת.</div><button class="btn" id="authout">יציאה</button>`);return}
   const m=AUTH.mode,msg=`<div class="note" id="au-msg" style="color:var(--bad)">${esc(AUTH.msg||'')}</div>`;
   if(m==='role'||m==='login'&&!AUTH.adminMode){
-    if(!LOGINOPTS){AUTH.sb.rpc('login_options').then(({data})=>{LOGINOPTS=data||[];renderAuth()});app.innerHTML=box('<div class="note">טוען…</div>');return}
+    if(!LOGINOPTS){AUTH.sb.rpc('login_options').then(({data,error})=>{LOGINOPTS=Array.isArray(data)?data:[];if(error&&!LOGINOPTS.length){AUTH.netBad=true;setTimeout(()=>{if(AUTH.state!=='in'){LOGINOPTS=null;renderAuth()}},8000)}renderAuth()},()=>{LOGINOPTS=[];AUTH.netBad=true;renderAuth()});app.innerHTML=box('<div class="note">טוען…</div>');return}
     const all=[...LOGINOPTS.map(o=>`<option value="ops-${esc(o.id)}">מבצעים · ${esc(o.name)}</option>`),...LOGINOPTS.map(o=>`<option value="boss-${esc(o.id)}">בוס גדול · ${esc(o.name)}</option>`),
       '<option value="princess">★ נסיכות</option>','<option value="disp">סדרן</option>','<option value="ceo">מנכ״ל</option>','<option value="train">🎯 קשה באימונים קל בקרב (אימון, בלי סיסמה)</option>'];
     const lv=AUTH.tryRole||lastGet(),li=all.findIndex(o=>o.startsWith(`<option value="${lv}"`));if(li>0)all.unshift(all.splice(li,1)[0]);
@@ -1734,12 +1740,19 @@ function paintForgot(){const b=document.getElementById('forgotbox');if(!b||!AUTH
   `${pwHint(k)?`<div style="font-weight:700">💡 ${pwHint(k)}</div>`:''}<div class="note">לא מצליחים? שלחו בקשה למנהלת, והיא תזכיר לכם את הסיסמה של "${esc(lbl)}".</div>
    <label>השם שלך וטלפון (כדי שהמנהלת תדע למי לחזור)<input id="fg-name" maxlength="60" placeholder="למשל: דנה, 050-1234567"></label>
    <button type="button" class="btn small primary" id="fgsend" style="justify-self:start">שליחת בקשה למנהלת</button>`}
+/* tell a wrong password apart from a computer that can't reach the server (blocked network) or has a wrong clock */
+function loginWhy(error,wrong){const st=error&&error.status,m=String(error&&error.message||'');
+  if(st===400&&/invalid login credentials|invalid_credentials/i.test(m))return wrong;
+  if(/fetch|network|load failed|timed? ?out|abort/i.test(m)||!st)return 'אין חיבור לשרת של האפליקציה מהמחשב הזה. אם זה מחשב עבודה, ייתכן שהרשת חוסמת את הכתובת supabase.co. נסו מרשת אחרת (למשל מהטלפון) או בקשו מהמחשוב לאשר את supabase.co.';
+  if(/clock|future|issued|jwt/i.test(m))return 'השעון של המחשב לא מכוון. כוונו את התאריך והשעה במחשב ונסו שוב.';
+  if(st===429)return 'יותר מדי ניסיונות. חכו דקה ונסו שוב.';
+  return wrong+' ('+m.slice(0,80)+')'}
 async function authSubmit(){const g=id=>(document.getElementById(id)?.value||'').trim(),m=AUTH.mode,sb=AUTH.sb;AUTH.msg='';
   const fail=t=>{AUTH.msg=t;renderAuth();setTimeout(()=>{const p=document.getElementById('au-p');if(p){p.value='';p.focus()}})};if(document.getElementById('au-e'))AUTH.tryEmail=g('au-e');
   if((m==='role'||m==='login')&&g('au-r')==='train'){location.href='train.html';return}
-  if(m==='role'||m==='login'){AUTH.tryRole=g('au-r');const {data,error}=await sb.auth.signInWithPassword({email:RMAIL(g('au-r')),password:document.getElementById('au-p').value});if(error)return fail('הסיסמה לא נכונה');lastSet(g('au-r'));saveStay();return loadMember(data.user)}
+  if(m==='role'||m==='login'){AUTH.tryRole=g('au-r');const {data,error}=await sb.auth.signInWithPassword({email:RMAIL(g('au-r')),password:document.getElementById('au-p').value});if(error)return fail(loginWhy(error,'הסיסמה לא נכונה'));lastSet(g('au-r'));saveStay();return loadMember(data.user)}
   if((m==='signup'||m==='newpw')&&g('au-p')!==g('au-p2'))return fail('הסיסמאות לא זהות');
-  if(m==='admin'){const {data,error}=await sb.auth.signInWithPassword({email:g('au-e'),password:g('au-p')});if(error)return fail('המייל או הסיסמה לא נכונים');lastSet('admin:'+g('au-e'));saveStay();return loadMember(data.user)}
+  if(m==='admin'){const {data,error}=await sb.auth.signInWithPassword({email:g('au-e'),password:g('au-p')});if(error)return fail(loginWhy(error,'המייל או הסיסמה לא נכונים'));lastSet('admin:'+g('au-e'));saveStay();return loadMember(data.user)}
   if(m==='signup'){const {data,error}=await sb.auth.signUp({email:g('au-e'),password:g('au-p')});if(error)return fail(/registered/i.test(error.message)?'למייל הזה כבר יש סיסמה. היכנסו או לחצו "שכחתי סיסמה"':'לא הצלחנו ליצור סיסמה: '+error.message);
     if(data.session)return loadMember(data.user);AUTH.mode='admin';return fail('נשלח אליכם מייל אישור. אשרו אותו ואז היכנסו')}
   if(m==='reset'){const {error}=await sb.auth.resetPasswordForEmail(g('au-e'),{redirectTo:location.origin+location.pathname});AUTH.mode='admin';return fail(error?'לא הצלחנו לשלוח: '+error.message:'אם המייל קיים, נשלח אליו קישור לאיפוס הסיסמה')}
@@ -1990,7 +2003,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
 });
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
   if(f.id==='ceogate'||f.id==='ceogate2'){const v=document.getElementById(f.id==='ceogate'?'ceopw':'ceopw2').value;if(TRAIN||v==='9999'){ui.ceoAuthed=true;if(f.id==='ceogate')ui.ceoOnly=true;render()}else{const e=document.getElementById(f.id==='ceogate'?'ceoerr':'ceoerr2');if(e)e.hidden=false}return}
-  if(f.id==='authf'){authSubmit();return}
+  if(f.id==='authf'){authSubmit().catch(e=>{AUTH.msg='הכניסה נכשלה: '+(e&&e.message||e);renderAuth()});return}
   if(f.id==='admgate'){if(TRAIN||document.getElementById('admpw').value===(S.adminPw||'2468')){setRole('admin');ui.admAuthed=true;ui.authed=true;ui.tab='calendar';try{sessionStorage.setItem('taxi-adm','1')}catch(_){}render()}else document.getElementById('admerr').hidden=false;return}
   if(f.id==='gate'){if(TRAIN||document.getElementById('pw').value==='1234'){setRole('disp');ui.authed=true;try{sessionStorage.setItem('taxi-disp','1')}catch(_){}render()}else document.getElementById('pwerr').hidden=false;return}
   if(f.id==='edit-pax'){const e=emp(f.dataset.emp),sn0=shortName(document.getElementById('ex-n').value,{skipEmp:e.id});if(sn0.err){toast(sn0.err);return}const nm=sn0.name,ty=document.getElementById('ex-t').value,ph=document.getElementById('ex-p').value.replace(/\D/g,'');

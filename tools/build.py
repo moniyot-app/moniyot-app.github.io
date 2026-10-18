@@ -1,4 +1,17 @@
-import json,os,re
+import json,os,re,subprocess,shutil
+# Older browsers (old Safari / Chrome on some work computers) can't run the newest syntax (??=, ?.), so every inline
+# script is lowered to ES2017 with esbuild. Set ESBUILD to the binary; without it the build still works, untranspiled.
+ESB=os.environ.get('ESBUILD') or shutil.which('esbuild')
+def lower(html):
+    if not ESB:
+        print('! esbuild not found: scripts not transpiled'); return html
+    def fix(m):
+        r=subprocess.run([ESB,'--loader=js','--target=es2017','--minify-whitespace','--minify-syntax','--charset=utf8','--log-level=error'],input=m.group(2),capture_output=True,text=True)
+        if r.returncode: raise SystemExit('esbuild failed: '+r.stderr)
+        return m.group(1)+r.stdout+m.group(3)
+    return re.sub(r'(<script>)(.*?)(</script>)',fix,html,flags=re.S)
+# supabase is served from this site (some networks block the CDN); the CDN is only a fallback
+SBJS='<script src="vendor/supabase-2.45.4.js"></script>\n<script>window.supabase||document.write(\'<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"><\\/script>\')</script>\n'
 cfg=json.load(open('tools/prod_config.json')) if os.path.exists('tools/prod_config.json') else {"url":"__SB_URL__","key":"__SB_KEY__"}
 s=open('src/app.html').read()
 SRC=s
@@ -18,12 +31,12 @@ for o,n in json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)
     rep(o,n)
 # drop artifact-only meta, wrap as full document
 s=s.replace('<meta name="claude:viewport-fit-sides" content="cover">\n','')
-head='<!doctype html>\n<html lang="he" dir="rtl">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">\n<link rel="apple-touch-icon" href="icons/icon-180.png">\n<link rel="manifest" href="manifest.webmanifest">\n<meta name="apple-mobile-web-app-title" content="רמוניות">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="mobile-web-app-capable" content="yes">\n<meta name="theme-color" content="#1f2a44">\n<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>\n</head>\n<body>\n'
+head='<!doctype html>\n<html lang="he" dir="rtl">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">\n<link rel="apple-touch-icon" href="icons/icon-180.png">\n<link rel="manifest" href="manifest.webmanifest">\n<meta name="apple-mobile-web-app-title" content="רמוניות">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="mobile-web-app-capable" content="yes">\n<meta name="theme-color" content="#1f2a44">\n'+SBJS+'</head>\n<body>\n'
 s=head+s+'\n</body>\n</html>\n'
 
-open('index.html','w').write(s)
+open('index.html','w').write(lower(s))
 c=open('src/c.html').read().replace('__SB_URL__',cfg['url']).replace('__SB_KEY__',cfg['key'])
-open('c.html','w').write(c)
+open('c.html','w').write(lower(c))
 print('ok',len(s))
 
 # training sandbox: the prototype build (fictional seed, local storage only) with no passwords
@@ -37,6 +50,6 @@ for o,n in [("const TRAIN=false;","const TRAIN=true;"),("const KEY='taxi-quota-p
             ("pax:[prem(7)[0].id,prem(7)[1].id]","pax:[prem(6)[0].id,prem(6)[1].id]")]:
     assert t.count(o)==1,o[:50]; t=t.replace(o,n)
 t=t.replace('<meta name="claude:viewport-fit-sides" content="cover">\n','')
-thead=head.replace('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>\n','').replace('<link rel="manifest" href="manifest.webmanifest">\n','')
-open('train.html','w').write(thead+t+'\n</body>\n</html>\n')
+thead=head.replace(SBJS,'').replace('<link rel="manifest" href="manifest.webmanifest">\n','')
+open('train.html','w').write(lower(thead+t+'\n</body>\n</html>\n'))
 print('train ok',len(t))

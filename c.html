@@ -22,25 +22,10 @@ a.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(
 </head>
 <body>
 <main class="card" id="c"><img src="icons/icon-180.png" alt=""><div class="muted">טוען…</div></main>
-<script>
-const SB_URL="https://uvjcsfvrcxjxdcbnkvyo.supabase.co",SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2amNzZnZyY3hqeGRjYm5rdnlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwOTYxNDcsImV4cCI6MjEwNzY3MjE0N30.8ognhoogQ7V4byOwMvARHbgqPjnv65JhFLfE_aCSHV8";
-const box=document.getElementById('c'),k=location.search.slice(1).replace(/[^A-Za-z0-9]/g,'');
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const fail=m=>{box.innerHTML='<img src="icons/icon-180.png" alt=""><h1>רמוניות</h1><div class="muted">'+m+'</div>'};
-const utc=ms=>new Date(ms).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
-if(!k)fail('הקישור לא תקין.');
-else fetch(SB_URL+'/rest/v1/rpc/get_link',{method:'POST',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({k})})
-.then(r=>r.ok?r.json():null).then(c=>{
-  if(!c||!c.t){fail('הנסיעה לא נמצאה. ייתכן שהקישור ישן.');return}
-  const d=new Date(c.t),day=d.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long',timeZone:'Asia/Jerusalem'}),
-        tm=d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Jerusalem'});
-  const g='https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(c.title)+'&dates='+utc(c.t)+'/'+utc(c.e)+'&details='+encodeURIComponent(c.det||'')+'&location='+encodeURIComponent(c.loc||'')+'&ctz=Asia/Jerusalem';
-  const f=x=>String(x||'').replace(/\\/g,'\\\\').replace(/[,;]/g,m=>'\\'+m).replace(/\n/g,'\\n');
-  const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//ramoniyot//he','BEGIN:VEVENT','UID:'+k+'@ramoniyot','DTSTAMP:'+utc(Date.now()),'DTSTART:'+utc(c.t),'DTEND:'+utc(c.e),'SUMMARY:'+f(c.title),'DESCRIPTION:'+f(c.det),'LOCATION:'+f(c.loc),'BEGIN:VALARM','TRIGGER:-PT30M','ACTION:DISPLAY','DESCRIPTION:'+f(c.title),'END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n');
-  box.innerHTML=`<img src="icons/icon-180.png" alt=""><h1>${esc(c.title)}</h1><div class="when">${esc(day)} · ${esc(tm)}</div>${c.loc?`<div class="muted">📍 ${esc(c.loc)}</div>`:''}${c.det?`<div class="muted">${esc(c.det)}</div>`:''}
+<script>const SB_URL="https://uvjcsfvrcxjxdcbnkvyo.supabase.co",SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2amNzZnZyY3hqeGRjYm5rdnlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwOTYxNDcsImV4cCI6MjEwNzY3MjE0N30.8ognhoogQ7V4byOwMvARHbgqPjnv65JhFLfE_aCSHV8",box=document.getElementById("c"),k=location.search.slice(1).replace(/[^A-Za-z0-9]/g,""),esc=s=>String(s!=null?s:"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]),fail=m=>{box.innerHTML='<img src="icons/icon-180.png" alt=""><h1>רמוניות</h1><div class="muted">'+m+"</div>"},utc=ms=>new Date(ms).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");k?fetch(SB_URL+"/rest/v1/rpc/get_link",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({k})}).then(r=>r.ok?r.json():null).then(c=>{if(!c||!c.t){fail("הנסיעה לא נמצאה. ייתכן שהקישור ישן.");return}const d=new Date(c.t),day=d.toLocaleDateString("he-IL",{weekday:"long",day:"numeric",month:"long",timeZone:"Asia/Jerusalem"}),tm=d.toLocaleTimeString("he-IL",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Jerusalem"}),g="https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(c.title)+"&dates="+utc(c.t)+"/"+utc(c.e)+"&details="+encodeURIComponent(c.det||"")+"&location="+encodeURIComponent(c.loc||"")+"&ctz=Asia/Jerusalem",f=x=>String(x||"").replace(/\\/g,"\\\\").replace(/[,;]/g,m=>"\\"+m).replace(/\n/g,"\\n"),ics=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//ramoniyot//he","BEGIN:VEVENT","UID:"+k+"@ramoniyot","DTSTAMP:"+utc(Date.now()),"DTSTART:"+utc(c.t),"DTEND:"+utc(c.e),"SUMMARY:"+f(c.title),"DESCRIPTION:"+f(c.det),"LOCATION:"+f(c.loc),"BEGIN:VALARM","TRIGGER:-PT30M","ACTION:DISPLAY","DESCRIPTION:"+f(c.title),"END:VALARM","END:VEVENT","END:VCALENDAR"].join(`\r
+`);box.innerHTML=`<img src="icons/icon-180.png" alt=""><h1>${esc(c.title)}</h1><div class="when">${esc(day)} · ${esc(tm)}</div>${c.loc?`<div class="muted">📍 ${esc(c.loc)}</div>`:""}${c.det?`<div class="muted">${esc(c.det)}</div>`:""}
     <a class="btn primary" href="${g}" target="_blank" rel="noopener">הוספה ליומן Google</a>
-    <a class="btn" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}" download="monit.ics">הוספה ליומן אייפון / Outlook</a>`;
-}).catch(()=>fail('אין חיבור לאינטרנט. נסו שוב.'));
+    <a class="btn" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}" download="monit.ics">הוספה ליומן אייפון / Outlook</a>`}).catch(()=>fail("אין חיבור לאינטרנט. נסו שוב.")):fail("הקישור לא תקין.");
 </script>
 </body>
 </html>
