@@ -206,6 +206,7 @@ details.gsec[open]{background:var(--surface)}
 .reason{margin-top:6px;background:var(--boss);border:1px solid var(--boss-line);border-radius:6px;padding:6px 10px;font-size:.88rem;color:var(--ink)}
 .logos{display:inline-flex;gap:2px}.logos .ologo{margin:0}
 .r2{line-height:1.45}
+.outmenu{position:fixed;z-index:60;top:64px;inset-inline-end:16px;display:grid;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);max-width:calc(100vw - 32px)}
 .ride>div{min-width:0}.ride>div[style*=grid]{grid-template-columns:minmax(0,1fr)}.ride .paddr{min-width:0;flex-wrap:nowrap}.ride .paddr input{min-width:0;flex:1 1 0;width:auto}.ride .r2{overflow-wrap:anywhere}
 details.more>summary{cursor:pointer;font-size:.82rem;color:var(--muted);width:max-content}
 details.more[open]>summary{color:var(--ink)}
@@ -594,6 +595,19 @@ ui.entry=HASHR[location.hash]||null;
 if(ui.entry)ui.page={ops:'client',disp:'dispatcher',admin:'admin'}[ui.entry];
 if(!MGR()){ui.admAuthed=false}if(!ui.role){ui.authed=false;ui.cAuth=null}
 const setRole=r=>{if(MGR())return;ui.role=r;try{sessionStorage.setItem('taxi-role',r)}catch(_){}};
+/* sign out that always works: even when the network is down or the server refuses, the session is removed from this device.
+   "every device" also revokes the sessions on other phones and computers (they drop out within the hour at most) */
+function outMenu(){document.getElementById('outmenu')?.remove();const m=document.createElement('div');m.id='outmenu';m.className='outmenu';m.setAttribute('role','dialog');
+  m.innerHTML='<b>יציאה</b><button class="btn small primary" id="out-here">יציאה מהמכשיר הזה</button><button class="btn small" id="out-all">יציאה מכל המכשירים שבהם אני מחובר/ת</button><button class="btn small" id="out-x">ביטול</button>';document.body.appendChild(m);document.getElementById('out-here').focus()}
+async function prodLogout(all){const T=(p,ms)=>Promise.race([Promise.resolve(p).catch(()=>{}),new Promise(r=>setTimeout(r,ms))]);
+  const m=document.getElementById('outmenu');if(m)m.innerHTML='<b>מתנתקים…</b>';
+  await T(pushDrop(),3000);
+  let err=null;if(AUTH.sb){const r=await T(AUTH.sb.auth.signOut({scope:all?'global':'local'}),5000);err=r&&r.error;await T(AUTH.sb.auth.signOut({scope:'local'}),2000)}
+  try{Object.keys(localStorage).filter(k=>/^sb-|supabase\.auth/.test(k)).forEach(k=>localStorage.removeItem(k));localStorage.removeItem(KEY);localStorage.removeItem(LASTPG)}catch(_){}
+  try{sessionStorage.clear()}catch(_){}
+  if(all&&err){try{localStorage.setItem('ramoniyot-outmsg','לא הצלחנו להגיע לשרת כדי לנתק את המכשירים האחרים. המכשיר הזה נותק. נסו שוב "יציאה מכל המכשירים" כשיש חיבור.')}catch(_){}}
+  else if(all){try{localStorage.setItem('ramoniyot-outmsg','נותקת מכל המכשירים.')}catch(_){}}
+  location.reload()}
 function fullLogout(){ui.role=null;ui.cAuth=null;ui.authed=false;ui.admAuthed=false;ui.ceoAuthed=false;ui.mgrAuthed=[];ui.sub='orders';
   try{['taxi-role','taxi-client','taxi-disp','taxi-adm'].forEach(k=>sessionStorage.removeItem(k))}catch(_){}ui.page=ui.entry==='disp'?'dispatcher':ui.entry==='admin'?'admin':'client';render()}
 function loginChooser(){if(ui.entry)return '';const cur=ui.page==='dispatcher'?'disp':ui.page==='admin'?'admin':'ops';
@@ -1712,7 +1726,7 @@ const RMAIL=k=>'noampatishi+'+k+'@gmail.com'; /* role accounts: never emailed (c
 const roleKeys=()=>[...S.clients.flatMap(c=>[{k:'ops-'+c.id,label:'מבצעים · '+c.name,roles:['ops'],cid:c.id},{k:'boss-'+c.id,label:'בוס גדול · '+c.name,roles:['ops','boss'],cid:c.id}]),
   {k:'princess',label:'★ נסיכות',roles:['princess'],cid:null},{k:'disp',label:'סדרן',roles:['disp'],cid:null},{k:'ceo',label:'מנכ״ל',roles:['ceo'],cid:null}];
 let LOGINOPTS=null;
-function renderAuth(){
+function renderAuth(){try{const om=localStorage.getItem('ramoniyot-outmsg');if(om){localStorage.removeItem('ramoniyot-outmsg');AUTH.msg=om}}catch(_){}
   const box=inner=>`<div class="auth"><aside class="auth-hero"><img src="icons/icon-512.png" alt=""><div><h1>רמוניות</h1><p>הזמנת מוניות לנוסעים, אישורים ומעקב, במקום אחד.</p></div>
     <ul><li>מזמינים מונית בכמה לחיצות</li><li>רואים בזמן אמת מה אושר ומי הנהג</li><li>פרטי הנסיעה נשלחים לנוסעים בהודעה</li></ul></aside>
     <section class="auth-form"><h2>כניסה</h2>${AUTH.clockOff?`<div class="over" role="alert">⏰ השעון של המחשב הזה ${AUTH.clockOff>0?'מקדים':'מאחר'} בכ־${Math.abs(AUTH.clockOff)} דקות. הכניסה לא תעבוד עד שמכוונים את התאריך והשעה במחשב (הגדרות ← שעה ותאריך ← כיוון אוטומטי).</div>`:''}${AUTH.netBad?'<div class="over" role="alert">📡 המחשב הזה לא מצליח להגיע לשרת של האפליקציה. אם זה מחשב עבודה, ייתכן שהרשת חוסמת את הכתובת supabase.co. נסו מרשת אחרת או בקשו מהמחשוב לאשר אותה.</div>':''}${inner}</section></div>`;
@@ -1994,7 +2008,10 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.delblock){const ds=ui.calSel||ymd(new Date());if(/^g\d$/.test(t.dataset.delblock)){ownWins(ds);const i=+t.dataset.delblock.slice(1),gf=genFor(ds)[i];const m=S.blocked.find(x=>x.date===ds&&x.from===gf.from&&x.to===gf.to);S.blocked=S.blocked.filter(x=>x!==m);save();render();return}S.blocked=S.blocked.filter(x=>x.id!==t.dataset.delblock);save();render();return}
   if(t.id==='clogout'&&ui.role!=='admin'){fullLogout();return}
   if(t.id==='clogout'){ui.cAuth=null;ui.mgrAuthed=[];ui.sub='orders';try{sessionStorage.removeItem('taxi-client')}catch(_){}render();return}
-  if(PROD&&(t.id==='admlogout'||t.id==='glogout'||t.id==='authout'||t.id==='logout'||t.id==='clogout'&&ui.role!=='admin')){pushDrop().finally(()=>AUTH.sb.auth.signOut().finally(()=>{try{localStorage.removeItem(KEY)}catch(_){}location.reload()}));return}
+  if(PROD&&t.id==='glogout'){outMenu();return}
+  if(PROD&&(t.id==='out-here'||t.id==='out-all')){prodLogout(t.id==='out-all');return}
+  if(PROD&&t.id==='out-x'){document.getElementById('outmenu')?.remove();return}
+  if(PROD&&(t.id==='admlogout'||t.id==='authout'||t.id==='logout'||t.id==='clogout'&&ui.role!=='admin')){prodLogout(false);return}
   if(t.id==='nav-notif'){if(!('Notification' in window)){toast('המכשיר הזה לא תומך בהתראות');return}
     if(notifOn()){try{localStorage.setItem(NOTIFK,'0')}catch(_){}pushDrop();toast('ההתראות כובו במכשיר הזה');paintNotifBtn();return}
     Notification.requestPermission().then(p=>{if(p==='granted'){try{localStorage.setItem(NOTIFK,'1')}catch(_){}pushSync();toast('ההתראות הופעלו. תקבלו התראה על כל מה שמחכה לפעולה שלכם');try{(SWREG?SWREG.showNotification.bind(SWREG):(t,o)=>new Notification(t,o))('רמוניות · ההתראות פעילות',{body:'כך תיראה התראה כשמשהו יחכה לפעולה שלך',icon:'icons/icon-192.png',lang:'he',dir:'rtl'})}catch(_){}}
