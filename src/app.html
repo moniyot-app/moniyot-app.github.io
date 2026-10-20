@@ -784,7 +784,7 @@ const needsOf=r=>Array.isArray(r.needs)?r.needs:r.needs?[r.needs]:[];
 function groupByDay(list){const g={};list.forEach(r=>{(g[ymd(new Date(r.ts))]??=[]).push(r)});return Object.entries(g).sort()}
 
 /* ---------- client page ---------- */
-function subTabs(c){return `<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span>${ui.role==='admin'?'<button class="btn small" id="clogout">החלפת מבצעים</button>':''}<span>· נתוני דוגמה</span></div>
+function subTabs(c){if(ui.bossOnly)return `<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>בוס גדול:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span></div>`;return `<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span>${ui.role==='admin'?'<button class="btn small" id="clogout">החלפת מבצעים</button>':''}<span>· נתוני דוגמה</span></div>
   ${isP(c.id)?`<div class="tip">★ <b>הרשאת נסיכות:</b> אפשר להזמין מוניות לכל הנוסעים מכל המבצעים. כל מונית יורדת מהסל של המבצעים שהנוסעים שייכים אליהם, לפי מספר הנוסעים.</div><div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="smart" aria-selected="${ui.sub==='smart'}">⚡ תכנון חכם</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMergesP().filter(x=>!x.voted).length?`<span class="count soft">${myMergesP().filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button></div>${noticeBox(c.id)}`:`<div class="tabs" role="tablist"><button role="tab" data-sub="orders" aria-selected="${ui.sub==='orders'}">הזמנות</button><button role="tab" data-sub="smart" aria-selected="${ui.sub==='smart'}">⚡ תכנון חכם</button><button role="tab" data-sub="merge" aria-selected="${ui.sub==='merge'}">מי פנוי באלנבי${myMerges(c.id).filter(x=>!x.voted).length?`<span class="count soft">${myMerges(c.id).filter(x=>!x.voted).length}</span>`:''}</button><button role="tab" data-sub="plan" aria-selected="${ui.sub==='plan'}">תכנון חודשי</button><button role="tab" data-sub="pax" aria-selected="${ui.sub==='pax'}">נוסעים</button><button role="tab" class="tab-boss" data-sub="manager" aria-selected="${ui.sub==='manager'}"><span aria-hidden="true">★</span> בוס גדול${mgrPending(c.id).length?`<span class="count">${mgrPending(c.id).length}</span>`:''}</button></div>${noticeBox(c.id)}`}`}
 const UPD={changed:['info','✏️ ההזמנה שונתה וממתינה לאישור מחדש של הסדרן'],confirmed:['ok','✓ הסדרן אישר: המונית הוזמנה'],driver:['ok','🚕 התקבלו פרטי נהג'],tod:['info','✓ ההחרגה אושרה. ההזמנה עברה לסדרן'],bossok:['info','✓ הבוס הגדול אישר. ממתינה עוד לאישור'],ceook:['info','✓ המנכ״ל אישר. ממתינה עוד לאישור'],
   bossno:['bad','✕ הבוס הגדול דחה את ההחרגה. ההזמנה בוטלה'],ceono:['bad','✕ המנכ״ל דחה את נסיעת הלילה. ההזמנה בוטלה'],cancelled:['bad','✕ ההזמנה בוטלה'],dispcancel:['bad','✕ הסדרן ביטל את ההזמנה'],late:['bad','✕ ההזמנה בוטלה פחות מ־3 שעות לפני היציאה. נספרת בסל'],merged:['info','🔗 ההזמנה אוחדה עם הזמנה אחרת'],route:['info','🧭 הסדרן שינה את סדר התחנות כדי לקצר את הנסיעה. שעות האיסוף עודכנו']};
@@ -1087,7 +1087,7 @@ function renderClientLogin(){
     <div class="note" id="lerr" style="color:var(--bad)" hidden>הסיסמה לא מתאימה למבצעים שנבחרו. נסו שוב.</div>
     <button class="btn primary">כניסה</button></form>`;
 }
-function renderClient(){if(ui.role==='princess'){ui.cid=PID;ui.cAuth=PID}
+function renderClient(){if(ui.bossOnly)ui.sub='manager';if(ui.role==='princess'){ui.cid=PID;ui.cAuth=PID}
   if(ui.cAuth!==ui.cid||!client(ui.cid)){renderClientLogin();return}
   const c=client(ui.cid);
   if(ui.sub==='manager'){renderManager(c);return}
@@ -1640,7 +1640,7 @@ const RULES=`<div class="tablewrap"><table style="min-width:420px"><thead><tr><t
   <tr><td>${tag('premium')}</td><td>רק יחד עם ביזנס</td><td>✓</td><td>✓</td></tr>
   <tr><td>${tag('regular')}</td><td>רק יחד עם ביזנס</td><td>רק יחד עם ביזנס או פרימיום</td><td>✓</td></tr></tbody></table></div>
   <ul class="note" style="margin:0;padding-inline-start:18px;display:grid;gap:2px"><li>מזמינים לפחות 3 שעות לפני האיסוף הראשון.</li><li>נוסע בודד דורש אישור של הבוס הגדול. 4 נוסעים דורשים אישור של המבצעים בזמן ההזמנה. נסיעה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל.</li><li>עד 4 נוסעים במונית, ורק לערים המותרות.</li><li>ביום אווירי וביום קרקעי אי אפשר להזמין 45 דקות לפני ואחרי טיסה או מיניבוס.</li><li>מותר לבטל עד 3 שעות לפני היציאה, גם אחרי אישור הסדרן. ביטול מאוחר יותר נספר בסל, ואם המונית כבר הוזמנה גם קנס של 1,000 ₪ למנכ״ל.</li></ul>`;
-function renderGuide(){const GR=ROLEG[ui.role]||['ops'];if(!GR.includes(ui.grole))ui.grole=GR[0];const r=ui.grole,g=G[r];
+function renderGuide(){const GR=ui.bossOnly?['boss']:ROLEG[ui.role]||['ops'];if(!GR.includes(ui.grole))ui.grole=GR[0];const r=ui.grole,g=G[r];
   app.innerHTML=`<section class="panel"><h1 style="font-size:1.4rem">הוראות שימוש</h1><div class="note">${GR.length>1?'בחרו תפקיד. ':''}למעלה סיכום קצר, ולמטה הסבר לכל פעולה עם כפתור "לנסות עכשיו" שמעביר ישר למקום.</div>
     <div class="tabs" role="tablist">${[['adm',ui.role==='princess'?'ניהול':'המנהלת'],['princess','★ נסיכות'],['ops','מבצעים'],['boss','בוס גדול'],['disp','סדרן'],['ceo','מנכ״ל']].filter(([k])=>GR.includes(k)).sort((a,b)=>GR.indexOf(a[0])-GR.indexOf(b[0])).map(([k,l])=>`<button role="tab" data-grole="${k}" aria-selected="${r===k}">${l}</button>`).join('')}</div>
     <div><h2>${g.title}</h2><div class="note">${g.intro}</div></div>
@@ -1712,12 +1712,12 @@ async function loadMember(user){AUTH.user=user;
   const {data,error}=await AUTH.sb.from('members').select('*').eq('email',(user.email||'').toLowerCase()).maybeSingle();
   if(error||!data){AUTH.state='nomember';render();return}
   AUTH.member=data;AUTH.state='in';const R=data.roles||[];
-  ui.ceoAuthed=R.includes('ceo');ui.mgrAuthed=[];
+  ui.ceoAuthed=R.includes('ceo');ui.mgrAuthed=[];ui.bossOnly=false;
   if(R.includes('admin')){ui.role='admin';ui.admAuthed=true;ui.authed=true}
   else if(R.includes('princess')){ui.role='princess';ui.admAuthed=true;ui.authed=true;ui.cid=PID;ui.cAuth=PID}
   else if(R.includes('disp')){ui.role='disp';ui.authed=true}
   else if(R.includes('ceo')&&!R.includes('ops')&&!R.includes('princess')){ui.role='ceo';ui.admAuthed=true;ui.tab='ceo'}
-  else{ui.role='ops';const cid=R.includes('princess')?PID:data.cid;ui.cid=cid;ui.cAuth=cid;if(R.includes('boss'))ui.mgrAuthed=[cid]}
+  else{ui.role='ops';const cid=R.includes('princess')?PID:data.cid;ui.cid=cid;ui.cAuth=cid;if(R.includes('boss')){ui.mgrAuthed=[cid];ui.bossOnly=true;ui.sub='manager'}}
   ui.page={admin:'admin',princess:'client',ceo:'admin',disp:'dispatcher',ops:'client'}[ui.role];if(MGR())ui.tab='calendar';if(ui.role==='princess')ui.sub='orders';if(ui.role==='disp')ui.tab='board';
   try{const L=JSON.parse(localStorage.getItem(LASTPG)||'null');if(L&&L.role===ui.role&&L.email===user.email&&(ROLEP[ui.role]||[]).includes(L.page)){ui.page=L.page;if(L.tab)ui.tab=L.tab;if(L.sub)ui.sub=L.sub}}catch(_){}
   DB=sbDb(AUTH.sb);render();initDb();joinPresence();pushSync();
@@ -1807,7 +1807,7 @@ function render(){if(TRAIN){if(ui.page==='admin')ui.page='client';const na=docum
   else if(!allowed.includes(ui.page))ui.page=allowed[1];
   [['nav-guide','guide'],['nav-client','client'],['nav-disp','dispatcher'],['nav-adm','admin']].forEach(([id,pg])=>{document.getElementById(id).hidden=!allowed.includes(pg)});
   document.getElementById('glogout').hidden=!ui.role;
-  document.getElementById('nav-client').setAttribute('aria-pressed',ui.page==='client');
+  document.getElementById('nav-client').setAttribute('aria-pressed',ui.page==='client');document.getElementById('nav-client').textContent=ui.bossOnly?'בוס גדול':'מבצעים';
   document.getElementById('nav-disp').setAttribute('aria-pressed',ui.page==='dispatcher');
   document.getElementById('nav-guide').setAttribute('aria-pressed',ui.page==='guide');
   document.getElementById('nav-adm').setAttribute('aria-pressed',ui.page==='admin');document.getElementById('nav-adm').textContent=ui.role==='princess'?'ניהול':'המנהלת';
@@ -1832,7 +1832,7 @@ async function pushSync(){try{if(!PROD||!SWREG||!notifOn()||!('PushManager' in w
 async function pushDrop(){try{if(!SWREG)return;const sub=await SWREG.pushManager.getSubscription();if(sub){await AUTH.sb.rpc('drop_push_sub',{ep:sub.endpoint});await sub.unsubscribe()}}catch(_){}PUSH_OK=false}
 function actionItems(){const out=[],R=ui.role,add=(key,text)=>out.push({key,text});if(!R)return out;
   if(R==='disp'){S.rides.filter(r=>r.status==='awaiting'&&r.ts>Date.now()).forEach(r=>add('aw:'+r.id+'~'+(r.changes||[]).length,`${r.reconfirm?'✏️ המבצעים שינו הזמנה':isUrgent(r)?'⚡ הזמנה מתפרצת':'🚕 הזמנה חדשה'} ממתינה לאישורך · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))} · ${points(r).join(', ')}`))}
-  if(R==='ops'||R==='princess'){const cid=R==='princess'?PID:ui.cid;if(cid){notices(cid).forEach(r=>{const k=updOf(r);add('nt:'+r.id+':'+k+':'+(r.upd?.at||''),`${UPD[k][1]} · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`)});
+  if(R==='ops'||R==='princess'){const cid=R==='princess'?PID:ui.cid;if(cid){if(!ui.bossOnly)notices(cid).forEach(r=>{const k=updOf(r);add('nt:'+r.id+':'+k+':'+(r.upd?.at||''),`${UPD[k][1]} · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`)});
       if(R==='ops'&&(ui.mgrAuthed||[]).includes(cid))mgrPending(cid).forEach(r=>add('bo:'+r.id,`★ נסיעה עם נוסע בודד ממתינה לאישורך (בוס גדול) · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`));
       if(R==='princess')S.rides.filter(r=>r.status==='pending'&&r.ts>Date.now()&&pBossOf(r).length&&needBoss(r)).forEach(r=>add('pb:'+r.id,`נסיעה של יבא עם נוסע בודד ממתינה לאישורך · ${hm(new Date(r.ts))}`))}}
   if(R==='admin'){paxReq().filter(q=>q.status==='pending').forEach(q=>add('px:'+q.id,`בקשת נוסע ממתינה לאישורך · ${q.name} (${client(q.cid)?.name||''})`));(PW_HELP||[]).forEach(q=>add('pw:'+q.id,`🔑 בקשה לתזכורת סיסמה · ${q.role}`))}
@@ -1878,7 +1878,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.grole){ui.grole=t.dataset.grole;render();scrollTo(0,0);return}
   if(t.dataset.goto){const[pg,sub]=t.dataset.goto.split('-');if(pg==='ops'){ui.page='client';ui.sub=sub==='pax'?'pax':sub==='merge'?'merge':sub==='boss'?'manager':sub==='plan'||sub==='cal'?'plan':'orders'}else if(pg==='adm'){ui.page='admin';ui.tab=sub||'calendar'}else{ui.page='dispatcher';ui.tab=sub||'board'}render();scrollTo(0,0);return}
   if(t.dataset.welcome){ui.welcome=false;try{localStorage.setItem('taxi-welcome','0')}catch(_){}if(t.dataset.welcome==='guide'){ui.page='guide';ui.grole='ops'}render();return}
-  if(t.dataset.nav){if(t.dataset.nav==='guide'&&ui.page!=='guide')ui.grole=(ROLEG[ui.role]||['ops'])[0];ui.page=t.dataset.nav;ui.confirm=null;render();return}
+  if(t.dataset.nav){if(t.dataset.nav==='guide'&&ui.page!=='guide')ui.grole=ui.bossOnly?'boss':(ROLEG[ui.role]||['ops'])[0];ui.page=t.dataset.nav;ui.confirm=null;render();return}
   if(t.dataset.openroutes){ui.openR=routeTips().map(r=>r.id)}
   if(t.dataset.tab){ui.tab=t.dataset.tab;render();return}
   if(t.dataset.opensms){const id=t.dataset.opensms;ui.sub='orders';ui.openR=[...new Set([...(ui.openR||[]),id])];render();setTimeout(()=>{const el=document.querySelector(`details[data-rid="${id}"]`);el&&el.scrollIntoView({behavior:'smooth',block:'center'})},50);return}
