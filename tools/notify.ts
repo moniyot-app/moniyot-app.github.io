@@ -49,6 +49,15 @@ function plan(ev: any): Msg[] {
     const fresh = ((ev.new.v) || []).filter((q: any) => q.status === "pending" && !was.has(q.id));
     if (fresh.length) out.push({ to: (s) => has(s, "admin"), title: "רמוניות · המנהלת", body: fresh.length === 1 ? `בקשת נוסע ממתינה לאישורך: ${fresh[0].name}` : `${fresh.length} בקשות נוסעים ממתינות לאישורך`, tag: "px" });
   }
+  // manager -> CEO approval requests, and the CEO's answer back to the manager
+  if (ev.table === "kv" && ev.new?.key === "ceoReq") {
+    const old: any[] = (ev.old?.v) || [], cur: any[] = (ev.new.v) || [], byId = new Map(old.map((q: any) => [q.id, q]));
+    cur.forEach((q: any) => {
+      const o: any = byId.get(q.id);
+      if (q.status === "pending" && !o) out.push({ to: (s) => has(s, "ceo") && !has(s, "admin"), title: "רמוניות · מנכ״ל", body: "★ המנהלת מבקשת את אישורך: " + String(q.text || "").slice(0, 120), tag: "cq-" + q.id });
+      if (q.status !== "pending" && o && o.status === "pending") out.push({ to: (s) => has(s, "admin"), title: "רמוניות · המנהלת", body: (q.status === "ok" ? "✓ המנכ״ל אישר: " : "✕ המנכ״ל לא אישר: ") + String(q.text || "").slice(0, 100) + (q.note ? " · " + q.note : ""), tag: "ca-" + q.id });
+    });
+  }
   if (ev.table === "pw_help" && ev.type === "INSERT")
     out.push({ to: (s) => has(s, "admin"), title: "רמוניות · המנהלת", body: `🔑 בקשה לתזכורת סיסמה · ${ev.new?.role || ""}`, tag: "pw" });
   return out;

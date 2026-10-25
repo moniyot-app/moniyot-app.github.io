@@ -1431,9 +1431,18 @@ const needCeo=r=>needsOf(r).includes('night')&&!r.ceoOk&&!delegAll(r);
 const pBossOf=r=>ui.role!=='princess'||!needsOf(r).includes('single')?[]:clientsOf(r).filter(x=>{const c=client(x);return c&&!isP(x)&&(c.princessBoss??/יבא/.test(c.name||''))&&!(r.approvedBy||[]).includes(x)});
 const afterApproval=r=>{if(!needBoss(r)&&!needCeo(r)){r.status='awaiting';return 'אושר. ההזמנה עברה לסדרן'}return needCeo(r)?'אושר. ממתינה גם לאישור המנכ״ל':'אושר. ממתינה לאישור בוסים גדולים נוספים'};
 const ceoPending=()=>S.rides.filter(r=>r.status==='pending'&&r.ts>Date.now()&&needCeo(r)).sort((a,b)=>a.ts-b.ts);
+/* requests from the manager to the CEO: anything she needs him to approve, with his answer */
+const ceoReq=()=>(S.ceoReq??=[]);
+const ceoReqOpen=()=>ceoReq().filter(q=>q.status==='pending');
+function ceoReqPanel(){const adm=ui.role==='admin',ceo=ui.role==='ceo'||(!PROD&&ui.ceoAuthed),L=ceoReq().slice().sort((a,b)=>(a.status==='pending'?0:1)-(b.status==='pending'?0:1)||b.at-a.at).slice(0,30);
+  const st=q=>q.status==='ok'?'<span class="st st-active">✓ אושר</span>':q.status==='no'?'<span class="st st-late">✕ לא אושר</span>':'<span class="st st-pending">ממתין למנכ״ל</span>';
+  return `<section class="panel ceo-panel"><h2>★ בקשות אישור מהמנהלת${ceoReqOpen().length?` <span class="count">${ceoReqOpen().length}</span>`:''}</h2>
+    ${adm?`<form class="fields" id="ceoreq-add"><label style="grid-column:1/-1">מה צריך לאשר?<textarea id="crq-t" rows="2" maxlength="500" required placeholder="למשל: מונית לנוסע בודד מחיפה ביום חמישי, כי…"></textarea></label><button class="btn primary" style="align-self:end">שליחה למנכ״ל</button></form><div class="note">המנכ״ל מקבל התראה ורואה את הבקשה כאן. כשהוא עונה, תקבלי התראה.</div>`:''}
+    <div style="display:grid;gap:8px;margin-top:8px">${L.length?L.map(q=>`<div class="emp-row" style="align-items:flex-start;flex-wrap:wrap"><span style="flex:1;min-width:220px"><span style="white-space:pre-wrap">${esc(q.text)}</span><br><span class="note">${esc(q.by||'המנהלת')} · ${dmy(q.at)} ${hm(new Date(q.at))}${q.doneAt?` · ענה ${dmy(q.doneAt)} ${hm(new Date(q.doneAt))}`:''}</span>${q.note?`<div class="reason">💬 ${esc(q.note)}</div>`:''}</span>
+      <span class="row" style="gap:6px;flex-wrap:wrap">${st(q)}${q.status==='pending'&&ceo?`<input id="crn-${q.id}" placeholder="הערה (לא חובה)" maxlength="200" style="width:160px"><button class="btn small primary" data-crok="${q.id}">אישור</button><button class="btn small danger" data-crno="${q.id}">לא לאשר</button>`:''}${q.status==='pending'&&adm?`<button class="btn small" data-crdel="${q.id}">ביטול הבקשה</button>`:''}</span></div>`).join(''):'<div class="empty">אין בקשות.</div>'}</div></section>`}
 function renderCeo(){const list=ceoPending(),mon=S.rides.filter(r=>inMonth(r.ts)&&COUNTS.includes(r.status)&&needsOf(r).includes('night')&&r.ceoOk);
   const per=S.clients.map(c=>({c,n:mon.filter(r=>clientsOf(r).includes(c.id)).length})).filter(x=>x.n),mx=Math.max(1,...per.map(x=>x.n));
-  return `<section class="panel ceo-panel"><div class="row" style="justify-content:space-between"><h2>★ אישורי מנכ״ל · נסיעות לילה</h2></div>
+  return ceoReqPanel()+`<section class="panel ceo-panel"><div class="row" style="justify-content:space-between"><h2>★ אישורי מנכ״ל · נסיעות לילה</h2></div>
     <div class="note">נסיעה שהאיסוף או ההגעה שלה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל. אחרי האישור (ואישור הבוס הגדול, אם נדרש גם הוא) ההזמנה עוברת לסדרן.</div>
     <div class="rides">${list.length?groupByDay(list).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}</div>`+rs.map(r=>rideRow(r,'ceo')).join('')).join(''):'<div class="empty">אין נסיעות לילה שממתינות לאישור.</div>'}</div></section>
     <section class="panel"><h3>האצלת סמכות לבוסים גדולים</h3><div class="note">אפשר לתת לבוס הגדול של מבצעים מסוימים לאשר בעצמו נסיעות לילה, לתמיד או עד תאריך מסוים. אפשר לבטל בכל רגע.</div>
@@ -1477,7 +1486,7 @@ function renderDispatcher(){
   const sug=suggestions();
   const hot=S.clients.map(c=>({c,p:used(c.id)/limit(c)})).filter(x=>x.p>=.9).sort((a,b)=>b.p-a.p);
   const awn=S.rides.filter(r=>r.status==='awaiting').length;
-  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','נוסעים חדשים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',(PW_HELP||[]).length]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):k==='approvals'?true:ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
+  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length+(ui.role==='admin'?0:ceoReqOpen().length)],['paxreq','נוסעים חדשים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',0],['users','סיסמאות',(PW_HELP||[]).length]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):k==='approvals'?true:ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
   if(ADM){const ORD=['calendar','approvals','paxreq','quotas','costs','ceo','users','online'];tabs.sort((a,b)=>ORD.indexOf(a[0])-ORD.indexOf(b[0]))}
   if(RO())tabs.splice(0,tabs.length,...tabs.filter(([k])=>k==='board'));
   if(!tabs.some(([k])=>k===ui.tab))ui.tab=tabs[0][0];
@@ -1846,6 +1855,8 @@ function actionItems(){const out=[],R=ui.role,add=(key,text)=>out.push({key,text
       if(R==='ops'&&(ui.mgrAuthed||[]).includes(cid))mgrPending(cid).forEach(r=>add('bo:'+r.id,`★ נסיעה עם נוסע בודד ממתינה לאישורך (בוס גדול) · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`));
       if(R==='princess')S.rides.filter(r=>r.status==='pending'&&r.ts>Date.now()&&pBossOf(r).length&&needBoss(r)).forEach(r=>add('pb:'+r.id,`נסיעה של יבא עם נוסע בודד ממתינה לאישורך · ${hm(new Date(r.ts))}`))}}
   if(R==='admin'){paxReq().filter(q=>q.status==='pending').forEach(q=>add('px:'+q.id,`בקשת נוסע ממתינה לאישורך · ${q.name} (${client(q.cid)?.name||''})`));(PW_HELP||[]).forEach(q=>add('pw:'+q.id,`🔑 בקשה לתזכורת סיסמה · ${q.role}`))}
+  if(R==='ceo'&&ui.ceoAuthed)ceoReqOpen().forEach(q=>add('cq:'+q.id,`★ המנהלת מבקשת את אישורך: ${q.text.slice(0,80)}`));
+  if(R==='admin')ceoReq().filter(q=>q.status!=='pending'&&q.doneAt>Date.now()-3*DAY).forEach(q=>add('ca:'+q.id+':'+q.status,`${q.status==='ok'?'✓ המנכ״ל אישר':'✕ המנכ״ל לא אישר'}: ${q.text.slice(0,70)}${q.note?' · '+q.note:''}`));
   if(R==='ceo'&&ui.ceoAuthed)ceoPending().forEach(r=>add('ceo:'+r.id,`🌙 נסיעת לילה ממתינה לאישור מנכ״ל · ${dayLabel(ymd(new Date(r.ts)))} ${hm(new Date(r.ts))}`));
   return out}
 function checkActions(){const items=actionItems(),keys=items.map(x=>x.key);
@@ -2009,6 +2020,8 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.planm){ui.planMonth=t.dataset.planm;render();return}
   if(t.dataset.day){ui.calSel=t.dataset.day;render();return}
   if(t.dataset.calnav){const[y,m]=(ui.calMonth||ymd(new Date()).slice(0,7)).split('-').map(Number);const n=new Date(y,m-1+(+t.dataset.calnav),1);ui.calMonth=ymd(n).slice(0,7);render();return}
+  if(t.dataset.crok||t.dataset.crno){const id=t.dataset.crok||t.dataset.crno,q=ceoReq().find(x=>x.id===id);if(!q)return;q.status=t.dataset.crok?'ok':'no';q.note=(document.getElementById('crn-'+id)?.value||'').trim();q.doneAt=Date.now();save();toast(q.status==='ok'?'אושר. המנהלת תקבל התראה':'סומן כלא מאושר. המנהלת תקבל התראה');render();return}
+  if(t.dataset.crdel){S.ceoReq=ceoReq().filter(x=>x.id!==t.dataset.crdel);save();toast('הבקשה בוטלה');render();return}
   if(t.dataset.xwdel){const ds=ui.calSel||ymd(new Date()),L=xOwn(ds);S.xWins[ds]=L.filter(x=>x.id!==t.dataset.xwdel);save();toast('הוסר');render();return}
   if(t.dataset.xwgen){const ds=ui.calSel||ymd(new Date()),L=xOwn(ds),k=t.dataset.xwgen;(k==='bus'?busFor(ds):flFor(ds)).forEach((g,i)=>{if(!L.some(x=>x.kind===k&&x.from===g.from))L.push({id:'x'+Date.now()+'_'+i,kind:k,from:g.from,to:g.from,dir:wDir(g),dirSet:1})});save();toast(k==='bus'?'נוספו מיניבוסים':'נוספו טיסות תובלה');render();return}
   if(t.dataset.daytype){const ds=ui.calSel||ymd(new Date()),k=t.dataset.daytype;S.freeDays=S.freeDays.filter(x=>x!==ds);S.restricted=(S.restricted||[]).filter(x=>x!==ds);(S.dayOverride??={})[ds]=k;if(k!=='free'){S.ownWins=(S.ownWins||[]).filter(x=>x!==ds);S.blocked=S.blocked.filter(b=>b.date!==ds);ownWins(ds);if(!S.blocked.some(b=>b.date===ds))genFor(ds).forEach((g,i)=>S.blocked.push({...g,id:'b'+Date.now()+'_'+i,date:ds}))}
@@ -2057,6 +2070,7 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
   if(f.id==='add-dest'){const v=document.getElementById('nd').value.trim();if(v&&!S.destinations.includes(v)){S.destinations.push(v);if(document.getElementById('nr').value==='north')S.north.push(v)}save();render();return}
   if(f.id==='add-free'){const v=document.getElementById('nf').value;if(v&&!S.freeDays.includes(v))S.freeDays.push(v);save();render();return}
   if(f.id==='gen-f'||f.id==='gen-b'){const kk=f.id.slice(4);(kk==='b'?S.genBus:S.genFlights).forEach((g,i)=>{const v=document.getElementById(kk+'f-'+i).value,w=document.getElementById(kk+'w-'+i).value;if(v){g.from=v;g.to=v}if(w)g.winter=w});save();toast('השעות הקבועות עודכנו');render();return}
+  if(f.id==='ceoreq-add'){const v=document.getElementById('crq-t').value.trim();if(!v)return;ceoReq().push({id:'cr'+Date.now(),text:v,at:Date.now(),by:AUTH.member?.name||'המנהלת',status:'pending'});save();toast('הבקשה נשלחה למנכ״ל');render();return}
   if(f.id==='add-xw'){const ds=ui.calSel||ymd(new Date()),v=document.getElementById('xwt').value;if(!v)return;xOwn(ds).push({id:'x'+Date.now(),kind:document.getElementById('xwk').value,from:v,to:v,dir:document.getElementById('xwd').value,dirSet:1,line:document.getElementById('xwk').value==='bus'?document.getElementById('xwl').value:''});save();toast('נוסף');render();return}
   if(f.id==='add-win'){const g0=id=>document.getElementById(id).value;if(!g0('wf'))return;const g=id=>id==='wt'?(g0('wt')||g0('wf')):g0(id);if(g('wf')>g('wt')){toast('שעת הסיום חייבת להיות אחרי שעת הטיסה');return}
     ownWins(ui.calSel||ymd(new Date()));S.blocked.push({id:'b'+Date.now(),date:ui.calSel||ymd(new Date()),from:g('wf'),to:g('wt'),note:g('wn').trim(),dir:document.getElementById('wd').value,dirSet:1,line:document.getElementById('wl')?.value||''});save();toast('השעות נוספו');render();return}
