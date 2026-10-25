@@ -19,7 +19,7 @@ revoke all on function public.drop_push_sub(text) from public; grant execute on 
 create or replace function public.push_hook() returns trigger
 language plpgsql security definer set search_path = public, extensions as $$
 begin
-  if TG_TABLE_NAME = 'kv' and NEW.key <> 'paxReq' then return NEW; end if;
+  if TG_TABLE_NAME = 'kv' then if NEW.key <> 'paxReq' then return NEW; end if; end if; -- a ride row has no "key" field
   perform net.http_post(
     url := 'https://uvjcsfvrcxjxdcbnkvyo.supabase.co/functions/v1/notify',
     body := jsonb_build_object('table', TG_TABLE_NAME, 'type', TG_OP, 'old', case when TG_OP = 'UPDATE' then to_jsonb(OLD) end, 'new', to_jsonb(NEW)),
