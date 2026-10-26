@@ -28,6 +28,9 @@ function plan(ev: any): Msg[] {
     // dispatcher: a ride now waits for approval (new, approved exception, or changed by the ops)
     if (n.status === "awaiting" && (!o || o.status !== "awaiting" || chg))
       out.push({ to: (s) => has(s, "disp"), title: "רמוניות · סדרן", body: (n.reconfirm ? "✏️ המבצעים שינו הזמנה. צריך לאשר מחדש" : "🚕 הזמנה חדשה ממתינה לאישורך") + tail, tag: "aw-" + n.id });
+    // ops added a passenger to an approved ride: no re-approval, just tell the dispatcher
+    if (n.status === "active" && n.upd?.k === "paxadd" && (!o || !o.upd || o.upd.at !== n.upd.at))
+      out.push({ to: (s) => has(s, "disp"), title: "רמוניות · סדרן", body: "➕ נוסף נוסע להזמנה מאושרת. לעדכן את הנהג" + tail, tag: "pa-" + n.id });
     // exceptions waiting: big boss (single passenger), CEO (night)
     if (n.status === "pending" && (!o || o.status !== "pending" || chg)) {
       const ok: string[] = n.approvedBy || [];
