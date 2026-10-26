@@ -122,6 +122,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 @media (max-width:600px){.cal{grid-template-columns:repeat(7,minmax(0,1fr));min-width:0;gap:3px}.cal-d{padding:4px 3px;min-height:56px}.cal-d small{font-size:.56rem;line-height:1.15;font-weight:600}}
 .cal-d .cm{display:none}@media (max-width:600px){.cal-d .cf{display:none}.cal-d .cm{display:inline;font-size:.7rem}}
 .panel>*{min-width:0;max-width:100%}.winrow input[type=time]{min-width:0}
+.st-cancel-ok,.st-late{white-space:normal}.st-cancel-ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 40%,transparent)}
 .winrow{flex-wrap:wrap}.winrow>span{flex-wrap:wrap}
 .cal-d.wk{background:color-mix(in srgb,var(--line) 35%,var(--surface))}
 .cal-d.ty-free{background:var(--taxi);border-color:var(--taxi-line);border-width:2px}
@@ -668,10 +669,14 @@ const cancelActor=()=>ui.role==='princess'?{k:'princess'}:ui.page==='client'?(ui
 /* cancelling: free up to 3 hours before the taxi leaves (first pickup), even after the dispatcher ordered it.
    Later than that it counts in the basket, and if the taxi was already ordered it is also a fine to the CEO */
 const depOf=r=>{const s=sched(r);return s?s.start:r.ts};
-const lateNow=r=>depOf(r)-Date.now()<3*H;
+const lateNow=r=>lateKind(r)!=='';
+/* the line-up for tomorrow closes at 22:00 the evening before. Cancelling after that breaks procedure: it counts as if the taxi went, but is not a fine.
+   A ride ordered after that cutoff was never in the line-up, so only the 3-hour rule applies to it */
+const lineCut=r=>{const d=new Date(depOf(r));d.setDate(d.getDate()-1);d.setHours(22,0,0,0);return d.getTime()};
+const lateKind=r=>depOf(r)-Date.now()<3*H?'3h':(Date.now()>=lineCut(r)&&(r.createdAt||0)<lineCut(r))?'line':'';
 const FINE=()=>S.prices&&S.prices.fine!=null?S.prices.fine:1000;
 const fineOf=r=>r.fineAmt!=null?r.fineAmt:FINE();
-const lateWhy=r=>r.status==='active'?'פחות מ־3 שעות לפני היציאה, והמונית כבר הוזמנה':'פחות מ־3 שעות לפני היציאה';
+const lateWhy=r=>lateKind(r)==='line'?'אחרי 22:00, כשיישור הקו לנסיעה כבר נסגר':r.status==='active'?'פחות מ־3 שעות לפני היציאה, והמונית כבר הוזמנה':'פחות מ־3 שעות לפני היציאה';
 const dmy=ms=>{const d=new Date(ms);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`};
 const ROLEBY={admin:'המנהלת',princess:'נסיכות',boss:'בוס גדול',disp:'הסדרן'};
 function excTxt(r){const n=needsOf(r).map(k=>NEEDS[k]);if(isFine(r))n.push(`קנס ביטול ${money(fineOf(r))}${r.finePaid?' (שולם)':''}`);if(r.house)n.push('על חשבון הבית');if(r.over)n.push('חריגה מהסל');if(r.unplanned)n.push('מחוץ לתכנון');if(!n.length)return 'לא נדרשה';
@@ -707,8 +712,10 @@ function renderReset(){return `<div class="panel" style="margin-top:24px;border-
   <div class="row" style="gap:8px;margin-top:8px"><input id="rstconf" placeholder='הקלידו "איפוס" לאישור' style="width:180px"><button class="btn small danger" data-reset="rides">מחיקת הזמנות</button><button class="btn small danger" data-reset="all">איפוס מלא</button></div></div>`}
 function statusOf(r){
   if(r.status==='merged')return '<span class="st st-merged">אוחדה לנסיעה אחרת</span>';
-  if(r.status==='cancelled')return `<span class="st st-cancelled">בוטלה${esc(byTxt(r))}</span>`;
-  if(r.status==='late')return `<span class="st st-late">בוטלה${esc(byTxt(r))}${r.lateWhy?' '+(r.lateWhy==='ordered'?'מאוחר, אחרי שהמונית הוזמנה':'פחות מ־3 שעות לפני היציאה'):' מאוחר'} · נספרת בסל</span>`;
+  /* when it was cancelled: in time (green, free) or late (red, counts in the basket) */
+  const cAt=r.cancelBy&&r.cancelBy.at?` · ${dmy(r.cancelBy.at)} ${hm(new Date(r.cancelBy.at))}`:'';
+  if(r.status==='cancelled')return `<span class="st st-cancel-ok">✓ בוטלה בזמן${esc(byTxt(r))}${cAt}</span>`;
+  if(r.status==='late')return `<span class="st st-late">⚠ ביטול מאוחר${esc(byTxt(r))}${cAt}${r.lateWhy?' · '+(r.lateWhy==='ordered'?'אחרי שהמונית הוזמנה':r.lateWhy==='line'?'אחרי יישור הקו (22:00), בניגוד לנהלים':'פחות מ־3 שעות לפני היציאה'):''} · נספרת בסל</span>`;
   if(r.ts<Date.now())return '<span class="st st-done">בוצעה</span>';
   if(r.status==='awaiting')return r.reconfirm?'<span class="st st-new">✏️ שונתה · ממתינה לאישור מחדש</span>':'<span class="st st-new">חדשה · ממתינה לסדרן</span>';
   if(r.status==='pending')return `<span class="st st-pending" title="${needsOf(r).map(k=>NEEDS[k]).join(', ')}">ממתינה ל${[needBoss(r)?'בוס גדול':'',needCeo(r)?'מנכ״ל':''].filter(Boolean).join(' ו')||'בוס גדול'}</span>`;
@@ -743,7 +750,10 @@ const opsDot=cid=>opsLogo(cid,18);
 const stripe=cids=>{const cs=cids.map(opsColor),n=cs.length;if(!n)return '';const g=n===1?cs[0]:`linear-gradient(${cs.map((c,i)=>`${c} ${i*100/n}% ${(i+1)*100/n}%`).join(',')})`;return `<span class="ostripe" style="background:${g}" aria-hidden="true"></span>`};
 const BASE='מחנה רמון',baseOf=r=>((r&&r.base)||'').trim()||BASE;
 const fmtPh=p=>{p=String(p);return p.length===10?p.slice(0,3)+'-'+p.slice(3):p.slice(0,2)+'-'+p.slice(2)};
-const driverTxt=r=>[r.driverName?`<b style="color:var(--ink)">${esc(r.driverName)}</b>`:'',r.driverPhone?`<b class="num" style="user-select:all;color:var(--ink)">${fmtPh(r.driverPhone)}</b>`:''].filter(Boolean).join(' · ');
+/* drivers the dispatcher already used: name → phone and company, so a known name fills the rest */
+const drivers=()=>(S.drivers??={});
+const drvList=()=>`<datalist id="drv-names">${Object.keys(drivers()).sort((a,b)=>a.localeCompare(b,'he')).map(n=>`<option value="${esc(n)}">${esc([drivers()[n].co,drivers()[n].phone&&fmtPh(drivers()[n].phone)].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>`;
+const driverTxt=r=>[r.driverName?`<b style="color:var(--ink)">${esc(r.driverName)}</b>`:'',r.driverPhone?`<b class="num" style="user-select:all;color:var(--ink)">${fmtPh(r.driverPhone)}</b>`:'',r.driverCo&&ui.page!=='client'?`<span class="note">${esc(r.driverCo)}</span>`:''].filter(Boolean).join(' · ');
 const points=r=>r.dir==='to'?[r.dest,...(r.stops||[])]:[...(r.stops||[]),r.dest];
 const ptOf=(r,p)=>{const pts=points(r),v=(r.ppt||{})[p];return pts.includes(v)?v:pts[0]};
 const leadOf=r=>r.pax.includes(r.lead)?r.lead:r.pax[0];
@@ -1325,10 +1335,10 @@ function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
     else if(mode==='dview')acts='';
     else acts=(r.status==='awaiting'?`<button class="btn small primary" data-confirm="${r.id}">אישור</button>`:'')+`<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
   }
-  const late=ui.confirm===r.id?`<div class="lateconfirm">${lateWhy(r)}: הביטול ייחשב כאילו הנסיעה יצאה, והיא תיספר בסל.${r.status==='active'&&ui.page==='client'?` <b>הסדרן כבר הזמין את המונית, ולכן זה גם קנס של ${money(FINE())} שתשלמו למנכ״ל.</b>`:''} <button class="btn small danger" data-latecancel="${r.id}">לבטל בכל זאת</button><button class="btn small" data-keep="1">השאר</button></div>`:'';
+  const late=ui.confirm===r.id?`<div class="lateconfirm">${lateWhy(r)}: הביטול ייחשב כאילו הנסיעה יצאה, והיא תיספר בסל.${lateKind(r)==='line'?' זה בניגוד לנהלים, אבל אין קנס.':r.status==='active'&&ui.page==='client'?` <b>הסדרן כבר הזמין את המונית, ולכן זה גם קנס של ${money(FINE())} שתשלמו למנכ״ל.</b>`:''} <button class="btn small danger" data-latecancel="${r.id}">לבטל בכל זאת</button><button class="btn small" data-keep="1">השאר</button></div>`:'';
   const pre=t=>`<pre style="white-space:pre-wrap;font-family:inherit;color:var(--ink);background:var(--bg);padding:8px 10px;border-radius:6px;margin:4px 0">${t}</pre>`;
   const full=r.pax.map(p=>{const e=emp(p);return `<div>${leadOf(r)===p?'★ ':''}${esc(e?.name||'')} ${tag(e?.type||'regular')} ${opsLogo(e?.cid,16)}<span class="note">${esc([ptOf(r,p),(r.addr||{})[p]||''].filter(Boolean).join(', '))}${e?.phone?' · '+fmtPh(e.phone):''}</span></div>`}).join('');
-  const drvForm=mode==='disp'&&live&&(r.status==='awaiting'||r.status==='active')?`<div class="row drvf" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px"><span class="note" style="font-weight:700">🚕 נהג:</span><input id="dn-${r.id}" placeholder="שם הנהג" value="${esc(r.driverName||'')}" style="width:110px" aria-label="שם הנהג" maxlength="30" data-drventer="${r.id}"><input id="ph-${r.id}" inputmode="tel" placeholder="טלפון הנהג" value="${esc(r.driverPhone?fmtPh(r.driverPhone):'')}" style="width:130px" aria-label="טלפון הנהג" class="num" data-drventer="${r.id}"><button class="btn small${drv?'':' primary'}" data-phone="${r.id}">${drv?'עדכון':'שמירה ושליחה למבצעים'}</button></div>`:'';
+  const drvForm=mode==='disp'&&live&&(r.status==='awaiting'||r.status==='active')?`<div class="row drvf" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px"><span class="note" style="font-weight:700">🚕 נהג:</span><input id="dn-${r.id}" list="drv-names" placeholder="שם הנהג" value="${esc(r.driverName||'')}" style="width:130px" aria-label="שם הנהג" maxlength="40" data-drventer="${r.id}" data-drvname="${r.id}" autocomplete="off"><input id="ph-${r.id}" inputmode="tel" placeholder="טלפון הנהג" value="${esc(r.driverPhone?fmtPh(r.driverPhone):'')}" style="width:130px" aria-label="טלפון הנהג" class="num" data-drventer="${r.id}"><input id="dc-${r.id}" placeholder="חברה" value="${esc(r.driverCo||'')}" style="width:110px" aria-label="שם החברה של הנהג" maxlength="40" data-drventer="${r.id}"><button class="btn small${drv?'':' primary'}" data-phone="${r.id}">${drv?'עדכון':'שמירה ושליחה למבצעים'}</button></div>`:'';
   const more=dead?'':`<details class="more" data-rid="${r.id}"${(ui.openR||[]).includes(r.id)?' open':''}><summary>פרטים</summary><div class="more-in">
     <div class="note" style="color:var(--ink)">⏱ ${schedTxt(r)}</div>${(()=>{if(!live||mode==='mgr'||mode==='ceo')return '';const b=rideBest(r);if(!b)return '';
       return `<div class="tip">💡 <b>מסלול קצר יותר:</b> ${(r.dir==='to'?[...b.cs,baseOf(r)]:[baseOf(r),...b.cs]).map(esc).join(' ← ')}. חוסך בערך ${b.save} דקות.${mode==='disp'?`<div class="row" style="margin-top:6px"><button class="btn small primary" data-rreorder="${r.id}">לשנות את סדר התחנות</button></div>`:' הסדרן יכול לעדכן את הסדר.'}</div>`})()}${r.by===PID?`<div class="note">${opsLogo(PID,16)}הוזמנה ע״י נסיכות</div>`:''}${full}
@@ -1516,14 +1526,14 @@ function renderDispatcher(){
   const sug=suggestions();
   const hot=S.clients.map(c=>({c,p:used(c.id)/limit(c)})).filter(x=>x.p>=.9).sort((a,b)=>b.p-a.p);
   const awn=S.rides.filter(r=>r.status==='awaiting').length;
-  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','נוסעים חדשים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',dispReqOpen().length],['users','סיסמאות',(PW_HELP||[]).length]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):k==='approvals'?true:ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
+  const tabs=[['board','לוח הזמנות',awn],['line','יישור קו',(lineOf(ymd(new Date(Date.now()+DAY)))?0:(new Date().getHours()>=22?1:0))],['approvals','ממתין להחרגה',pend.length],['ceo','★ מנכ״ל',ceoPending().length],['paxreq','נוסעים חדשים',paxReq().filter(q=>q.status==='pending').length],['quotas','סלים',hot.length],['costs','מעקב והוצאות',0],['calendar','לוח שנה',0],['settings','הגדרות',dispReqOpen().length],['users','סיסמאות',(PW_HELP||[]).length]].filter(([k])=>k==='users'?(ADM&&PROD&&ui.role==='admin'):k==='approvals'||k==='costs'?true:ADM===['ceo','costs','calendar','paxreq','quotas'].includes(k)).filter(([k])=>ui.role!=='ceo'||k==='ceo').filter(([k])=>ui.role!=='princess'||k!=='ceo');
   if(ADM){const ORD=['calendar','approvals','paxreq','quotas','costs','ceo','users','online'];tabs.sort((a,b)=>ORD.indexOf(a[0])-ORD.indexOf(b[0]))}
   if(RO())tabs.splice(0,tabs.length,...tabs.filter(([k])=>k==='board'));
   if(!tabs.some(([k])=>k===ui.tab))ui.tab=tabs[0][0];
   let body='';
   if(ui.tab==='board'){
     const up=S.rides.filter(r=>r.ts>Date.now()-2*H&&r.status!=='merged').sort((a,b)=>a.ts-b.ts);
-    body=`${RO()?'<div class="tip">👁 צפייה בלבד: כאן רואים את הסטטוס של כל ההזמנות והנהגים. אישור הזמנות ופרטי נהג נעשים על ידי הסדרן.</div>':''}<div class="rides">${up.length?groupByDay(up).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}${isFree(ds)?' <span class="tag t-day">יום מוניות</span>':''}<span class="note">${rs.filter(r=>!['cancelled'].includes(r.status)).length} מוניות</span></div>`+rs.map(r=>rideRow(r,'disp')).join('')).join(''):'<div class="empty">אין נסיעות קרובות.</div>'}</div>`;
+    body=`${drvList()}${RO()?'<div class="tip">👁 צפייה בלבד: כאן רואים את הסטטוס של כל ההזמנות והנהגים. אישור הזמנות ופרטי נהג נעשים על ידי הסדרן.</div>':''}<div class="rides">${up.length?groupByDay(up).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}${isFree(ds)?' <span class="tag t-day">יום מוניות</span>':''}<span class="note">${rs.filter(r=>!['cancelled'].includes(r.status)).length} מוניות</span></div>`+rs.map(r=>rideRow(r,'disp')).join('')).join(''):'<div class="empty">אין נסיעות קרובות.</div>'}</div>`;
   }else if(ui.tab==='online'){body=renderOnline();
   }else if(ui.tab==='users'){body=renderUsers();
   }else if(ui.tab==='ceo'){body=ui.ceoAuthed?renderCeo():PROD?'<div class="empty">אישור נסיעות לילה שמור למנכ״ל. המשתמש שלך לא מוגדר כמנכ״ל.</div>':`<form class="gate ceo-panel panel" id="ceogate2"><h3>★ אזור המנכ״ל</h3><div class="note">אישור נסיעות לילה שמור למנכ״ל בלבד. הכניסה בסיסמת מנכ״ל (בדוגמה: 9999).</div><label>סיסמת מנכ״ל<input type="password" id="ceopw2"></label><div class="note" id="ceoerr2" style="color:var(--bad)" hidden>סיסמה שגויה.</div><button class="btn primary">כניסה</button></form>`;
@@ -1636,7 +1646,7 @@ const G={
    {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–05:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
    {h:'📱 שליחת פרטי הנסיעה לנוסעים',go:'ops',steps:['כשמגיעים פרטי הנהג, בהתראה למעלה מופיע "📱 שליחה לנוסעים". אפשר גם לפתוח "פרטים" ליד הנסיעה.','ב"הודעה לנוסעים" לוחצים ליד כל נוסע "וואטסאפ" או "SMS".','ההודעה נפתחת מוכנה בטלפון שלכם: שעה, מסלול, מאיפה נאסף, פרטי הנהג, האחראי/ת וקישור קצר להוספה ליומן. לוחצים "שליחה".','ליד מי שקיבל מופיע ✓ נשלח, ולמעלה כמה נשלחו מתוך כמה.'],tip:'נוסע בלי טלפון במאגר לא יופיע ברשימה. עדכנו לו טלפון בלשונית "נוסעים".'},
    {h:'שינוי הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "שינוי" ליד הנסיעה. ההזמנה נטענת לטופס.','אפשר: להזיז את השעה עד שעה, להוסיף, להסיר או להחליף נוסע אחד, ולעדכן תחנות וכתובות. התאריך והכיוון לא משתנים.','לוחצים "שמירת השינוי". גם הזמנה שכבר אושרה חוזרת לסדרן לאישור מחדש. אם השינוי יוצר החרגה חדשה (למשל נוסע בודד), היא תחכה קודם לאישור.','אפשר לשנות עד 3 שעות לפני הנסיעה. שינוי גדול יותר: מבטלים ומזמינים מחדש.']},
-   {h:'ביטול הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "ביטול" ליד הנסיעה.','מותר לבטל: עד 3 שעות לפני שהמונית יוצאת (האיסוף הראשון), גם אחרי שהסדרן אישר. לא נספר בסל ואין קנס.','ביטול מאוחר: פחות מ־3 שעות לפני היציאה. נספר בסל, והמערכת תבקש אישור לפני כן.','קנס: ביטול מאוחר של מונית שהסדרן כבר הזמין הוא גם קנס של 1,000 ₪ שהמבצעים חייבים למנכ״ל.','ליד כל ביטול כתוב מי ביטל.']},
+   {h:'ביטול הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "ביטול" ליד הנסיעה.','מותר לבטל: עד 22:00 בערב שלפני הנסיעה (סגירת יישור הקו), וגם אז לפחות 3 שעות לפני שהמונית יוצאת. גם אחרי שהסדרן אישר. לא נספר בסל ואין קנס.','אחרי 22:00 בערב שלפני: הביטול בניגוד לנהלים ונספר כאילו המונית יצאה, אבל אין קנס.','ביטול מאוחר: פחות מ־3 שעות לפני היציאה. נספר בסל, והמערכת תבקש אישור לפני כן.','קנס: ביטול מאוחר של מונית שהסדרן כבר הזמין הוא גם קנס של 1,000 ₪ שהמבצעים חייבים למנכ״ל.','ליד כל ביטול כתוב מי ביטל.']},
    {h:'🔒 אבטחת מידע',go:'ops',steps:['כמעט כל נסיעה צריכה אישור אבטחת מידע. זה מעקב פנימי שלכם.','אם האישור כבר התקבל, מסמנים "כבר התקבל אישור אבטחת מידע" לפני השליחה.','אחר כך, ב"ההזמנות שלי", לחיצה על 🔒 מחליפה בין: ממתין ← אושר ← לא נדרש.','בראש העמוד מופיעה תזכורת לנסיעות קרובות בלי אישור.']},
    {h:'נוסעים: הוספה, עריכה והסרה',go:'ops-pax',steps:['בלשונית "נוסעים" ← "הוספת נוסע": שם, סוג (ביזנס, פרימיום או תיירים) וטלפון נייד. בלי טלפון הנוסע לא יקבל הודעה עם פרטי הנסיעה.','שומרים על פרטיות: רק שם פרטי ואות ראשונה של שם המשפחה, למשל "דנה כ.". כתבתם שם מלא? הוא יקוצר לבד. אם כבר יש "דנה כ." במאגר, נשמרת אות נוספת ("דנה כה.").','"הוספה למאגר". הנוסע מופיע בהזמנות מיד. המנהלת והנסיכות רואות כל נוסע חדש ויכולות לתקן פרטים.','עריכה: "עריכה" ליד הנוסע ← משנים ← "שמירה". השינוי בתוקף מיד.','הסרה: "הסרה" ← אישור. הנוסע יורד מיד.']},
    {h:'מי פנוי באלנבי: חיסכון במוניות',go:'ops-merge',steps:['כאן מופיעות הצעות לאחד הזמנה שלכם עם הזמנה קרובה של מבצעים אחרים.','רואים את המסלול המאוחד, השעות, כמה זמן מתווסף וכמה מונית תרד לכם מהסל.','"מאשרים איחוד" או "לא מאשרים". האיחוד קורה רק אם כל המבצעים אישרו.']},
@@ -1917,6 +1927,7 @@ window.addEventListener('storage',e=>{if(e.key!==KEY||!e.newValue)return;try{S=J
 document.addEventListener('mousemove',e=>{const el=e.target.closest?.('[data-tip]'),tp=document.getElementById('tip');if(!tp)return;
   if(!el){tp.hidden=true;return}tp.textContent=el.dataset.tip;tp.hidden=false;const x=Math.min(e.clientX+12,innerWidth-tp.offsetWidth-8),y=e.clientY+14;tp.style.left=Math.max(8,x)+'px';tp.style.top=y+'px'});
 document.addEventListener('toggle',e=>{const dd=e.target;if(!dd.dataset||!dd.dataset.rid)return;const L=ui.openR||(ui.openR=[]);const i=L.indexOf(dd.dataset.rid);if(dd.open&&i<0)L.push(dd.dataset.rid);if(!dd.open&&i>=0)L.splice(i,1)},true);
+document.addEventListener('input',e=>{const el=e.target;if(!el||!el.dataset||!el.dataset.drvname)return;const D=drivers()[el.value.trim()];if(!D)return;const id=el.dataset.drvname,ph=document.getElementById('ph-'+id),co=document.getElementById('dc-'+id);if(ph&&D.phone)ph.value=fmtPh(D.phone);if(co&&D.co&&!co.value)co.value=D.co});
 document.addEventListener('keydown',e=>{const el=e.target;if(e.key==='Enter'&&el&&el.dataset&&el.dataset.drventer){e.preventDefault();document.querySelector(`[data-phone="${el.dataset.drventer}"]`)?.click()}});
 document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a[data-smsgo]');if(!a)return;const[rid,p]=a.dataset.smsgo.split('|'),r=S.rides.find(x=>x.id===rid);
   if(r&&r.sms){r.sms.sent={...(r.sms.sent||{}),[p]:Date.now()};save();setTimeout(render,400)}});
@@ -1930,8 +1941,9 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.phone){const r=S.rides.find(x=>x.id===t.dataset.phone);const ph=(document.getElementById('ph-'+r.id)?.value||'').replace(/\D/g,''),nm=(document.getElementById('dn-'+r.id)?.value||'').trim();
     if(!ph&&!nm){toast('הקלידו שם או טלפון של הנהג');return}
     if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר הטלפון לא תקין. למשל: 050-1234567');document.getElementById('ph-'+r.id)?.focus();return}
-    if(ph===(r.driverPhone||'')&&nm===(r.driverName||'')){toast('לא שונה דבר');return}
-    r.driverPhone=ph;r.driverName=nm;mark(r,'driver');makeCalLinks(r);const to=r.pax.filter(p=>emp(p)?.phone);r.sms={at:Date.now(),to,missing:r.pax.filter(p=>!emp(p)?.phone),sent:{...((r.sms||{}).sent||{})}};save();
+    const co=(document.getElementById('dc-'+r.id)?.value||'').trim();if(ph===(r.driverPhone||'')&&nm===(r.driverName||'')&&co===(r.driverCo||'')){toast('לא שונה דבר');return}
+    if(nm)drivers()[nm]={phone:ph||(drivers()[nm]||{}).phone||'',co:co||(drivers()[nm]||{}).co||''};
+    r.driverPhone=ph;r.driverName=nm;r.driverCo=co;mark(r,'driver');makeCalLinks(r);const to=r.pax.filter(p=>emp(p)?.phone);r.sms={at:Date.now(),to,missing:r.pax.filter(p=>!emp(p)?.phone),sent:{...((r.sms||{}).sent||{})}};save();
     toast('פרטי הנהג נשמרו. המבצעים קיבלו אותם וישלחו הודעה לנוסעים');render();return}
   if(t.dataset.seen){const r=S.rides.find(x=>x.id===t.dataset.seen);(r.seenBy??=[]).push(ui.cid);save();render();return}
   if(t.dataset.seenall){notices(ui.cid).forEach(r=>(r.seenBy??=[]).push(ui.cid));save();render();return}
@@ -2042,7 +2054,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.cancel){const r=S.rides.find(x=>x.id===t.dataset.cancel);
     const who=cancelActor(),opsSide=ui.page==='client';
     if(!opsSide||!lateNow(r)){r.status='cancelled';r.cancelBy={...who,at:Date.now()};mark(r,opsSide?'cancelled':'dispcancel');save();toast(opsSide?'ההזמנה בוטלה. לא נספרת בסל':'ההזמנה בוטלה');render()}else{ui.confirm=r.id;render()}return}
-  if(t.dataset.latecancel){{const r=S.rides.find(x=>x.id===t.dataset.latecancel);r.lateWhy=r.status==='active'?'ordered':'3h';if(r.lateWhy==='ordered')r.fineAmt=FINE();r.status='late';r.cancelBy={...cancelActor(),at:Date.now()};mark(r,'late')}ui.confirm=null;save();toast('בוטלה. הנסיעה נספרת בסל');render();return}
+  if(t.dataset.latecancel){{const r=S.rides.find(x=>x.id===t.dataset.latecancel);const lk=lateKind(r);r.lateWhy=lk==='line'?'line':r.status==='active'?'ordered':'3h';if(r.lateWhy==='ordered')r.fineAmt=FINE();r.status='late';r.cancelBy={...cancelActor(),at:Date.now()};mark(r,'late')}ui.confirm=null;save();toast('בוטלה. הנסיעה נספרת בסל');render();return}
   if(t.dataset.keep){ui.confirm=null;render();return}
   if(t.dataset.approve){const r=S.rides.find(x=>x.id===t.dataset.approve);r.status='active';r.confirmedAt=Date.now();mark(r,'confirmed');save();toast('סומן כמאושר');render();return}
   if(t.dataset.mok){const key=t.dataset.mok,[aid,bid,variant]=key.split('|'),a=S.rides.find(x=>x.id===aid),b=S.rides.find(x=>x.id===bid);
