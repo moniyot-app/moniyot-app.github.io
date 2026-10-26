@@ -31,6 +31,9 @@ function plan(ev: any): Msg[] {
     // ops added a passenger to an approved ride: no re-approval, just tell the dispatcher
     if (n.status === "active" && n.upd?.k === "paxadd" && (!o || !o.upd || o.upd.at !== n.upd.at))
       out.push({ to: (s) => has(s, "disp"), title: "רמוניות · סדרן", body: "➕ נוסף נוסע להזמנה מאושרת. לעדכן את הנהג" + tail, tag: "pa-" + n.id });
+    // big boss: a new order that goes over the unit's basket
+    if (n.over && (!o || !o.over) && !["cancelled", "late", "merged"].includes(n.status))
+      cids.forEach((c) => out.push({ to: (s) => has(s, "boss") && s.cid === c, title: "רמוניות · בוס גדול", body: "⚠ חריגה מהסל: הזמנה חדשה מעל הסל החודשי" + tail, tag: "ov-" + n.id }));
     // exceptions waiting: big boss (single passenger), CEO (night)
     if (n.status === "pending" && (!o || o.status !== "pending" || chg)) {
       const ok: string[] = n.approvedBy || [];
@@ -43,7 +46,7 @@ function plan(ev: any): Msg[] {
     const k = n.upd?.k;
     if (k && UPD[k] && (!o || !o.upd || o.upd.at !== n.upd.at)) {
       const by = n.upd.by;
-      cids.filter((c) => c !== by).forEach((c) => out.push({ to: (s) => has(s, "ops") && s.cid === c, title: "רמוניות", body: UPD[k] + tail, tag: "nt-" + n.id }));
+      cids.filter((c) => c !== by).forEach((c) => out.push({ to: (s) => has(s, "ops") && !has(s, "boss") && s.cid === c, title: "רמוניות", body: UPD[k] + tail, tag: "nt-" + n.id }));
       if (n.by === PID && by !== PID) out.push({ to: (s) => has(s, "princess"), title: "רמוניות · נסיכות", body: UPD[k] + tail, tag: "nt-" + n.id });
     }
   }
@@ -51,6 +54,21 @@ function plan(ev: any): Msg[] {
     const was = new Set(((ev.old?.v) || []).filter((q: any) => q.status === "pending").map((q: any) => q.id));
     const fresh = ((ev.new.v) || []).filter((q: any) => q.status === "pending" && !was.has(q.id));
     if (fresh.length) out.push({ to: (s) => has(s, "admin"), title: "רמוניות · המנהלת", body: fresh.length === 1 ? `בקשת נוסע ממתינה לאישורך: ${fresh[0].name}` : `${fresh.length} בקשות נוסעים ממתינות לאישורך`, tag: "px" });
+  }
+  // "מי פנוי באלנבי": a new order can share a taxi with another unit's order
+  if (ev.table === "kv" && ev.new?.key === "mergeAlerts") {
+    const was = new Set(((ev.old?.v) || []).map((q: any) => q.id));
+    ((ev.new.v) || []).filter((q: any) => !was.has(q.id) && q.ts > Date.now()).forEach((q: any) =>
+      (q.cids || []).filter((c: string) => c !== q.by).forEach((c: string) => out.push({ to: (s) => has(s, "ops") && !has(s, "boss") && s.cid === c, title: "רמוניות · מי פנוי באלנבי", body: "🔗 יש הזמנה קרובה של מבצעים אחרים. אפשר לאחד מונית · " + when(q.ts), tag: "ma-" + q.id })));
+  }
+  // requests to the dispatcher's settings, and his answer back
+  if (ev.table === "kv" && ev.new?.key === "dispReq") {
+    const old: any[] = (ev.old?.v) || [], byId = new Map(old.map((q: any) => [q.id, q]));
+    ((ev.new.v) || []).forEach((q: any) => {
+      const o: any = byId.get(q.id);
+      if (q.status === "pending" && !o) out.push({ to: (s) => has(s, "disp"), title: "רמוניות · סדרן", body: "📨 בקשה מהמבצעים: " + (q.kind === "city" ? "להוסיף את " + q.city : String(q.text || "").slice(0, 80)), tag: "dr-" + q.id });
+      if (q.status !== "pending" && o && o.status === "pending") out.push({ to: (s) => has(s, "ops") && !has(s, "boss") && s.cid === q.cid, title: "רמוניות", body: (q.status === "ok" ? "✓ הסדרן ביצע את הבקשה: " : "✕ הסדרן לא אישר את הבקשה: ") + (q.kind === "city" ? q.city : String(q.text || "").slice(0, 60)), tag: "da-" + q.id });
+    });
   }
   if (ev.table === "pw_help" && ev.type === "INSERT")
     out.push({ to: (s) => has(s, "admin"), title: "רמוניות · המנהלת", body: `🔑 בקשה לתזכורת סיסמה · ${ev.new?.role || ""}`, tag: "pw" });

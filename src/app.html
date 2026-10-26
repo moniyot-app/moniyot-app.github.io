@@ -1395,6 +1395,11 @@ function meetFor(m){const pts=points(m),mp=meetPoint(pts);if(!mp)return null;
   const m2={...m,dest:mp.c,stops:[],ppt:Object.fromEntries(m.pax.map(p=>[p,mp.c])),addr:Object.fromEntries(m.pax.map(p=>[p,addr]))};
   const s1=sched(m),s2=sched(m2);const span=s=>s?s.end-s.start:0;
   return {city:mp.c,km:mp.km,addr,m:m2,saved:Math.max(0,Math.round((span(s1)-span(s2))/MIN))}}
+/* a new ride that can share a taxi with another unit's ride: leave a note so the phones of those units get a "מי פנוי באלנבי" alert */
+function mergeAlert(nr){try{const L=(S.mergeAlerts??=[]);suggestions().filter(({a,b})=>a.id===nr.id||b.id===nr.id).forEach(({a,b})=>{const key=a.id+'|'+b.id;if(L.some(x=>x.key===key))return;
+    const cids=[...new Set([...clientsOf(a),...clientsOf(b),a.by,b.by].filter(c=>c&&c!==PID))];L.push({id:'ma'+Date.now()+Math.random().toString(36).slice(2,5),key,cids,by:nr.by,ts:Math.min(a.ts,b.ts),at:Date.now(),route:[a.dest,b.dest].join(' / ')})});
+  S.mergeAlerts=L.filter(x=>x.ts>Date.now()).slice(-60)}catch(_){}}
+const mergeAlertR=r=>{mergeAlert(r);return r};
 function suggestions(){
   const live=S.rides.filter(r=>r.ts>Date.now()+3*H&&['active','pending','awaiting'].includes(r.status)).sort((a,b)=>a.ts-b.ts);
   const out=[];
@@ -1965,7 +1970,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
     toast(`${ds.length} מוניות${sm.back&&sm.dir==='to'?' (הלוך וחזור)':''}${nb?` · 🚐 ${nb} במיניבוס`:''}${sm.unplaced.length?` · ${sm.unplaced.length} לא שובצו`:''}`);render();return}
   if(t.dataset.smtaxi){const sm=ui.smart;(sm.noBus??={})[t.dataset.smtaxi]=true;/* keep everyone else where they were */sm.fixBus={};(sm.buses||[]).forEach(b=>sm.fixBus[b.leg]=b.pax.map(x=>x.p));smRun(sm);sm.fixBus=null;render();toast('הנוסע הועבר למונית');return}
   if(t.dataset.smedit){const x=ui.smart.plan[+t.dataset.smedit];ui.editRide=null;ui.draft={...ui.draft,...JSON.parse(JSON.stringify(x.d))};ui.sub='orders';render();scrollTo(0,0);toast('המונית נטענה לטופס ההזמנה. תקנו ושלחו');return}
-  if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;createRide(x.d,c);x.booked=true;n++});
+  if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;mergeAlertR(createRide(x.d,c));x.booked=true;n++});
     save();toast(n?`הוזמנו ${n} מוניות. אפשר לראות אותן ב"הזמנות"`:'אין מוניות תקינות להזמנה');render();return}
   if(t.dataset.editride){const r=S.rides.find(x=>x.id===t.dataset.editride);if(!r||!canEdit(r))return;ui.editRide=r.id;ui.draft=draftFromRide(r);ui.sub='orders';render();scrollTo(0,0);toast('ההזמנה נטענה לטופס. שנו ושמרו');return}
   if(t.dataset.editx){ui.editRide=null;const d=ui.draft;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;render();return}
@@ -2049,7 +2054,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
       r.status=needBoss(r)||needCeo(r)?'pending':'awaiting';r.confirmedAt=null;r.reconfirm=true;if(r.sms)r.sms.sent={};if(r.cal)makeCalLinks(r);
       mark(r,'changed');ui.editRide=null;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;save();
       toast(r.status==='pending'?'השינוי נשמר. ההזמנה ממתינה לאישור החרגה ואז לסדרן':'השינוי נשמר ונשלח לסדרן לאישור מחדש');render();return}
-    const nr=createRide(d,c),needs=!!nr.needs;
+    const nr=createRide(d,c),needs=!!nr.needs;mergeAlert(S.rides.find(x=>x.id===nr.id)||nr);
     d.reason='';d.base='';d.baseOn=false;d.house=false;ui.ack4=false;ui.secOk=false;d.pax=[];d.stops=[];d.stopAddr=[];d.destAddr='';d.lead=null;d.ppt={};d.addr={};d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};ui.ack=false;save();{const up=S.rides[S.rides.length-1].unplanned;toast((needs?(nr.needs.includes('single')?'ההזמנה ממתינה לאישור הבוס הגדול':'ההזמנה ממתינה לאישור המנכ״ל'):'ההזמנה נשלחה לסדרן')+(up?' · 📅 שימו לב: מחוץ לתכנון החודשי':''))}render();return}
   if(t.dataset.cancel){const r=S.rides.find(x=>x.id===t.dataset.cancel);
     const who=cancelActor(),opsSide=ui.page==='client';
