@@ -560,6 +560,8 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
   const n=d.pax.length;
   if(!n){add('block','בחרו לפחות נוסע אחד');return out}
   if(n>4)add('block','מקסימום 4 נוסעים במונית');
+  /* pick-ups / drop-offs in the north: only the princesses order those (and the manager) */
+  {const nc=[...new Set([d.dest,...(d.stops||[]),...((d.pts||[]).map(x=>x.city))].filter(x=>x&&S.north.includes(x)))];if(nc.length&&!isP(ui.cid)&&ui.role!=='admin')add('block',`${nc.join(', ')} בצפון: הזמנה לנקודות בצפון רק דרך הנסיכות`)}
   {const used=[...new Set(d.pax.map(p=>ptOf(d,p)))],P=(d.pts||[]).filter(x=>used.includes(x.city)),nm=x=>x.city||'תחנה';
   if(d.pax.length&&!d.pts)add('block','הוסיפו תחנה');
   else if(P.some(x=>!(x.addr||'').trim()))add('block',`הזינו כתובת מדויקת (רחוב ומספר, או נקודת ציון) לתחנה ב${P.filter(x=>!(x.addr||'').trim()).map(nm).join(', ')}`);
@@ -832,7 +834,8 @@ function renderDispReq(c){const mine=dispReq().filter(q=>q.cid===c.id).sort((a,b
 function dispReqPanel(){const L=dispReq().slice().sort((a,b)=>(a.status==='pending'?0:1)-(b.status==='pending'?0:1)||b.at-a.at).slice(0,30);if(!L.length)return '';
   return `<div class="panel" style="grid-column:1/-1"><h3>📨 בקשות מהמבצעים${dispReqOpen().length?` <span class="count">${dispReqOpen().length}</span>`:''}</h3><div style="display:grid;gap:8px">${L.map(q=>`<div class="emp-row" style="align-items:flex-start;flex-wrap:wrap"><span style="flex:1;min-width:200px">${opsDot(q.cid)}<b>${esc(client(q.cid)?.name||'')}</b> · ${q.kind==='city'?`🏙 להוסיף את <b>${esc(q.city)}</b>${S.destinations.includes(q.city)?' <span class="note">(כבר ברשימה)</span>':''}`:'⚙️ בקשה להגדרות'}${q.text?`<br><span style="white-space:pre-wrap">${esc(q.text)}</span>`:''}<br><span class="note">${dmy(q.at)} ${hm(new Date(q.at))}</span>${q.note?`<div class="reason">💬 ${esc(q.note)}</div>`:''}</span>
     <span class="row" style="gap:6px;flex-wrap:wrap">${drSt(q)}${q.status==='pending'&&!RO()?`${q.kind==='city'&&!S.destinations.includes(q.city)?`<select id="drr-${q.id}" aria-label="אזור"><option value="south">מרכז</option><option value="north">צפון</option></select>`:''}<input id="drn-${q.id}" placeholder="הערה (לא חובה)" maxlength="200" style="width:150px"><button class="btn small primary" data-drok="${q.id}">${q.kind==='city'&&!S.destinations.includes(q.city)?'הוספת העיר':'בוצע'}</button><button class="btn small danger" data-drno="${q.id}">לא לאשר</button>`:''}</span></div>`).join('')}</div></div>`}
-const destHint=v=>!v?'':S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':`<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>${ui.page==='client'&&v.trim().length>1?` · <button type="button" class="btn small" data-drcity="${esc(v.trim())}">📨 לבקש מהסדרן להוסיף</button>`:''}`;
+const okCity=x=>!S.north.includes(x)||isP(ui.cid)||ui.role==='admin';
+const destHint=v=>!v?'':S.destinations.includes(v)&&S.north.includes(v)&&ui.page==='client'&&!isP(ui.cid)&&ui.role!=='admin'?'<span style="color:var(--bad);font-weight:700">✕ צפון: רק הנסיכות מזמינות לכאן</span>':S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':`<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>${ui.page==='client'&&v.trim().length>1?` · <button type="button" class="btn small" data-drcity="${esc(v.trim())}">📨 לבקש מהסדרן להוסיף</button>`:''}`;
 function driverMsg(r){const s=sched(r),pts=points(r),L=emp(leadOf(r));
   const lines=pts.map((pt,i)=>{const ws=r.pax.filter(p=>ptOf(r,p)===pt);if(!ws.length)return null;const tt=s?hm(new Date(s.stops.find(x=>x.pt===pt).t)):'';
     return `${i+1}. ${tt} · ${pt}\n${ws.map(p=>`   - ${emp(p)?.name}${emp(p)?.phone?' · '+fmtPh(emp(p).phone):''}: ${(r.addr||{})[p]||'כתובת לא הוזנה'}`).join('\n')}`}).filter(Boolean);
@@ -1121,7 +1124,7 @@ function renderSmart(c){const sm=ui.smart||(ui.smart={date:ymd(new Date(Date.now
     <label>פירוט לנסיעות לילה (איסוף לפני 05:00 או אחרי 23:00 דורש אישור מנכ״ל)<input id="sm-reason" value="${esc(sm.reason||'')}" placeholder="למשל: תחילת משמרת ב־08:30" maxlength="200"></label>
     <h3 style="margin-bottom:4px">נוסעים <span class="count">${Object.keys(sm.sel).length}</span></h3>
     <div class="row" style="gap:6px;margin-bottom:6px"><button class="btn small" data-small="1">סימון הכל</button><button class="btn small" data-smnone="1">ניקוי</button><span class="note">ליד כל נוסע מסומן: העיר שממנה הוא יוצא (או אליה הוא חוזר).</span></div>
-    <datalist id="sm-cities">${S.destinations.map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
+    <datalist id="sm-cities">${S.destinations.filter(okCity).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px">${emps.map(e=>{const on=e.id in sm.sel;return `<div class="emp-row" style="gap:8px"><label class="row" style="gap:6px;font-weight:400;color:var(--ink);flex:1;min-width:0"><input type="checkbox" data-smp="${e.id}" ${on?'checked':''}>${P?opsDot(e.cid):''}<b>${esc(e.name)}</b> ${tag(e.type)}</label>${on?`<input list="sm-cities" data-smc="${e.id}" value="${esc(sm.sel[e.id])}" placeholder="עיר" style="width:110px" class="${S.destinations.includes(sm.sel[e.id])?'':'bad'}" aria-label="העיר של ${esc(e.name)}">`:''}</div>`}).join('')||'<div class="empty">אין נוסעים במאגר.</div>'}</div>
     <div class="row" style="gap:8px;margin-top:12px"><button class="btn primary" data-smgo="1" ${Object.keys(sm.sel).length?'':'disabled'}>⚡ תכנון המוניות</button>${plan?'<button class="btn small" data-smclear="1">ניקוי התוצאה</button>':''}</div>
   </section>
@@ -1170,7 +1173,7 @@ function renderClient(){if(ui.bossOnly)ui.sub='manager';if(ui.role==='princess')
       </div>
       <div class="note">⏱ מזמינים לפחות 3 שעות לפני שהמונית יוצאת (שעת האיסוף הראשון). הכי מוקדם עכשיו: <b class="num">${(()=>{const e=new Date(Date.now()+3*H);return (ymd(e)===ymd(new Date())?'היום':dayLabel(ymd(e)))+' '+hm(e)})()}</b></div>
       <datalist id="base-list">${[BASE,...S.destinations].map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>
-      <datalist id="dest-list">${S.destinations.map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>
+      <datalist id="dest-list">${S.destinations.filter(okCity).map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>
       <div class="eyebrow">1. נוסעים (עד 4)${isP(c.id)?' · מכל המבצעים':''}</div>
       ${isP(c.id)?`<input id="f-psearch" placeholder="חיפוש נוסע לפי שם או מבצעים" autocomplete="off">`:''}
       <div class="pax" id="paxlist">${emps.map(e=>`<label data-q="${esc(e.name+' '+(client(e.cid)?.name||''))}"><input type="checkbox" id="p-${e.id}" data-pax="${e.id}" ${d.pax.includes(e.id)?'checked':''}>${isP(c.id)?opsLogo(e.cid,18):''}<span style="flex:1">${esc(e.name)}</span>${tag(e.type)}</label>`).join('')}</div>
