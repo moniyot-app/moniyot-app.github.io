@@ -585,8 +585,10 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
   else if(!S.destinations.includes(d.dest))add('block',`העיר "${d.dest}" אינה ברשימת הערים המותרות. אי אפשר להזמין אליה מונית`);
   const st=d.stops||[];
   if(st.some(x=>!S.destinations.includes(x)))add('block','עיר במסלול אינה ברשימת הערים המותרות');
-  else if(new Set([d.dest,...st]).size!==st.length+1)add('block','אותה עיר מופיעה פעמיים במסלול. לנוסע מכתובת אחרת באותה עיר, כתבו את הכתובת ליד שמו');
-  else if(st.length)add('ok',`${st.length+1} נקודות במסלול`);
+  else{const all=[d.dest,...st],dup=[...new Set(all.filter((x,i)=>x&&all.indexOf(x)!==i))];
+    /* two pick-up points in the same city are allowed; if it is really the same spot, the route box offers to merge them */
+    if(dup.length)add('warn',`${dup.join(', ')}: שתי נקודות באותה עיר. אם זו אותה נקודה, אפשר לאחד אותן בלחיצה על "איחוד" במסלול`);
+    else if(st.length)add('ok',`${st.length+1} נקודות במסלול`);}
   const free=isFree(sD);
   const PR=isP(ui.cid)&&!!d.house; /* princess, on the house only: may order even when a flight or minibus is the alternative, for any passenger type */
   if(PR)add('ok','על חשבון הבית: אין הגבלה של שעות טיסה או מיניבוס');
@@ -1185,7 +1187,7 @@ function renderClient(){if(ui.bossOnly)ui.sub='manager';if(ui.role==='princess')
     return `<div class="secwarn">🔒 <b>${m.length} נסיעות קרובות עדיין בלי אישור אבטחת מידע</b>${soon?` · מתוכן ${soon} ב־24 השעות הקרובות`:''}. כשהאישור מתקבל, לוחצים על "אבטחת מידע" ליד הנסיעה ומסמנים "אושר".</div>`})()}<div class="rides">${my.length?groupByDay(my).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}${isFree(ds)?' <span class="tag t-day">יום מוניות</span>':''}</div>`+rs.map(r=>rideRow(r,'client',c.id)).join('')).join(''):'<div class="empty">אין הזמנות קרובות.</div>'}</div></section>`;
   renderRoute();renderCheck();
 }
-const addrOf=(d,p)=>{const pt=ptOf(d,p);if(pt===d.dest&&d.destAddr)return d.destAddr;const i=(d.stops||[]).indexOf(pt);if(i>=0&&(d.stopAddr||[])[i])return d.stopAddr[i];return ''}; /* every passenger uses the address of their station */
+const addrOf=(d,p)=>{if(d.pts&&d.pts.length){const q=d.pts[idxOf(d,p)];if(q&&q.addr)return q.addr}const pt=ptOf(d,p);if(pt===d.dest&&d.destAddr)return d.destAddr;const i=(d.stops||[]).indexOf(pt);if(i>=0&&(d.stopAddr||[])[i])return d.stopAddr[i];return ''}; /* every passenger uses the address of their station */
 function addrSane(a){a=(a||'').trim();if(!a)return {k:'none'};
   if(a.length<4||!/[֐-׿A-Za-z]{2,}/.test(a)||/(.)\1{3,}/.test(a)||/^[\d\s,.\-]+$/.test(a))return {k:'bad',m:'הכתובת לא נראית תקינה'};
   if(!/\d/.test(a)&&!/(ליד|מול|צומת|כיכר|קניון|תחנת|רכבת|בית ספר|שער|חניון|מרכז|בניין|פינת)/.test(a))return {k:'warn',m:'חסר מספר בית או נקודת ציון'};
@@ -1242,15 +1244,15 @@ function bestOrder(d){const P=d.pts||[];if(P.length<2||!P.every(x=>S.destination
 /* the city a passenger last ordered a taxi from (falls back to their home city) */
 function lastCity(p){let best=null;for(const r of S.rides){if(!r.pax||!r.pax.includes(p)||['merged'].includes(r.status))continue;const c=(r.ppt||{})[p]||(r.pax.length===1?r.dest:null);if(!c||!S.destinations.includes(c))continue;const k=r.createdAt||r.ts;if(!best||k>best.k)best={k,c}}return best?best.c:emp(p)?.city}
 function renderRoute(){const box=document.getElementById('routebox');if(!box)return;const d=ui.draft;syncDraft(d);const P=d.pts,s=sched(d);
-  const timeOf=city=>{const x=s&&s.stops.find(y=>y.pt===city);return x?hm(new Date(x.t)):''};
+  const tAt=i=>{const x=s&&s.stops[i];return x?hm(new Date(x.t)):''};const timeOf=city=>{const x=s&&s.stops.find(y=>y.pt===city);return x?hm(new Date(x.t)):''};
   const home=`<div class="rp home"><span class="dot" aria-hidden="true">${d.dir==='to'?'🏁':'▶'}</span><div class="rp-body"><b>${d.dir==='to'?'תחנת יעד':'תחנת מוצא'}</b>
     <input id="f-base" list="base-list" value="${esc(d.base||'')}" placeholder="בחרו מהרשימה או כתבו מקום, למשל ${BASE}" maxlength="60" autocomplete="off" style="width:100%" aria-label="${d.dir==='to'?'תחנת יעד':'תחנת מוצא'}">
     <div class="note num">${d.dir==='to'?'הגעה':'יציאה'} ${esc(d.time||'')}</div></div></div>`;
   const rows=P.map((pt,i)=>{const ok=S.destinations.includes(pt.city),here=d.pax.filter(p=>idxOf(d,p)===i);
     const lbl=d.dir==='to'?(i===0?'תחנת מוצא':'תחנת איסוף נוספת'):(i===P.length-1?'תחנת יעד':'תחנת הורדה בדרך');
     return `<div class="rp"><span class="dot num">${i+1}</span><div class="rp-body"><b>${lbl}</b>
-      <div class="row" style="gap:8px"><input class="city" list="dest-list" id="pc-${i}" data-pcity="${i}" value="${esc(pt.city)}" placeholder="עיר" autocomplete="off" aria-label="עיר בנקודה ${i+1}"><span id="pch-${i}">${destHint(pt.city)}</span>${P.length>1?`<button type="button" class="btn small danger" data-delpt="${i}" style="margin-inline-start:auto">הסרה</button>`:''}</div>
-      <input id="pa-${i}" data-paddr="${i}" value="${esc(pt.addr||'')}" placeholder="${ok?'כתובת מדויקת: רחוב ומספר, או נקודת ציון':'קודם הזינו עיר מותרת'}" ${ok?'':'disabled'} autocomplete="off" maxlength="80" aria-label="כתובת מדויקת בנקודה ${i+1}"><span id="pah-${i}">${ok?addrHint(pt.addr,pt.city):''}</span>${ok&&timeOf(pt.city)?(()=>{const st=s.stops.find(y=>y.pt===pt.city),hh=new Date(st.t).getHours(),nt=hh>=23||hh<5;return `<div class="ptime${nt?' night':''}">⏱ ${d.dir==='to'?'שעת איסוף משוערת':'שעת הורדה משוערת'}: <b class="num">${timeOf(pt.city)}</b>${nt?' · 🌙 בשעות הלילה, דורש אישור מנכ״ל':''}</div>`})():''}
+      <div class="row" style="gap:8px"><input class="city" list="dest-list" id="pc-${i}" data-pcity="${i}" value="${esc(pt.city)}" placeholder="עיר" autocomplete="off" aria-label="עיר בנקודה ${i+1}"><span id="pch-${i}">${destHint(pt.city)}</span>${pt.city&&P.findIndex(x=>x.city===pt.city)<i?`<button type="button" class="btn small" data-mergept="${i}" style="margin-inline-start:auto" title="אותה נקודה כמו התחנה הקודמת בעיר">איחוד עם ${esc(pt.city)} הקודמת</button>`:''}${P.length>1?`<button type="button" class="btn small danger" data-delpt="${i}" style="${pt.city&&P.findIndex(x=>x.city===pt.city)<i?'':'margin-inline-start:auto'}">הסרה</button>`:''}</div>
+      <input id="pa-${i}" data-paddr="${i}" value="${esc(pt.addr||'')}" placeholder="${ok?'כתובת מדויקת: רחוב ומספר, או נקודת ציון':'קודם הזינו עיר מותרת'}" ${ok?'':'disabled'} autocomplete="off" maxlength="80" aria-label="כתובת מדויקת בנקודה ${i+1}"><span id="pah-${i}">${ok?addrHint(pt.addr,pt.city):''}</span>${ok&&tAt(i)?(()=>{const st=s.stops[i],hh=new Date(st.t).getHours(),nt=hh>=23||hh<5;return `<div class="ptime${nt?' night':''}">⏱ ${d.dir==='to'?'שעת איסוף משוערת':'שעת הורדה משוערת'}: <b class="num">${tAt(i)}</b>${nt?' · 🌙 בשעות הלילה, דורש אישור מנכ״ל':''}</div>`})():''}
       ${d.pax.length?`<div class="note">${d.dir==='to'?'מי עולה כאן?':'מי יורד כאן?'} (לחיצה על שם מעבירה אותו לנקודה הזו)</div><div class="row" style="gap:6px">${d.pax.map(p=>`<button type="button" class="pchip" data-assign="${p}|${i}" aria-pressed="${idxOf(d,p)===i}">${esc(emp(p).name)}</button>`).join('')}</div>
         <div class="note">כולם נאספים בכתובת של התחנה. נוסע שנאסף ממקום אחר? מוסיפים בשבילו תחנה.</div>`:''}
     </div></div>`}).join('');
@@ -2040,6 +2042,8 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.sec){const r=S.rides.find(x=>x.id===t.dataset.sec);const o=['pending','ok','na'];r.sec=o[(o.indexOf(secOf(r))+1)%3];r.secAt=Date.now();save();toast(SEC[r.sec][1]);render();return}
   if(t.dataset.reorder){const d=ui.draft,ord=t.dataset.reorder.split(',').map(Number),inv={};ord.forEach((o,n)=>inv[o]=n);d.pts=ord.map(i=>d.pts[i]);const np={};Object.entries(d.pidx||{}).forEach(([p,v])=>{np[p]=inv[v]});d.pidx=np;renderRoute();renderCheck();toast('התחנות סודרו מחדש');return}
   if(t.dataset.addpt){const d=ui.draft;d.pts.push({city:'',addr:''});renderRoute();renderCheck();document.getElementById('pc-'+(d.pts.length-1))?.focus();return}
+  if(t.dataset.mergept){const d=ui.draft,i=+t.dataset.mergept,j=d.pts.findIndex(x=>x.city===d.pts[i].city);if(j<0||j>=i)return;
+    if(!d.pts[j].addr&&d.pts[i].addr)d.pts[j].addr=d.pts[i].addr;const n={};Object.entries(d.pidx||{}).forEach(([p,v])=>{n[p]=v===i?j:v>i?v-1:v});d.pidx=n;d.pts.splice(i,1);syncDraft(d);renderRoute();renderCheck();toast('התחנות אוחדו');return}
   if(t.dataset.delpt){const d=ui.draft,i=+t.dataset.delpt;d.pts.splice(i,1);const n={};Object.entries(d.pidx||{}).forEach(([p,v])=>{if(v<i)n[p]=v;else if(v>i)n[p]=v-1});d.pidx=n;renderRoute();renderCheck();return}
   if(t.id==='submit'){const d=ui.draft,c=client(ui.cid);syncDraft(d);const res=check(d);const bl=res.find(x=>x.k==='block');if(bl){toast(bl.t);renderCheck();return}
     if(ui.editRide){const r=S.rides.find(x=>x.id===ui.editRide);if(!r||!canEdit(r)){ui.editRide=null;toast('אי אפשר לשנות את ההזמנה הזו יותר');render();return}
