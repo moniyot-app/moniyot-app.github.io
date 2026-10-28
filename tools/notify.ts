@@ -17,6 +17,7 @@ const UPD: Record<string, string> = {
   tod: "✓ ההחרגה אושרה. ההזמנה עברה לסדרן", bossok: "✓ הבוס הגדול אישר", ceook: "✓ המנכ״ל אישר", bossno: "✕ הבוס הגדול דחה את ההחרגה",
   ceono: "✕ המנכ״ל דחה את נסיעת הלילה", dispcancel: "✕ הסדרן ביטל את ההזמנה", merged: "🔗 ההזמנה אוחדה עם הזמנה אחרת",
   route: "🧭 הסדרן שינה את סדר התחנות",
+  ask: "💬 הסדרן מבקש שינוי בהזמנה",
 };
 
 function plan(ev: any): Msg[] {
@@ -28,6 +29,9 @@ function plan(ev: any): Msg[] {
     // dispatcher: a ride now waits for approval (new, approved exception, or changed by the ops)
     if (n.status === "awaiting" && (!o || o.status !== "awaiting" || chg))
       out.push({ to: (s) => has(s, "disp"), title: "רמוניות · סדרן", body: (n.reconfirm ? "✏️ המבצעים שינו הזמנה. צריך לאשר מחדש" : "🚕 הזמנה חדשה ממתינה לאישורך") + tail, tag: "aw-" + n.id });
+    // the ops answered the dispatcher's change request
+    if (n.dispAsk?.reply && n.dispAsk.replyAt && (!o || !o.dispAsk || o.dispAsk.replyAt !== n.dispAsk.replyAt))
+      out.push({ to: (s) => has(s, "disp"), title: "רמוניות · סדרן", body: "↩️ המבצעים ענו לבקשת השינוי: " + String(n.dispAsk.reply).slice(0, 80) + tail, tag: "ar-" + n.id });
     // ops added a passenger to an approved ride: no re-approval, just tell the dispatcher
     if (n.status === "active" && n.upd?.k === "paxadd" && (!o || !o.upd || o.upd.at !== n.upd.at))
       out.push({ to: (s) => has(s, "disp"), title: "רמוניות · סדרן", body: "➕ נוסף נוסע להזמנה מאושרת. לעדכן את הנהג" + tail, tag: "pa-" + n.id });
