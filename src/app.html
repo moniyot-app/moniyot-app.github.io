@@ -1617,14 +1617,14 @@ function renderDispatcher(){
       return {c,n:sm(()=>1),no:sm(isNorth),ce:sm(r=>!isNorth(r)),s1:sm(one),s1n:sm(r=>one(r)&&isNorth(r)),s1c:sm(r=>one(r)&&!isNorth(r)),s:rs.reduce((a,r)=>a+cost(r)*share(r,c.id),0)}}).sort((a,b)=>b.s-a.s);
     /* the princesses' "on the house" taxis: no unit's basket, but real money, so they get their own row and list */
     const hs=inM.filter(r=>r.house),hc=f=>hs.filter(f).length,hRow={c:{id:PID,name:'★ נסיכות · על חשבון הבית'},n:hs.length,no:hc(isNorth),ce:hc(r=>!isNorth(r)),s1:hc(one),s1n:hc(r=>one(r)&&isNorth(r)),s1c:hc(r=>one(r)&&!isNorth(r)),s:hs.reduce((a,r)=>a+cost(r),0)};
-    const all=hs.length?[...rows,hRow]:rows;
+    const all=[...rows,hRow]; /* the princesses always have a row, even with 0 */
     const sum=k=>all.reduce((a,x)=>a+x[k],0), tot=sum('s');
     const monthName=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('he-IL',{month:'long',year:'numeric'})};
     body=`<div class="meter-top"><div><div class="eyebrow">הוצאות · ${monthName(cur)}</div><div class="big num">${money(tot)}</div></div>
       <label>חודש<select id="costmonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${monthName(k)}</option>`).join('')}</select></label></div>
       <div class="note num">מרכז (נתניה ודרומה): ${money(S.prices.south)} למונית · צפון (צפונה מנתניה): ${money(S.prices.north)} למונית</div>
       ${overPanel(cur,rows)}
-      ${trackCharts(cur,inM,rows,tot-(hs.length?hRow.s:0),k=>rows.reduce((a,x)=>a+x[k],0))}<h3>טבלת פירוט</h3>
+      ${trackCharts(cur,inM,all,tot,sum)}<h3>טבלת פירוט</h3>
       <div class="tablewrap"><table><thead><tr><th rowspan="2">מבצעים</th><th colspan="3">מוניות</th><th colspan="3">מתוכן עם נוסע בודד</th><th rowspan="2">הוצאה</th></tr>
         <tr><th>סה"כ</th><th>צפון</th><th>מרכז</th><th>סה"כ</th><th>צפון</th><th>מרכז</th></tr></thead>
       <tbody>${all.map(x=>`<tr${x.c.id===PID?' style="background:color-mix(in srgb,#c2185b 7%,transparent)"':''}><td>${esc(x.c.name)}</td>${K.map(k=>`<td class="num">${fmt(x[k])}</td>`).join('')}<td class="num"><b>${money(x.s)}</b></td></tr>`).join('')}</tbody>
