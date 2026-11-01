@@ -335,9 +335,6 @@ const DAYS=['ראשון','שני','שלישי','רביעי','חמישי','שיש
 const dayLabel=ds=>{const d=new Date(ds+'T12:00');const t=ymd(new Date());const tm=ymd(new Date(Date.now()+DAY));
   const base=`יום ${DAYS[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}`;return ds===t?'היום · '+base:ds===tm?'מחר · '+base:base};
 const TYPE={business:'ביזנס',premium:'פרימיום',regular:'תיירים'};
-/* what each passenger type means, shown at the top of the big boss and CEO pages */
-const TYPEMEAN={business:'מיל',premium:'הצח רסן',regular:'כל השאר'};
-const typeLegend=()=>`<section class="panel" style="padding:10px 14px"><div class="row" style="gap:8px 18px;flex-wrap:wrap;align-items:center"><b>מה זה כל סוג נוסע:</b>${Object.keys(TYPE).map(k=>`<span class="row" style="gap:6px">${tag(k)} = <b>${TYPEMEAN[k]}</b></span>`).join('')}</div></section>`;
 const KEY='taxi-quota-proto-v1';
 const PROD=false,SB_URL='',SB_KEY='';
 const TRAIN=false; /* training sandbox (train.html): fictional data on this device only, no passwords */
@@ -883,7 +880,7 @@ function renderManager(c){
   const done=mine.filter(r=>r.status!=='pending'),shared=done.filter(r=>clientsOf(r).length>1).length, singles=done.filter(r=>r.pax.length===1).length;
   const pct=done.length?singles/done.length:0, P=x=>Math.round(x*100), col=x=>x>.25?'var(--bad)':x>.2?'var(--warn)':'var(--ok)';
   const after=r=>(singles+1)/(done.length+1);
-  app.innerHTML=subTabs(c)+typeLegend()+`
+  app.innerHTML=subTabs(c)+`
   <section class="panel"><h2>${esc(c.name)} · בוס גדול</h2>${meter(c)}
     <div class="split num"><span>${done.length} נסיעות החודש</span><span>· ${shared} משותפות עם מבצעים אחרים</span></div></section>
   <section class="panel"><h2>נסיעות עם נוסע בודד</h2>
@@ -1516,7 +1513,7 @@ const afterApproval=r=>{if(!needBoss(r)&&!needCeo(r)){r.status='awaiting';return
 const ceoPending=()=>S.rides.filter(r=>r.status==='pending'&&r.ts>Date.now()&&needCeo(r)).sort((a,b)=>a.ts-b.ts);
 function renderCeo(){const list=ceoPending(),mon=S.rides.filter(r=>inMonth(r.ts)&&COUNTS.includes(r.status)&&needsOf(r).includes('night')&&r.ceoOk);
   const per=S.clients.map(c=>({c,n:mon.filter(r=>clientsOf(r).includes(c.id)).length})).filter(x=>x.n),mx=Math.max(1,...per.map(x=>x.n));
-  return `${typeLegend()}<section class="panel ceo-panel"><div class="row" style="justify-content:space-between"><h2>★ אישורי מנכ״ל · נסיעות לילה</h2></div>
+  return `<section class="panel ceo-panel"><div class="row" style="justify-content:space-between"><h2>★ אישורי מנכ״ל · נסיעות לילה</h2></div>
     <div class="note">נסיעה שהאיסוף או ההגעה שלה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל. אחרי האישור (ואישור הבוס הגדול, אם נדרש גם הוא) ההזמנה עוברת לסדרן.</div>
     <div class="rides">${list.length?groupByDay(list).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}</div>`+rs.map(r=>rideRow(r,'ceo')).join('')).join(''):'<div class="empty">אין נסיעות לילה שממתינות לאישור.</div>'}</div></section>
     <section class="panel"><h3>האצלת סמכות לבוסים גדולים</h3><div class="note">אפשר לתת לבוס הגדול של מבצעים מסוימים לאשר בעצמו נסיעות לילה, לתמיד או עד תאריך מסוים. אפשר לבטל בכל רגע.</div>
