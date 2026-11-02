@@ -1488,6 +1488,29 @@ function renderLine(){const ds=ui.lineDate||ymd(new Date(Date.now()+DAY)),rows=l
         <td>${x.pts.map(p=>`<div><b class="num">${p.tt}</b> ${esc(p.pt)}: ${p.people.map(q=>`${esc(q.name)}${q.addr?` <span class="note">(${esc(q.addr)})</span>`:''}`).join(', ')}</div>`).join('')}</td>
         <td>${esc(x.lead)}<br><span class="num note">${x.leadPh}</span></td><td>${clientsOf(x.r).map(cid=>opsDot(cid)+esc(client(cid).name)).join('<br>')}</td><td>${x.status}${x.driver?`<br><span class="note">${esc(x.driver)}</span>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">אין הזמנות לתאריך הזה.</td></tr>'}</tbody></table></div>
     <details><summary class="note">תצוגת הטקסט שנשלח</summary><pre id="linetxt" style="white-space:pre-wrap;font-family:inherit;background:var(--bg);padding:10px;border-radius:6px">${esc(lineText(ds))}</pre></details>`}
+/* daily summary: what happened in the last 24 hours, plus the manager's debrief notes to the dispatcher */
+const debrief=()=>(S.debrief??=[]);
+const dbfUnread=()=>debrief().filter(n=>!n.readAt);
+function daySum(adm){const now=Date.now(),from=now-DAY,inW=t=>t>=from&&t<now,L=[];
+  const ran=S.rides.filter(r=>inW(r.ts)&&['active','late'].includes(r.status)),cAt=r=>r.cancelBy&&r.cancelBy.at;
+  const can=S.rides.filter(r=>r.status==='cancelled'&&inW(cAt(r)||0)),late=S.rides.filter(r=>r.status==='late'&&inW(cAt(r)||0));
+  const made=S.rides.filter(r=>inW(r.createdAt||0)),chg=S.rides.filter(r=>(r.changes||[]).some(c=>inW(c.at)));
+  const night=ran.filter(isNight),single=ran.filter(r=>r.pax.length===1),house=ran.filter(r=>r.house),noDrvRan=ran.filter(r=>r.status==='active'&&!(r.driverName||r.driverPhone));
+  const fines=late.filter(r=>fineOf(r)>0),pend=S.rides.filter(r=>r.status==='pending'&&r.ts>now),aw=S.rides.filter(r=>r.status==='awaiting'&&r.ts>now);
+  const per=S.clients.map(c=>[c,ran.filter(r=>clientsOf(r).includes(c.id)).reduce((a,r)=>a+share(r,c.id),0)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  const box=(l,v,n,warn)=>`<div class="kpi"${warn?' style="border-color:var(--warn)"':''}><div class="eyebrow">${l}</div><div class="kv num">${v}</div><div class="note">${n||''}</div></div>`;
+  const line=r=>`<li class="num">${dmy(r.ts)} ${hm(new Date(startTs(r)||r.ts))} · ${route(r)} · ${clientsOf(r).map(c=>esc(client(c)?.name||(isP(c)?'נסיכות':''))).join(', ')}</li>`;
+  const sec=(h,arr)=>arr.length?`<details class="more"><summary>${h} <span class="count">${arr.length}</span></summary><ul class="note" style="margin:4px 0;padding-inline-start:18px">${arr.map(line).join('')}</ul></details>`:'';
+  const notes=debrief().slice().sort((a,b)=>b.at-a.at).slice(0,10);
+  return `<section class="panel" style="background:var(--bg)"><h3>📋 סיכום יומי · 24 השעות האחרונות <span class="note" style="font-weight:400">(${dmy(from)} ${hm(new Date(from))} עד עכשיו)</span></h3>
+    <div class="kpis">${box('מוניות שיצאו',ran.length,money(ran.reduce((a,r)=>a+cost(r),0)))}${box('הזמנות חדשות',made.length,'נוצרו ביממה')}${box('שינויים',chg.length,'הזמנות ששונו')}${box('ביטולים בזמן',can.length,'ללא עלות')}${box('ביטולים מאוחרים',late.length,fines.length?`${fines.length} עם קנס · ${money(fines.reduce((a,r)=>a+fineOf(r),0))}`:'נספרים בסל',late.length)}${box('נסיעות לילה',night.length,'23:00–05:00')}${box('נוסע בודד',single.length,'')}${house.length?box('על חשבון הבית',house.length,'נסיכות'):''}${noDrvRan.length?box('יצאו בלי פרטי נהג',noDrvRan.length,'לא הוזנו במערכת',1):''}</div>
+    ${per.length?`<div class="note" style="margin-top:6px">לפי מבצעים: ${per.map(([c,n])=>`${opsDot(c.id)}${esc(c.name)} <b class="num">${fmt(n)}</b>`).join(' · ')}</div>`:''}
+    <div class="note" style="margin-top:4px">פתוח כרגע: ${aw.length} ממתינות לסדרן · ${pend.length} ממתינות לבוס גדול/מנכ״ל</div>
+    ${sec('🚕 מוניות שיצאו',ran)}${sec('✕ ביטולים מאוחרים',late)}${sec('✓ ביטולים בזמן',can)}${sec('✏️ הזמנות ששונו',chg)}${sec('🌙 נסיעות לילה',night)}
+    <h3 style="margin-top:12px">📝 תחקיר יומי${adm?'':dbfUnread().length?` <span class="count">${dbfUnread().length}</span>`:''}</h3>
+    ${adm?`<form id="dbf-form" style="display:grid;gap:6px"><textarea id="dbf-txt" rows="3" maxlength="1500" placeholder="הערות לתחקיר: מה היה טוב, מה צריך לשפר, נסיעות שצריך לבדוק…" style="width:100%;font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line)"></textarea><button class="btn primary small" style="justify-self:start">📨 שליחה לסדרן</button></form>`:''}
+    ${notes.length?`<div style="display:grid;gap:8px;margin-top:8px">${notes.map(n=>`<div class="emp-row" style="flex-direction:column;align-items:stretch;gap:4px${!n.readAt&&!adm?';border-color:var(--warn)':''}"><div class="note num">${dmy(n.at)} ${hm(new Date(n.at))} · ${esc(n.byName||'המנהלת')} · ${n.readAt?`<span style="color:var(--ok)">✓ הסדרן קרא ${hm(new Date(n.readAt))}</span>`:'<span style="color:var(--warn)">עוד לא נקרא</span>'}</div><div style="white-space:pre-wrap">${esc(n.text)}</div>${n.reply?`<div class="note" style="color:var(--ink)">💬 תשובת הסדרן: ${esc(n.reply)}</div>`:''}${!adm&&!n.readAt?`<div class="row" style="gap:6px;flex-wrap:wrap"><input id="dbr-${n.id}" placeholder="תגובה (לא חובה)" maxlength="300" style="flex:1;min-width:160px"><button class="btn small primary" data-dbfread="${n.id}">✓ קראתי</button></div>`:''}</div>`).join('')}</div>`:`<div class="note">${adm?'עוד לא נשלחו הערות.':'אין הערות תחקיר.'}</div>`}
+  </section>`}
 function trackCharts(cur,inM,rows,tot,sum){
   const [y,m]=cur.split('-').map(Number),nd=new Date(y,m,0).getDate(),daily=Array(nd).fill(0),dspend=Array(nd).fill(0);
   inM.forEach(r=>{const i=new Date(r.ts).getDate()-1;daily[i]++;dspend[i]+=cost(r)});
@@ -1637,7 +1660,7 @@ function renderDispatcher(){
     const all=[...rows,hRow]; /* the princesses always have a row, even with 0 */
     const sum=k=>all.reduce((a,x)=>a+x[k],0), tot=sum('s');
     const monthName=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('he-IL',{month:'long',year:'numeric'})};
-    body=`<div class="meter-top"><div><div class="eyebrow">הוצאות · ${monthName(cur)}</div><div class="big num">${money(tot)}</div></div>
+    body=`${daySum(ADM)}<div class="meter-top"><div><div class="eyebrow">הוצאות · ${monthName(cur)}</div><div class="big num">${money(tot)}</div></div>
       <label>חודש<select id="costmonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${monthName(k)}</option>`).join('')}</select></label></div>
       <div class="note num">מרכז (נתניה ודרומה): ${money(S.prices.south)} למונית · צפון (צפונה מנתניה): ${money(S.prices.north)} למונית</div>
       ${overPanel(cur,rows)}
@@ -1677,7 +1700,7 @@ function renderDispatcher(){
   app.innerHTML=`<div class="row" style="justify-content:space-between"><h1 style="font-size:1.4rem">לוח סדרן</h1><span class="row" style="gap:6px"><button class="btn small" id="sound" aria-pressed="${ui.sound}">${ui.sound?'🔔 התראה קולית פועלת':'🔕 התראה קולית כבויה'}</button></span></div>
     ${(()=>{const urg=S.rides.filter(r=>r.status==='awaiting'&&isUrgent(r)).length,lineDue=new Date().getHours()>=22&&!lineOf(ymd(new Date(Date.now()+DAY)));
       const chg=S.rides.filter(r=>r.status==='awaiting'&&r.reconfirm&&r.ts>Date.now()).length;
-      const act=[chg?`<button class="alert bad" data-tab="board">✏️ ${chg} הזמנות שהמבצעים שינו ממתינות לאישור מחדש</button>`:'',awn-chg>0?`<button class="alert" data-tab="board">🚕 ${awn-chg} הזמנות חדשות ממתינות לאישורך${urg?` (מתוכן ${urg} ⚡ מתפרצות)`:''}</button>`:'',ndn?`<button class="alert" data-tab="board">🚕 ${ndn} נסיעות מאושרות ממתינות להזנת נהג</button>`:'',lineDue?'<button class="alert" data-tab="line">🌙 הגיע זמן יישור הקו של מחר</button>':'',(()=>{const n=routeTips().length;return n?`<button class="alert" data-tab="board" data-openroutes="1">🧭 ${n} נסיעות עם מסלול שאפשר לקצר</button>`:''})()].filter(Boolean);
+      const act=[chg?`<button class="alert bad" data-tab="board">✏️ ${chg} הזמנות שהמבצעים שינו ממתינות לאישור מחדש</button>`:'',awn-chg>0?`<button class="alert" data-tab="board">🚕 ${awn-chg} הזמנות חדשות ממתינות לאישורך${urg?` (מתוכן ${urg} ⚡ מתפרצות)`:''}</button>`:'',ndn?`<button class="alert" data-tab="board">🚕 ${ndn} נסיעות מאושרות ממתינות להזנת נהג</button>`:'',dbfUnread().length?`<button class="alert" data-tab="costs">📝 ${dbfUnread().length} הערות תחקיר חדשות מהמנהלת</button>`:'',lineDue?'<button class="alert" data-tab="line">🌙 הגיע זמן יישור הקו של מחר</button>':'',(()=>{const n=routeTips().length;return n?`<button class="alert" data-tab="board" data-openroutes="1">🧭 ${n} נסיעות עם מסלול שאפשר לקצר</button>`:''})()].filter(Boolean);
       const st=S.clients.map(c=>{const p=used(c.id)/limit(c),pb=pend.filter(r=>clientsOf(r).includes(c.id)).length;return `<span class="ops-st ${p>1?'bad':p>=.9?'warn':''}" data-tip="${esc(c.name)} · ${fmt(used(c.id))} מתוך ${limit(c)} מוניות${pb?` · ${pb} ממתינות להחרגה (בוס גדול או מנכ״ל)`:''}">${opsDot(c.id)}${esc(c.name)} <b class="num">${Math.round(p*100)}%</b>${p>1?' חריגה':''}${pb?` · ⏳${pb}`:''}</span>`}).join('');
       return `<div class="agrid"><div class="abox act" role="region" aria-label="התראות לפעולה"><div class="ah">⚡ לפעולה</div>${act.length?`<div class="alerts">${act.join('')}</div>`:'<div class="note">אין כרגע משהו שמחכה לך. 👍</div>'}</div>
         <div class="abox info" role="region" aria-label="התראות לידיעה"><div class="ah">ℹ️ לידיעה · סטטוס המבצעים</div><div class="alerts">${st}</div><div class="note">אחוז ניצול הסל החודשי. ⏳ = נסיעות שממתינות להחרגה של בוס גדול או מנכ״ל.</div></div></div>`})()}
@@ -2018,6 +2041,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.smedit){const x=ui.smart.plan[+t.dataset.smedit];ui.editRide=null;ui.draft={...ui.draft,...JSON.parse(JSON.stringify(x.d))};ui.sub='orders';render();scrollTo(0,0);toast('המונית נטענה לטופס ההזמנה. תקנו ושלחו');return}
   if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;mergeAlertR(createRide(x.d,c));x.booked=true;n++});
     save();toast(n?`הוזמנו ${n} מוניות. אפשר לראות אותן ב"הזמנות"`:'אין מוניות תקינות להזמנה');render();return}
+  if(t.dataset.dbfread){const n=debrief().find(x=>x.id===t.dataset.dbfread);if(!n)return;const rp=(document.getElementById('dbr-'+n.id)?.value||'').trim();n.readAt=Date.now();if(rp)n.reply=rp;save();toast('סומן כנקרא'+(rp?'. התגובה נשלחה למנהלת':''));render();return}
   if(t.dataset.editride){const r=S.rides.find(x=>x.id===t.dataset.editride);if(!r||!canEdit(r))return;ui.editRide=r.id;ui.draft=draftFromRide(r);ui.sub='orders';render();scrollTo(0,0);toast('ההזמנה נטענה לטופס. שנו ושמרו');return}
   if(t.dataset.editx){ui.editRide=null;const d=ui.draft;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;render();return}
   if(t.dataset.finepaid){if(ui.role!=='admin')return;const r=S.rides.find(x=>x.id===t.dataset.finepaid);r.finePaid=r.finePaid?null:Date.now();save();toast(r.finePaid?'הקנס סומן כשולם':'הסימון בוטל');render();return}
@@ -2193,6 +2217,7 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
     if(k==='city'&&!city){toast('כתבו איזו עיר להוסיף');return}if(k==='other'&&!t){toast('כתבו מה צריך לשנות');return}
     if(k==='city'&&S.destinations.includes(city)){toast(`${city} כבר ברשימת הערים המותרות`);return}
     dispReq().push({id:'dr'+Date.now(),cid:ui.cid,kind:k,city:k==='city'?city:'',text:t,at:Date.now(),status:'pending'});save();toast('הבקשה נשלחה לסדרן');render();return}
+  if(f.id==='dbf-form'){const v=document.getElementById('dbf-txt').value.trim();if(!v){toast('כתבו הערה');return}debrief().push({id:'d'+Date.now(),at:Date.now(),text:v,byName:ui.role==='princess'?'נסיכות':'המנהלת'});if(debrief().length>200)S.debrief=debrief().slice(-200);save();toast('ההערות נשלחו לסדרן');render();return}
   if(f.id==='add-dest'){const v=document.getElementById('nd').value.trim();if(v&&!S.destinations.includes(v)){S.destinations.push(v);if(document.getElementById('nr').value==='north')S.north.push(v)}save();render();return}
   if(f.id==='add-free'){const v=document.getElementById('nf').value;if(v&&!S.freeDays.includes(v))S.freeDays.push(v);save();render();return}
   if(f.id==='gen-f'||f.id==='gen-b'){const kk=f.id.slice(4);(kk==='b'?S.genBus:S.genFlights).forEach((g,i)=>{const v=document.getElementById(kk+'f-'+i).value,w=document.getElementById(kk+'w-'+i).value;if(v){g.from=v;g.to=v}if(w)g.winter=w});save();toast('השעות הקבועות עודכנו');render();return}
