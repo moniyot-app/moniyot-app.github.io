@@ -386,7 +386,11 @@ const BUS2610=[['08:45','הגעה'],['09:15','יציאה'],['15:45','הגעה'],
 /* future ground days that only hold untouched copies of the old fixed times get the new ones (runs once the day helpers exist) */
 function busDaysFix(){if(!S||!S.busDaysFix)return;try{const today=ymd(new Date()),old=new Set(['09:00','18:00','17:30']);
   (S.ownWins||[]).filter(ds=>ds>=today&&dayType(ds)==='normal').forEach(ds=>{const B=S.blocked.filter(b=>b.date===ds);if(B.length&&B.every(b=>old.has(b.from)&&!b.line)){S.blocked=S.blocked.filter(b=>b.date!==ds);genFor(ds).forEach((g,i)=>S.blocked.push({...g,id:'b'+Date.now()+'_'+ds+'_'+i,date:ds}))}});delete S.busDaysFix}catch(_){}}
-function migrate(){if(!S.bus2610){S.bus2610=1;S.genBus=BUS2610.map(g=>({...g}));S.busDaysFix=1}busDaysFix();
+function lateFree(){try{if(S.lateFree0211||(PROD&&!(typeof ui!=='undefined'&&MGR())))return false;if(PROD&&!dbOn)return false;S.lateFree0211=Date.now();
+  S.rides.forEach(r=>{if(r.status==='late'){r.status='cancelled';r.wasLate=r.lateWhy||'late';delete r.lateWhy;delete r.fineAmt}});return true}catch(_){return false}}
+function migrate(){
+/* one time (manager's request, 2.11): every cancellation counted as late until now becomes an in-time cancellation. Run by the manager/princess, who may write all rides */
+lateFree();if(!S.bus2610){S.bus2610=1;S.genBus=BUS2610.map(g=>({...g}));S.busDaysFix=1}busDaysFix();
 if(!S.price2310){S.price2310=1;S.prices??={south:2000};S.prices.north=2300;S.prices.fine??=1000}
 
 S.clients.forEach((c,i)=>{c.pw??=String((i+1)%10||0).repeat(4)});
@@ -694,11 +698,11 @@ const depOf=r=>{const s=sched(r);return s?s.start:r.ts};
 const lateNow=r=>lateKind(r)!=='';
 /* the line-up for tomorrow closes at 22:00 the evening before. Cancelling after that breaks procedure: it counts as if the taxi went, but is not a fine.
    A ride ordered after that cutoff was never in the line-up, so only the 3-hour rule applies to it */
-const lineCut=r=>{const d=new Date(depOf(r));d.setDate(d.getDate()-1);d.setHours(22,0,0,0);return d.getTime()};
+const lineCut=r=>{const d=new Date(depOf(r));d.setDate(d.getDate()-1);d.setHours(23,0,0,0);return d.getTime()}; /* free cancellation until 23:00 the evening before */
 const lateKind=r=>depOf(r)-Date.now()<3*H?'3h':(Date.now()>=lineCut(r)&&(r.createdAt||0)<lineCut(r))?'line':'';
 const FINE=()=>S.prices&&S.prices.fine!=null?S.prices.fine:1000;
 const fineOf=r=>r.fineAmt!=null?r.fineAmt:FINE();
-const lateWhy=r=>lateKind(r)==='line'?'אחרי 22:00, כשיישור הקו לנסיעה כבר נסגר':r.status==='active'?'פחות מ־3 שעות לפני היציאה, והמונית כבר הוזמנה':'פחות מ־3 שעות לפני היציאה';
+const lateWhy=r=>lateKind(r)==='line'?'אחרי 23:00 בערב שלפני הנסיעה':r.status==='active'?'פחות מ־3 שעות לפני היציאה, והמונית כבר הוזמנה':'פחות מ־3 שעות לפני היציאה';
 const dmy=ms=>{const d=new Date(ms);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`};
 const ROLEBY={admin:'המנהלת',princess:'נסיכות',boss:'בוס גדול',disp:'הסדרן'};
 function excTxt(r){const n=needsOf(r).map(k=>NEEDS[k]);if(isFine(r))n.push(`קנס ביטול ${money(fineOf(r))}${r.finePaid?' (שולם)':''}`);if(r.house)n.push('על חשבון הבית');if(r.over)n.push('חריגה מהסל');if(r.unplanned)n.push('מחוץ לתכנון');if(!n.length)return 'לא נדרשה';
@@ -739,7 +743,7 @@ function statusOf(r){
   /* when it was cancelled: in time (green, free) or late (red, counts in the basket) */
   const cAt=r.cancelBy&&r.cancelBy.at?` · ${dmy(r.cancelBy.at)} ${hm(new Date(r.cancelBy.at))}`:'';
   if(r.status==='cancelled')return `<span class="st st-cancel-ok">✓ בוטלה בזמן${esc(byTxt(r))}${cAt}</span>`;
-  if(r.status==='late')return `<span class="st st-late">⚠ ביטול מאוחר${esc(byTxt(r))}${cAt}${r.lateWhy?' · '+(r.lateWhy==='ordered'?'אחרי שהמונית הוזמנה':r.lateWhy==='line'?'אחרי יישור הקו (22:00), בניגוד לנהלים':'פחות מ־3 שעות לפני היציאה'):''} · נספרת בסל</span>`;
+  if(r.status==='late')return `<span class="st st-late">⚠ ביטול מאוחר${esc(byTxt(r))}${cAt}${r.lateWhy?' · '+(r.lateWhy==='ordered'?'אחרי שהמונית הוזמנה':r.lateWhy==='line'?'אחרי 23:00 בערב שלפני, בניגוד לנהלים':'פחות מ־3 שעות לפני היציאה'):''} · נספרת בסל</span>`;
   if(r.ts<Date.now())return '<span class="st st-done">בוצעה</span>';
   if(r.status==='awaiting')return r.reconfirm?'<span class="st st-new">✏️ שונתה · ממתינה לאישור מחדש</span>':'<span class="st st-new">חדשה · ממתינה לסדרן</span>';
   if(r.status==='pending')return `<span class="st st-pending" title="${needsOf(r).map(k=>NEEDS[k]).join(', ')}">ממתינה ל${[needBoss(r)?'בוס גדול':'',needCeo(r)?'מנכ״ל':''].filter(Boolean).join(' ו')||'בוס גדול'}</span>`;
@@ -1757,7 +1761,7 @@ const G={
    {h:'מה קורה אחרי ששולחים',steps:['נסיעה רגילה עוברת ישר לסדרן.','נסיעה שצריכה החרגה מחכה קודם לאישור: נוסע בודד ← הבוס הגדול. נסיעת לילה (23:00–05:00) ← המנכ״ל. 4 נוסעים ← מסמנים בעצמכם "המבצעים מאשרים" לפני השליחה.','הסדרן מזמין את המונית ומאשר. בראש העמוד קופצת התראה 🔔 "המונית הוזמנה".','כשמגיעים פרטי הנהג תקבלו את השם והטלפון שלו.','"הבנתי" מסתיר התראה שכבר ראיתם.']},
    {h:'📱 שליחת פרטי הנסיעה לנוסעים',go:'ops',steps:['כשמגיעים פרטי הנהג, בהתראה למעלה מופיע "📱 שליחה לנוסעים". אפשר גם לפתוח "פרטים" ליד הנסיעה.','ב"הודעה לנוסעים" לוחצים ליד כל נוסע "וואטסאפ" או "SMS".','ההודעה נפתחת מוכנה בטלפון שלכם: שעה, מסלול, מאיפה נאסף, פרטי הנהג, האחראי/ת וקישור קצר להוספה ליומן. לוחצים "שליחה".','ליד מי שקיבל מופיע ✓ נשלח, ולמעלה כמה נשלחו מתוך כמה.'],tip:'נוסע בלי טלפון במאגר לא יופיע ברשימה. עדכנו לו טלפון בלשונית "נוסעים".'},
    {h:'שינוי הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "שינוי" ליד הנסיעה. ההזמנה נטענת לטופס.','אפשר: להזיז את השעה עד שעה, להוסיף, להסיר או להחליף נוסע אחד, ולעדכן תחנות וכתובות. התאריך והכיוון לא משתנים.','לוחצים "שמירת השינוי". גם הזמנה שכבר אושרה חוזרת לסדרן לאישור מחדש. אם השינוי יוצר החרגה חדשה (למשל נוסע בודד), היא תחכה קודם לאישור.','אפשר לשנות עד 3 שעות לפני הנסיעה. שינוי גדול יותר: מבטלים ומזמינים מחדש.']},
-   {h:'ביטול הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "ביטול" ליד הנסיעה.','מותר לבטל: עד 22:00 בערב שלפני הנסיעה (סגירת יישור הקו), וגם אז לפחות 3 שעות לפני שהמונית יוצאת. גם אחרי שהסדרן אישר. לא נספר בסל ואין קנס.','אחרי 22:00 בערב שלפני: הביטול בניגוד לנהלים ונספר כאילו המונית יצאה, אבל אין קנס.','ביטול מאוחר: פחות מ־3 שעות לפני היציאה. נספר בסל, והמערכת תבקש אישור לפני כן.','קנס: ביטול מאוחר של מונית שהסדרן כבר הזמין הוא גם קנס של 1,000 ₪ שהמבצעים חייבים למנכ״ל.','ליד כל ביטול כתוב מי ביטל.']},
+   {h:'ביטול הזמנה',go:'ops',steps:['ב"ההזמנות שלי" לוחצים "ביטול" ליד הנסיעה.','מותר לבטל: עד 23:00 בערב שלפני הנסיעה, וגם אז לפחות 3 שעות לפני שהמונית יוצאת. גם אחרי שהסדרן אישר. לא נספר בסל ואין קנס.','אחרי 22:00 בערב שלפני: הביטול בניגוד לנהלים ונספר כאילו המונית יצאה, אבל אין קנס.','ביטול מאוחר: פחות מ־3 שעות לפני היציאה. נספר בסל, והמערכת תבקש אישור לפני כן.','קנס: ביטול מאוחר של מונית שהסדרן כבר הזמין הוא גם קנס של 1,000 ₪ שהמבצעים חייבים למנכ״ל.','ליד כל ביטול כתוב מי ביטל.']},
    {h:'🔒 אבטחת מידע',go:'ops',steps:['כמעט כל נסיעה צריכה אישור אבטחת מידע. זה מעקב פנימי שלכם.','אם האישור כבר התקבל, מסמנים "כבר התקבל אישור אבטחת מידע" לפני השליחה.','אחר כך, ב"ההזמנות שלי", לחיצה על 🔒 מחליפה בין: ממתין ← אושר ← לא נדרש.','בראש העמוד מופיעה תזכורת לנסיעות קרובות בלי אישור.']},
    {h:'נוסעים: הוספה, עריכה והסרה',go:'ops-pax',steps:['בלשונית "נוסעים" ← "הוספת נוסע": שם, סוג (ביזנס, פרימיום או תיירים) וטלפון נייד. בלי טלפון הנוסע לא יקבל הודעה עם פרטי הנסיעה.','שומרים על פרטיות: רק שם פרטי ואות ראשונה של שם המשפחה, למשל "דנה כ.". כתבתם שם מלא? הוא יקוצר לבד. אם כבר יש "דנה כ." במאגר, נשמרת אות נוספת ("דנה כה.").','"הוספה למאגר". הנוסע מופיע בהזמנות מיד. המנהלת והנסיכות רואות כל נוסע חדש ויכולות לתקן פרטים.','עריכה: "עריכה" ליד הנוסע ← משנים ← "שמירה". השינוי בתוקף מיד.','הסרה: "הסרה" ← אישור. הנוסע יורד מיד.']},
    {h:'מי פנוי באלנבי: חיסכון במוניות',go:'ops-merge',steps:['כאן מופיעות הצעות לאחד הזמנה שלכם עם הזמנה קרובה של מבצעים אחרים.','רואים את המסלול המאוחד, השעות, כמה זמן מתווסף וכמה מונית תרד לכם מהסל.','"מאשרים איחוד" או "לא מאשרים". האיחוד קורה רק אם כל המבצעים אישרו.']},
@@ -1815,7 +1819,7 @@ const RULES=`<div class="tablewrap"><table style="min-width:420px"><thead><tr><t
   <tr><td>${tag('business')}</td><td>✓</td><td>✓ (לא סמוך לטיסה)</td><td>✓</td></tr>
   <tr><td>${tag('premium')}</td><td>רק יחד עם ביזנס</td><td>✓</td><td>✓</td></tr>
   <tr><td>${tag('regular')}</td><td>רק יחד עם ביזנס</td><td>רק יחד עם ביזנס או פרימיום</td><td>✓</td></tr></tbody></table></div>
-  <ul class="note" style="margin:0;padding-inline-start:18px;display:grid;gap:2px"><li>מזמינים לפחות 3 שעות לפני האיסוף הראשון.</li><li>שינוי בהזמנה: עד 3 שעות לפני האיסוף אפשר לשנות כרגיל. משם ועד 10 דקות לפני האיסוף אפשר רק להוסיף תחנה או נוסע.</li><li>נוסע בודד דורש אישור של הבוס הגדול. 4 נוסעים דורשים אישור של המבצעים בזמן ההזמנה. נסיעה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל.</li><li>עד 4 נוסעים במונית, ורק לערים המותרות.</li><li>ביום אווירי וביום קרקעי אי אפשר להזמין 45 דקות לפני ואחרי טיסה או מיניבוס.</li><li>מותר לבטל עד 3 שעות לפני היציאה, גם אחרי אישור הסדרן. ביטול מאוחר יותר נספר בסל, ואם המונית כבר הוזמנה גם קנס של 1,000 ₪ למנכ״ל.</li></ul>`;
+  <ul class="note" style="margin:0;padding-inline-start:18px;display:grid;gap:2px"><li>מזמינים לפחות 3 שעות לפני האיסוף הראשון.</li><li>שינוי בהזמנה: עד 3 שעות לפני האיסוף אפשר לשנות כרגיל. משם ועד 10 דקות לפני האיסוף אפשר רק להוסיף תחנה או נוסע.</li><li>נוסע בודד דורש אישור של הבוס הגדול. 4 נוסעים דורשים אישור של המבצעים בזמן ההזמנה. נסיעה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל.</li><li>עד 4 נוסעים במונית, ורק לערים המותרות.</li><li>ביום אווירי וביום קרקעי אי אפשר להזמין 45 דקות לפני ואחרי טיסה או מיניבוס.</li><li>מותר לבטל עד 23:00 בערב שלפני הנסיעה, ולפחות 3 שעות לפני היציאה, גם אחרי אישור הסדרן. ביטול מאוחר יותר נספר בסל, ואם המונית כבר הוזמנה גם קנס של 1,000 ₪ למנכ״ל.</li></ul>`;
 function renderGuide(){const GR=ui.bossOnly?['boss']:ROLEG[ui.role]||['ops'];if(!GR.includes(ui.grole))ui.grole=GR[0];const r=ui.grole,g=G[r];
   app.innerHTML=`<section class="panel"><h1 style="font-size:1.4rem">הוראות שימוש</h1><div class="note">${GR.length>1?'בחרו תפקיד. ':''}למעלה סיכום קצר, ולמטה הסבר לכל פעולה עם כפתור "לנסות עכשיו" שמעביר ישר למקום.</div>
     <div class="tabs" role="tablist">${[['adm',ui.role==='princess'?'ניהול':'המנהלת'],['princess','★ נסיכות'],['ops','מבצעים'],['boss','בוס גדול'],['disp','סדרן'],['ceo','מנכ״ל']].filter(([k])=>GR.includes(k)).sort((a,b)=>GR.indexOf(a[0])-GR.indexOf(b[0])).map(([k,l])=>`<button role="tab" data-grole="${k}" aria-selected="${r===k}">${l}</button>`).join('')}</div>
@@ -1976,7 +1980,7 @@ async function rolePwSave(k){const r=roleKeys().find(x=>x.k===k),pw=(document.ge
 
 const confirmDel=t=>{if(t.dataset.sure){return true}t.dataset.sure='1';t.textContent='בטוח? ללחוץ שוב';setTimeout(()=>{if(t.isConnected){delete t.dataset.sure;t.textContent='הסרה'}},4000);return false};
 /* ---------- render + events ---------- */
-function render(){if(TRAIN){if(ui.page==='admin')ui.page='client';const na=document.getElementById('nav-adm');if(na)na.style.display='none';document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 מצב אימון · קשה באימונים, קל בקרב · שום דבר כאן לא אמיתי ולא נשלח לאף אחד</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
+function render(){if(lateFree())save();if(TRAIN){if(ui.page==='admin')ui.page='client';const na=document.getElementById('nav-adm');if(na)na.style.display='none';document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 מצב אימון · קשה באימונים, קל בקרב · שום דבר כאן לא אמיתי ולא נשלח לאף אחד</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
   if(PROD&&AUTH.state!=='in'){['nav-guide','nav-client','nav-disp','nav-adm','glogout','nav-notif'].forEach(id=>{document.getElementById(id).hidden=true});renderAuth();return}
   const allowed=ui.role?ROLEP[ui.role]:[];
   if(!ui.role){if(!['client','dispatcher','admin'].includes(ui.page))ui.page='client'}
