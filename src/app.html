@@ -474,8 +474,8 @@ const isP=cid=>cid===PID;
    north = may order to/from the north, single = a lone passenger needs no big-boss approval */
 const PERKS=[['win','הזמנה גם בשעות טיסה או מיניבוס'],['types','כל סוגי הנוסעים בימים אוויריים וקרקעיים'],['north','הזמנה גם מנקודות בצפון'],['single','נוסע יחיד בלי אישור בוס גדול']];
 const perk=(k,cid=ui.cid)=>!isP(cid)&&!!((S.clients.find(c=>c.id===cid)||{}).perks||{})[k];
-/* camps where the gate is the pick-up point: no street address needed */
-const NOADDR=c=>/רמת דוד/.test(c||'');
+/* fixed pick-up points (camp gate, airstrip): no street address needed */
+const NOADDR=c=>/רמת דוד|עין שמר/.test(c||'');
 const client=id=>id===PID?PRINCESS:S.clients.find(c=>c.id===id);
 const COUNTS=['active','pending','awaiting','late'];
 const inMonth=ts=>{const d=new Date(ts),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()};
@@ -1273,7 +1273,7 @@ function renderRoute(){const box=document.getElementById('routebox');if(!box)ret
     const lbl=d.dir==='to'?(i===0?'תחנת מוצא':'תחנת איסוף נוספת'):(i===P.length-1?'תחנת יעד':'תחנת הורדה בדרך');
     return `<div class="rp"><span class="dot num">${i+1}</span><div class="rp-body"><b>${lbl}</b>
       <div class="row" style="gap:8px"><input class="city" list="dest-list" id="pc-${i}" data-pcity="${i}" value="${esc(pt.city)}" placeholder="עיר" autocomplete="off" aria-label="עיר בנקודה ${i+1}"><span id="pch-${i}">${destHint(pt.city)}</span>${pt.city&&P.findIndex(x=>x.city===pt.city)<i?`<button type="button" class="btn small" data-mergept="${i}" style="margin-inline-start:auto" title="אותה נקודה כמו התחנה הקודמת בעיר">איחוד עם ${esc(pt.city)} הקודמת</button>`:''}${P.length>1?`<button type="button" class="btn small danger" data-delpt="${i}" style="${pt.city&&P.findIndex(x=>x.city===pt.city)<i?'':'margin-inline-start:auto'}">הסרה</button>`:''}</div>
-      <input id="pa-${i}" data-paddr="${i}" value="${esc(pt.addr||'')}" placeholder="${!ok?'קודם הזינו עיר מותרת':NOADDR(pt.city)?'לא חובה: האיסוף בשער המחנה':'כתובת מדויקת: רחוב ומספר, או נקודת ציון'}" ${ok?'':'disabled'} autocomplete="off" maxlength="80" aria-label="כתובת מדויקת בנקודה ${i+1}"><span id="pah-${i}">${ok?addrHint(pt.addr,pt.city):''}</span>${ok&&tAt(i)?(()=>{const st=s.stops[i],hh=new Date(st.t).getHours(),nt=hh>=23||hh<5;return `<div class="ptime${nt?' night':''}">⏱ ${d.dir==='to'?'שעת איסוף משוערת':'שעת הורדה משוערת'}: <b class="num">${tAt(i)}</b>${nt?' · 🌙 בשעות הלילה, דורש אישור מנכ״ל':''}</div>`})():''}
+      <input id="pa-${i}" data-paddr="${i}" value="${esc(pt.addr||'')}" placeholder="${!ok?'קודם הזינו עיר מותרת':NOADDR(pt.city)?'לא חובה: נקודת איסוף קבועה':'כתובת מדויקת: רחוב ומספר, או נקודת ציון'}" ${ok?'':'disabled'} autocomplete="off" maxlength="80" aria-label="כתובת מדויקת בנקודה ${i+1}"><span id="pah-${i}">${ok?addrHint(pt.addr,pt.city):''}</span>${ok&&tAt(i)?(()=>{const st=s.stops[i],hh=new Date(st.t).getHours(),nt=hh>=23||hh<5;return `<div class="ptime${nt?' night':''}">⏱ ${d.dir==='to'?'שעת איסוף משוערת':'שעת הורדה משוערת'}: <b class="num">${tAt(i)}</b>${nt?' · 🌙 בשעות הלילה, דורש אישור מנכ״ל':''}</div>`})():''}
       ${d.pax.length?`<div class="note">${d.dir==='to'?'מי עולה כאן?':'מי יורד כאן?'} (לחיצה על שם מעבירה אותו לנקודה הזו)</div><div class="row" style="gap:6px">${d.pax.map(p=>`<button type="button" class="pchip" data-assign="${p}|${i}" aria-pressed="${idxOf(d,p)===i}">${esc(emp(p).name)}</button>`).join('')}</div>
         <div class="note">כולם נאספים בכתובת של התחנה. נוסע שנאסף ממקום אחר? מוסיפים בשבילו תחנה.</div>`:''}
     </div></div>`}).join('');
@@ -1411,7 +1411,7 @@ const GEO={'רעננה':[32.184,34.871],'כפר סבא':[32.175,34.907],'הרצ�
   'דימונה':[31.069,35.033],'אופקים':[31.314,34.620],'נתיבות':[31.421,34.588],'שדרות':[31.525,34.596],'יקנעם':[32.659,35.110],'אור עקיבא':[32.509,34.920],'טירה':[32.234,34.950],'מעלה אדומים':[31.777,35.298],'אריאל':[32.106,35.187],
   'טירת כרמל':[32.761,34.972],'נשר':[32.766,35.044],'מגדל העמק':[32.676,35.241],'בית שאן':[32.497,35.497],'ערד':[31.259,35.212],'שפרעם':[32.806,35.170],'מעלות-תרשיחא':[33.016,35.272],'סח׳נין':[32.864,35.297],'מצפה רמון':[30.610,34.801],'ירוחם':[30.988,34.931],
   /* bases and other common pick-up places */
-  'רמת דוד':[32.665,35.180],'חצור':[31.762,34.727],'חצור הגלילית':[32.981,35.543],'תל נוף':[31.839,34.822],'חצרים':[31.234,34.663],'נבטים':[31.208,35.012],'פלמחים':[31.897,34.690],'עובדה':[29.940,34.936],
+  'רמת דוד':[32.665,35.180],'עין שמר':[32.462,35.008],'מנחת עין שמר':[32.458,35.007],'חצור':[31.762,34.727],'חצור הגלילית':[32.981,35.543],'תל נוף':[31.839,34.822],'חצרים':[31.234,34.663],'נבטים':[31.208,35.012],'פלמחים':[31.897,34.690],'עובדה':[29.940,34.936],
   'הקריה':[32.073,34.788],'קריה':[32.073,34.788],'צריפין':[31.958,34.844],'גלילות':[32.143,34.809],'שדה דב':[32.105,34.782],'נתב״ג':[32.005,34.885],'נתבג':[32.005,34.885],'נמל התעופה':[32.005,34.885]};
 const MAXKM=10,MAXEXTRA=15;
 BIGCITIES.forEach(([n,a,b])=>{GEO[n]??=[a,b]});
