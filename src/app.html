@@ -1491,7 +1491,9 @@ function renderLine(){const ds=ui.lineDate||ymd(new Date(Date.now()+DAY)),rows=l
 /* daily summary: what happened in the last 24 hours, plus the manager's debrief notes to the dispatcher */
 const debrief=()=>(S.debrief??=[]);
 const dbfUnread=()=>debrief().filter(n=>!n.readAt);
-function daySum(adm){const now=Date.now(),from=now-DAY,inW=t=>t>=from&&t<now,L=[];
+function daySum(adm){const now=Date.now();
+  /* the operational day runs 05:00–00:00; before 05:00 the default is the day that just ended */
+  const def=ymd(new Date(now-5*H)),ds=ui.dsDate||def,from=at(ds,'05:00'),to=at(ds,'00:00')+DAY,inW=t=>t>=from&&t<to,L=[];
   const ran=S.rides.filter(r=>inW(r.ts)&&['active','late'].includes(r.status)),cAt=r=>r.cancelBy&&r.cancelBy.at;
   const can=S.rides.filter(r=>r.status==='cancelled'&&inW(cAt(r)||0)),late=S.rides.filter(r=>r.status==='late'&&inW(cAt(r)||0));
   const made=S.rides.filter(r=>inW(r.createdAt||0)),chg=S.rides.filter(r=>(r.changes||[]).some(c=>inW(c.at)));
@@ -1502,7 +1504,7 @@ function daySum(adm){const now=Date.now(),from=now-DAY,inW=t=>t>=from&&t<now,L=[
   const line=r=>`<li class="num">${dmy(r.ts)} ${hm(new Date(startTs(r)||r.ts))} · ${route(r)} · ${clientsOf(r).map(c=>esc(client(c)?.name||(isP(c)?'נסיכות':''))).join(', ')}</li>`;
   const sec=(h,arr)=>arr.length?`<details class="more"><summary>${h} <span class="count">${arr.length}</span></summary><ul class="note" style="margin:4px 0;padding-inline-start:18px">${arr.map(line).join('')}</ul></details>`:'';
   const notes=debrief().slice().sort((a,b)=>b.at-a.at).slice(0,10);
-  return `<section class="panel" style="background:var(--bg)"><h3>📋 סיכום יומי · 24 השעות האחרונות <span class="note" style="font-weight:400">(${dmy(from)} ${hm(new Date(from))} עד עכשיו)</span></h3>
+  return `<section class="panel" style="background:var(--bg)"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><h3 style="margin:0">📋 סיכום יומי · ${dayLabel(ds)} <span class="note num" style="font-weight:400">05:00–00:00${now<to&&now>=from?' (עד עכשיו)':''}</span></h3><span class="row" style="gap:4px"><button class="btn small" data-dsday="-1" aria-label="יום קודם">→</button><input type="date" id="ds-date" value="${ds}" max="${def}" aria-label="בחירת יום"><button class="btn small" data-dsday="1" aria-label="יום הבא" ${ds>=def?'disabled':''}>←</button></span></div>
     <div class="kpis">${box('מוניות שיצאו',ran.length,money(ran.reduce((a,r)=>a+cost(r),0)))}${box('הזמנות חדשות',made.length,'נוצרו ביממה')}${box('שינויים',chg.length,'הזמנות ששונו')}${box('ביטולים בזמן',can.length,'ללא עלות')}${box('ביטולים מאוחרים',late.length,fines.length?`${fines.length} עם קנס · ${money(fines.reduce((a,r)=>a+fineOf(r),0))}`:'נספרים בסל',late.length)}${box('נסיעות לילה',night.length,'23:00–05:00')}${box('נוסע בודד',single.length,'')}${house.length?box('על חשבון הבית',house.length,'נסיכות'):''}${noDrvRan.length?box('יצאו בלי פרטי נהג',noDrvRan.length,'לא הוזנו במערכת',1):''}</div>
     ${per.length?`<div class="note" style="margin-top:6px">לפי מבצעים: ${per.map(([c,n])=>`${opsDot(c.id)}${esc(c.name)} <b class="num">${fmt(n)}</b>`).join(' · ')}</div>`:''}
     <div class="note" style="margin-top:4px">פתוח כרגע: ${aw.length} ממתינות לסדרן · ${pend.length} ממתינות לבוס גדול/מנכ״ל</div>
@@ -2041,6 +2043,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.smedit){const x=ui.smart.plan[+t.dataset.smedit];ui.editRide=null;ui.draft={...ui.draft,...JSON.parse(JSON.stringify(x.d))};ui.sub='orders';render();scrollTo(0,0);toast('המונית נטענה לטופס ההזמנה. תקנו ושלחו');return}
   if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;mergeAlertR(createRide(x.d,c));x.booked=true;n++});
     save();toast(n?`הוזמנו ${n} מוניות. אפשר לראות אותן ב"הזמנות"`:'אין מוניות תקינות להזמנה');render();return}
+  if(t.dataset.dsday){const def=ymd(new Date(Date.now()-5*H)),c=new Date(at(ui.dsDate||def,'12:00'));c.setDate(c.getDate()+ +t.dataset.dsday);const n=ymd(c);ui.dsDate=n>def?def:n;render();return}
   if(t.dataset.dbfread){const n=debrief().find(x=>x.id===t.dataset.dbfread);if(!n)return;const rp=(document.getElementById('dbr-'+n.id)?.value||'').trim();n.readAt=Date.now();if(rp)n.reply=rp;save();toast('סומן כנקרא'+(rp?'. התגובה נשלחה למנהלת':''));render();return}
   if(t.dataset.editride){const r=S.rides.find(x=>x.id===t.dataset.editride);if(!r||!canEdit(r))return;ui.editRide=r.id;ui.draft=draftFromRide(r);ui.sub='orders';render();scrollTo(0,0);toast('ההזמנה נטענה לטופס. שנו ושמרו');return}
   if(t.dataset.editx){ui.editRide=null;const d=ui.draft;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;render();return}
@@ -2270,6 +2273,7 @@ document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
   if(t.id==='costmonth'){ui.costMonth=t.value;render();return}
   if(t.dataset.price){S.prices[t.dataset.price]=Math.max(0,+t.value||0);save();toast('המחיר עודכן');render();return}
   if(t.dataset.ologo){const f=t.files&&t.files[0],cid=t.dataset.ologo;if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const cv=document.createElement('canvas'),z=96;cv.width=cv.height=z;const g=cv.getContext('2d'),k=Math.max(z/im.width,z/im.height);g.drawImage(im,(z-im.width*k)/2,(z-im.height*k)/2,im.width*k,im.height*k);client(cid).logo=cv.toDataURL('image/png');save();toast('הלוגו עודכן');render()};im.onerror=()=>toast('לא הצלחנו לקרוא את התמונה');im.src=rd.result};rd.readAsDataURL(f);return}
+  if(t.id==='ds-date'&&t.value){ui.dsDate=t.value;render();return}
   if(t.dataset.ocolor){client(t.dataset.ocolor).color=t.value;save();toast('הצבע עודכן');render();return}
   if(t.dataset.perk){const[id,k]=t.dataset.perk.split('|'),c=client(id);c.perks={...(c.perks||{}),[k]:t.checked};save();toast(`${c.name}: ${t.checked?'נוספה הקלה':'בוטלה ההקלה'}: ${PERKS.find(x=>x[0]===k)[1]}`);render();return}
   if(t.dataset.hideq){const c=client(t.dataset.hideq);c.hideQuota=!t.checked;save();toast(t.checked?`${c.name} רואים עכשיו את הסל`:`הסל מוסתר מ${c.name}`);render();return}
