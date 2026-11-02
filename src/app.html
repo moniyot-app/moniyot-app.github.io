@@ -1320,7 +1320,7 @@ const canEdit=r=>['pending','awaiting','active'].includes(r.status)&&startTs(r)-
 function draftFromRide(r){const pts=(r.dir==='to'?[r.dest,...(r.stops||[])]:[...(r.stops||[]),r.dest]).map(c=>({city:c,addr:''}));
   r.pax.forEach(p=>{const i=pts.findIndex(x=>x.city===ptOf(r,p));if(i>=0&&!pts[i].addr)pts[i].addr=(r.addr||{})[p]||''});
   const pidx={};r.pax.forEach(p=>{pidx[p]=Math.max(0,pts.findIndex(x=>x.city===ptOf(r,p)))});const t=new Date(r.ts);
-  return {...ui.draft,date:ymd(t),time:hm(t),dir:r.dir,pts,pidx,pax:[...r.pax],lead:r.lead,base:r.base||'',baseOn:!!r.base,reason:r.reason||''}}
+  return {...ui.draft,date:ymd(t),time:hm(t),dir:r.dir,pts,pidx,pax:[...r.pax],lead:r.lead,base:r.base||'',baseOn:!!r.base,reason:r.reason||'',house:!!r.house}}
 /* what the ops changed in their last edit: [label, before, after] */
 function chgLines(r){const c=(r.changes||[]).slice(-1)[0];if(!c)return [];const p=c.prev,o=[],nm=x=>emp(x)?.name||'',same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
   const rt=x=>(x.dir==='to'?[x.dest,...(x.stops||[])]:[...(x.stops||[]),x.dest]).join(' ← ');
@@ -1333,6 +1333,7 @@ function chgLines(r){const c=(r.changes||[]).slice(-1)[0];if(!c)return [];const 
   [...new Set([...Object.keys(A),...Object.keys(Bm)])].forEach(c2=>{if((A[c2]||'')!==(Bm[c2]||''))o.push([`כתובת ב${c2}`,A[c2]||'—',Bm[c2]||'—'])});
   if(p.lead!==r.lead)o.push(['אחראי/ת',nm(p.lead),nm(r.lead)]);
   if((p.base||'')!==(r.base||''))o.push([r.dir==='to'?'תחנת יעד':'תחנת מוצא',p.base||BASE,r.base||BASE]);
+  if(!!p.house!==!!r.house)o.push(['🏠 על חשבון הבית',p.house?'כן':'לא',r.house?'כן':'לא']);
   if((p.reason||'')!==(r.reason||''))o.push(['פירוט לנסיעת לילה',p.reason||'—',r.reason||'—']);
   return o}
 function chgTxt(r){const L=chgLines(r);return L.length?L.map(([k,a,b])=>`${k}: ${a} ← ${b}`).join(' · '):'לא השתנה דבר מהותי'}
@@ -2153,14 +2154,14 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.id==='submit'){const d=ui.draft,c=client(ui.cid);syncDraft(d);const res=check(d);const bl=res.find(x=>x.k==='block');if(bl){toast(bl.t);renderCheck();return}
     if(ui.editRide){const r=S.rides.find(x=>x.id===ui.editRide);if(!r||!canEdit(r)){ui.editRide=null;toast('אי אפשר לשנות את ההזמנה הזו יותר');render();return}
       const pr=editProblem(r,d);if(pr){toast(pr);return}
-      const nd=[];if(d.pax.length===1&&!(isP(ui.cid)&&r.house)&&!perk('single'))nd.push('single');if(isNight(d))nd.push('night');const same=JSON.stringify([...nd].sort())===JSON.stringify([...needsOf(r)].sort());
-      (r.changes??=[]).push({at:Date.now(),by:ui.cid,prev:JSON.parse(JSON.stringify({ts:r.ts,pax:r.pax,dest:r.dest,stops:r.stops||[],lead:r.lead,ppt:r.ppt||{},addr:r.addr||{},base:r.base||'',reason:r.reason||'',status:r.status}))});
-      Object.assign(r,{ts:at(d.date,d.time),dest:d.dest,stops:[...d.stops],pax:[...d.pax],lead:d.lead,base:(d.base||'').trim(),reason:isNight(d)?(d.reason||'').trim():'',ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()]))});
+      const hs=isP(ui.cid)?!!d.house:!!r.house,nd=[];if(d.pax.length===1&&!(isP(ui.cid)&&hs)&&!perk('single'))nd.push('single');if(isNight(d))nd.push('night');const same=JSON.stringify([...nd].sort())===JSON.stringify([...needsOf(r)].sort());
+      (r.changes??=[]).push({at:Date.now(),by:ui.cid,prev:JSON.parse(JSON.stringify({ts:r.ts,pax:r.pax,dest:r.dest,stops:r.stops||[],lead:r.lead,ppt:r.ppt||{},addr:r.addr||{},base:r.base||'',reason:r.reason||'',status:r.status,house:!!r.house}))});
+      Object.assign(r,{ts:at(d.date,d.time),dest:d.dest,stops:[...d.stops],pax:[...d.pax],lead:d.lead,base:(d.base||'').trim(),house:hs,reason:isNight(d)?(d.reason||'').trim():'',ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()]))});
       if(!same){r.needs=nd.length?nd:null;r.approvedBy=[];r.ceoOk=false;r.pOk=false}
       if(r.dispAsk&&r.dispAsk.open)Object.assign(r.dispAsk,{open:false,doneBy:'edit',reply:r.dispAsk.reply||'שינו את ההזמנה',replyAt:Date.now()});
       const pv=r.changes[r.changes.length-1].prev,keep=p=>JSON.stringify([(pv.ppt||{})[p],(pv.addr||{})[p]])===JSON.stringify([r.ppt[p],r.addr[p]]);
       /* only passengers were added to an approved ride (same time, same people and stops for everyone already in it): it stays ordered, the dispatcher just gets a notice */
-      const addOnly=pv.status==='active'&&same&&r.ts===pv.ts&&(r.base||'')===(pv.base||'')&&r.pax.length>pv.pax.length&&pv.pax.every(p=>r.pax.includes(p)&&keep(p))&&!needBoss(r)&&!needCeo(r);
+      const addOnly=pv.status==='active'&&same&&!!pv.house===!!r.house&&r.ts===pv.ts&&(r.base||'')===(pv.base||'')&&r.pax.length>pv.pax.length&&pv.pax.every(p=>r.pax.includes(p)&&keep(p))&&!needBoss(r)&&!needCeo(r);
       if(addOnly){r.status='active';r.reconfirm=false;r.paxAdd={at:Date.now(),added:r.pax.filter(p=>!pv.pax.includes(p))};if(r.cal)makeCalLinks(r);
         mark(r,'paxadd');ui.editRide=null;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;save();
         toast('הנוסע נוסף. המונית נשארת מוזמנת, והסדרן קיבל התראה'+SLP(),sleepHrs()?8000:undefined);render();return}
