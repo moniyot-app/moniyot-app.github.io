@@ -475,7 +475,7 @@ const isP=cid=>cid===PID;
 const PERKS=[['win','הזמנה גם בשעות טיסה או מיניבוס'],['types','כל סוגי הנוסעים בימים אוויריים וקרקעיים'],['north','הזמנה גם מנקודות בצפון'],['single','נוסע יחיד בלי אישור בוס גדול']];
 const perk=(k,cid=ui.cid)=>!isP(cid)&&!!((S.clients.find(c=>c.id===cid)||{}).perks||{})[k];
 /* fixed pick-up points (camp gate, airstrip): no street address needed */
-const NOADDR=c=>/רמת דוד|עין שמר/.test(c||'');
+const NOADDR=c=>/רמת[\s\-־]*דוד|עין[\s\-־]*שמר|רמ[״"]ד/.test(c||'');
 const client=id=>id===PID?PRINCESS:S.clients.find(c=>c.id===id);
 const COUNTS=['active','pending','awaiting','late'];
 const inMonth=ts=>{const d=new Date(ts),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()};
@@ -2354,7 +2354,7 @@ document.addEventListener('input',e=>{const t=e.target,d=ui.draft;
   if(t.id==='f-psearch'){const q=t.value.trim();document.querySelectorAll('#paxlist label').forEach(l=>{l.hidden=!!q&&!l.dataset.q.includes(q)});return}
   if(t.dataset.addr){const p=t.dataset.addr;(d.addr??={})[p]=t.value;renderCheck(true);return}
   if(t.dataset.pcity){const i=+t.dataset.pcity,v=t.value.trim();d.pts[i].city=v;syncDraft(d);const ok=S.destinations.includes(v);
-    const h=document.getElementById('pch-'+i);if(h)h.innerHTML=destHint(v);const a=document.getElementById('pa-'+i);if(a){a.disabled=!ok;a.placeholder=ok?'כתובת מדויקת: רחוב ומספר, או נקודת ציון':'קודם הזינו עיר מותרת'}
+    const h=document.getElementById('pch-'+i);if(h)h.innerHTML=destHint(v);const a=document.getElementById('pa-'+i);if(a){a.disabled=!ok;a.placeholder=!ok?'קודם הזינו עיר מותרת':NOADDR(v)?'לא חובה: נקודת איסוף קבועה':'כתובת מדויקת: רחוב ומספר, או נקודת ציון'}
     const ah=document.getElementById('pah-'+i);if(ah)ah.innerHTML=ok?addrHint(d.pts[i].addr,v):'';renderCheck(true);return}
   if(t.dataset.paddr){const i=+t.dataset.paddr;d.pts[i].addr=t.value;syncDraft(d);const ah=document.getElementById('pah-'+i);if(ah)ah.innerHTML=addrHint(t.value,d.pts[i].city);renderCheck(true);return}
   if(t.dataset.saddr){(d.stopAddr??=[])[+t.dataset.saddr]=t.value;renderCheck();return}
