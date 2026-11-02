@@ -585,6 +585,7 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
   const ts=startTs(d);
   const sD=isNaN(ts)?d.date:ymd(new Date(ts)), sT=isNaN(ts)?d.time:hm(new Date(ts));
   if(isNaN(ts))add('block','בחרו תאריך ושעה');
+  else if(ts<Date.now()+3*H&&(()=>{const r=ui.editRide&&S.rides.find(x=>x.id===ui.editRide);return r&&lateEdit(r)})()){if(ts<Date.now()+LATEMIN*MIN)add('block',`אפשר לשנות רק עד ${LATEMIN} דקות לפני האיסוף`);else add('warn','⏱ שינוי של הרגע האחרון: אפשר רק להוסיף תחנה או נוסע. הסדרן יקבל התראה מיד')}
   else if(ts<Date.now()+3*H)add('block','חייבים להזמין לפחות 3 שעות לפני הנסיעה');
   else add('ok','מוזמן לפחות 3 שעות מראש');
   if(!d.dest)add('block','הזינו עיר');
@@ -1178,7 +1179,7 @@ function renderClient(){if(ui.bossOnly)ui.sub='manager';if(ui.role==='princess')
   app.innerHTML=subTabs(c)+`
   ${isP(c.id)||hideQ(c)?'':`<section class="panel"><h2>${esc(c.name)}</h2>${meter(c)}</section>`}
   <div class="grid2">
-    <section class="panel" aria-labelledby="h-order"${ui.editRide?' style="border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)"':''}><h2 id="h-order">${ui.editRide?'שינוי הזמנה':'הזמנת מונית'}</h2>${ui.editRide?`<div class="tip">✏️ <b>משנים הזמנה קיימת.</b> אפשר להזיז את השעה עד שעה, להוסיף, להסיר או להחליף נוסע אחד, ולעדכן כתובות ותחנות. אחרי השמירה הסדרן יאשר את ההזמנה מחדש. <button type="button" class="btn small" data-editx="1">ביטול השינוי</button></div>`:''}
+    <section class="panel" aria-labelledby="h-order"${ui.editRide?' style="border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)"':''}><h2 id="h-order">${ui.editRide?'שינוי הזמנה':'הזמנת מונית'}</h2>${ui.editRide&&(r0=>r0&&lateEdit(r0))(S.rides.find(x=>x.id===ui.editRide))?`<div class="tip" style="border-color:var(--warn)">⏱ <b>שינוי של הרגע האחרון.</b> פחות מ־3 שעות לפני האיסוף אפשר רק <b>להוסיף תחנה או נוסע</b>, עד ${LATEMIN} דקות לפני האיסוף. אי אפשר להזיז שעה, להסיר נוסע או לשנות כתובת קיימת. <button type="button" class="btn small" data-editx="1">ביטול השינוי</button></div>`:ui.editRide?`<div class="tip">✏️ <b>משנים הזמנה קיימת.</b> אפשר להזיז את השעה עד שעה, להוסיף, להסיר או להחליף נוסע אחד, ולעדכן כתובות ותחנות. אחרי השמירה הסדרן יאשר את ההזמנה מחדש. <button type="button" class="btn small" data-editx="1">ביטול השינוי</button></div>`:''}
       <div class="fields">
         <label>תאריך<input type="date" id="f-date" value="${d.date}"></label>
         <label>לפי מה קובעים את השעה<select id="f-dir"><option value="to" ${d.dir==='to'?'selected':''}>שעת הגעה ליעד (כמה תחנות איסוף)</option><option value="from" ${d.dir==='from'?'selected':''}>שעת יציאה מהמוצא (כמה תחנות הורדה)</option></select></label>
@@ -1302,7 +1303,9 @@ const secMissing=cid=>S.rides.filter(r=>['pending','awaiting','active'].includes
 /* princess on the dispatcher page: view only (status), no confirming, cancelling or driver details */
 const RO=()=>ui.role==='princess'&&ui.page==='dispatcher';
 /* ops may change a ride (also after approval) until 3 hours before; the dispatcher re-approves it */
-const canEdit=r=>['pending','awaiting','active'].includes(r.status)&&r.ts-Date.now()>=3*H&&(isP(ui.cid)?r.by===PID:clientsOf(r).includes(ui.cid));
+/* changes: full change until 3 h before the first pick-up; from then until 10 min before, only adding a station or a passenger */
+const LATEMIN=10,lateEdit=r=>startTs(r)-Date.now()<3*H;
+const canEdit=r=>['pending','awaiting','active'].includes(r.status)&&startTs(r)-Date.now()>=LATEMIN*MIN&&(isP(ui.cid)?r.by===PID:clientsOf(r).includes(ui.cid));
 function draftFromRide(r){const pts=(r.dir==='to'?[r.dest,...(r.stops||[])]:[...(r.stops||[]),r.dest]).map(c=>({city:c,addr:''}));
   r.pax.forEach(p=>{const i=pts.findIndex(x=>x.city===ptOf(r,p));if(i>=0&&!pts[i].addr)pts[i].addr=(r.addr||{})[p]||''});
   const pidx={};r.pax.forEach(p=>{pidx[p]=Math.max(0,pts.findIndex(x=>x.city===ptOf(r,p)))});const t=new Date(r.ts);
@@ -1335,7 +1338,13 @@ function chgBox(r,mode){const c=(r.changes||[]).slice(-1)[0],L=chgLines(r);if(!c
   return `<div class="chgbox"><div class="row" style="gap:8px;justify-content:space-between;flex-wrap:wrap"><b>${pa?(mode==='disp'?'➕ נוסף נוסע להזמנה שכבר אושרה · אין צורך לאשר מחדש, רק לעדכן את הנהג':'➕ נוסף נוסע. המונית נשארת מוזמנת'):`✏️ ${mode==='disp'?'המבצעים שינו את ההזמנה · צריך לאשר מחדש':'ההזמנה שונתה · ממתינה לאישור מחדש של הסדרן'}`}</b>${pa&&mode==='disp'&&!RO()?`<button class="btn small primary" data-paxseen="${r.id}">עדכנתי את הנהג ✓</button>`:''}<span class="note">${esc(client(c.by)?.name||'')} · ${hm(new Date(c.at))}${p0(c)}</span></div>
     ${L.length?`<table class="chgt"><thead><tr><th>מה</th><th>לפני</th><th>אחרי</th></tr></thead><tbody>${L.map(([k,a,b])=>`<tr><td>${esc(k)}</td><td class="was">${esc(a)}</td><td class="now">${esc(b)}</td></tr>`).join('')}</tbody></table>`:'<div class="note">לא השתנה דבר מהותי.</div>'}</div>`}
 const p0=c=>c.prev&&c.prev.status==='active'?' · המונית כבר הייתה מוזמנת':'';
-function editProblem(r,d){const nt=at(d.date,d.time);if(r.ts-Date.now()<3*H)return 'אפשר לשנות רק עד 3 שעות לפני הנסיעה';
+function editProblem(r,d){const nt=at(d.date,d.time);if(startTs(r)-Date.now()<LATEMIN*MIN)return `אפשר לשנות רק עד ${LATEMIN} דקות לפני האיסוף`;
+  if(lateEdit(r)){const late='פחות מ־3 שעות לפני האיסוף אפשר רק להוסיף תחנה או נוסע';
+    if(d.date!==ymd(new Date(r.ts))||d.dir!==r.dir||nt!==r.ts||(d.base||'').trim()!==(r.base||'').trim())return late+'. אי אפשר לשנות שעה, תאריך או מחנה';
+    const gone=r.pax.filter(p=>!d.pax.includes(p));if(gone.length)return late+'. אי אפשר להסיר נוסע ('+gone.map(p=>emp(p)?.name||'').join(', ')+'). להסרה צריך לבטל';
+    const moved=r.pax.filter(p=>ptOf(d,p)!==ptOf(r,p)||addrOf(d,p).trim()!==((r.addr||{})[p]||'').trim());if(moved.length)return late+'. אי אפשר לשנות תחנה או כתובת של נוסע שכבר בהזמנה ('+moved.map(p=>emp(p)?.name||'').join(', ')+')';
+    if(startTs(d)-Date.now()<LATEMIN*MIN)return `התחנה החדשה מקדימה את האיסוף לפחות מ־${LATEMIN} דקות מעכשיו. אי אפשר להוסיף אותה`;
+    return ''}
   if(d.date!==ymd(new Date(r.ts)))return 'שינוי תאריך הוא שינוי גדול מדי. בטלו את ההזמנה והזמינו מחדש';
   if(d.dir!==r.dir)return 'שינוי כיוון הנסיעה הוא שינוי גדול מדי. בטלו את ההזמנה והזמינו מחדש';
   if(Math.abs(nt-r.ts)>60*60000)return 'אפשר להזיז את השעה עד שעה. לשינוי גדול יותר בטלו והזמינו מחדש';
@@ -1742,7 +1751,7 @@ const RULES=`<div class="tablewrap"><table style="min-width:420px"><thead><tr><t
   <tr><td>${tag('business')}</td><td>✓</td><td>✓ (לא סמוך לטיסה)</td><td>✓</td></tr>
   <tr><td>${tag('premium')}</td><td>רק יחד עם ביזנס</td><td>✓</td><td>✓</td></tr>
   <tr><td>${tag('regular')}</td><td>רק יחד עם ביזנס</td><td>רק יחד עם ביזנס או פרימיום</td><td>✓</td></tr></tbody></table></div>
-  <ul class="note" style="margin:0;padding-inline-start:18px;display:grid;gap:2px"><li>מזמינים לפחות 3 שעות לפני האיסוף הראשון.</li><li>נוסע בודד דורש אישור של הבוס הגדול. 4 נוסעים דורשים אישור של המבצעים בזמן ההזמנה. נסיעה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל.</li><li>עד 4 נוסעים במונית, ורק לערים המותרות.</li><li>ביום אווירי וביום קרקעי אי אפשר להזמין 45 דקות לפני ואחרי טיסה או מיניבוס.</li><li>מותר לבטל עד 3 שעות לפני היציאה, גם אחרי אישור הסדרן. ביטול מאוחר יותר נספר בסל, ואם המונית כבר הוזמנה גם קנס של 1,000 ₪ למנכ״ל.</li></ul>`;
+  <ul class="note" style="margin:0;padding-inline-start:18px;display:grid;gap:2px"><li>מזמינים לפחות 3 שעות לפני האיסוף הראשון.</li><li>שינוי בהזמנה: עד 3 שעות לפני האיסוף אפשר לשנות כרגיל. משם ועד 10 דקות לפני האיסוף אפשר רק להוסיף תחנה או נוסע.</li><li>נוסע בודד דורש אישור של הבוס הגדול. 4 נוסעים דורשים אישור של המבצעים בזמן ההזמנה. נסיעה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל.</li><li>עד 4 נוסעים במונית, ורק לערים המותרות.</li><li>ביום אווירי וביום קרקעי אי אפשר להזמין 45 דקות לפני ואחרי טיסה או מיניבוס.</li><li>מותר לבטל עד 3 שעות לפני היציאה, גם אחרי אישור הסדרן. ביטול מאוחר יותר נספר בסל, ואם המונית כבר הוזמנה גם קנס של 1,000 ₪ למנכ״ל.</li></ul>`;
 function renderGuide(){const GR=ui.bossOnly?['boss']:ROLEG[ui.role]||['ops'];if(!GR.includes(ui.grole))ui.grole=GR[0];const r=ui.grole,g=G[r];
   app.innerHTML=`<section class="panel"><h1 style="font-size:1.4rem">הוראות שימוש</h1><div class="note">${GR.length>1?'בחרו תפקיד. ':''}למעלה סיכום קצר, ולמטה הסבר לכל פעולה עם כפתור "לנסות עכשיו" שמעביר ישר למקום.</div>
     <div class="tabs" role="tablist">${[['adm',ui.role==='princess'?'ניהול':'המנהלת'],['princess','★ נסיכות'],['ops','מבצעים'],['boss','בוס גדול'],['disp','סדרן'],['ceo','מנכ״ל']].filter(([k])=>GR.includes(k)).sort((a,b)=>GR.indexOf(a[0])-GR.indexOf(b[0])).map(([k,l])=>`<button role="tab" data-grole="${k}" aria-selected="${r===k}">${l}</button>`).join('')}</div>
