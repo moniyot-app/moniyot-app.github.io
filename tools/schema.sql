@@ -172,3 +172,21 @@ create policy p_ops_ins on public.people for insert to authenticated
 drop policy if exists p_ops_upd on public.people;
 create policy p_ops_upd on public.people for update to authenticated
   using (cid is not null and cid = public.my_cid()) with check (cid = public.my_cid());
+
+-- v9: north days in the calendar are set by the manager only (like the rest of the calendar)
+drop policy if exists kv_ins on public.kv;
+create policy kv_ins on public.kv for insert to authenticated with check (
+  public.has_role('admin')
+  or (public.has_role('princess') and key <> 'nightDeleg')
+  or (key in ('destinations','north','prices','mins','lines','dismissed') and public.has_role('disp'))
+  or (key = 'nightDeleg' and public.has_role('ceo'))
+  or (key not in ('clients','dayOverride','freeDays','restricted','blocked','ownWins','genFlights','destinations','north','prices','mins','nightDeleg','northDays') and public.is_member())
+);
+drop policy if exists kv_upd on public.kv;
+create policy kv_upd on public.kv for update to authenticated using (public.is_member()) with check (
+  public.has_role('admin')
+  or (public.has_role('princess') and key <> 'nightDeleg')
+  or (key in ('destinations','north','prices','mins','lines','dismissed') and public.has_role('disp'))
+  or (key = 'nightDeleg' and public.has_role('ceo'))
+  or (key not in ('clients','dayOverride','freeDays','restricted','blocked','ownWins','genFlights','destinations','north','prices','mins','nightDeleg','northDays') and public.is_member())
+);
