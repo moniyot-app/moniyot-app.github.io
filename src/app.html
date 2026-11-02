@@ -864,7 +864,7 @@ function driverMsg(r){const s=sched(r),pts=points(r),L=emp(leadOf(r));
     return `${i+1}. ${tt} · ${pt}\n${ws.map(p=>`   - ${emp(p)?.name}${emp(p)?.phone?' · '+fmtPh(emp(p).phone):''}: ${(r.addr||{})[p]||'כתובת לא הוזנה'}`).join('\n')}`}).filter(Boolean);
   return [`סיכום נסיעה לנהג · ${dayLabel(ymd(new Date(r.ts)))}`,r.dir==='to'?`הגעה ל${baseOf(r)}: ${hm(new Date(r.ts))}`:`יציאה מ${baseOf(r)}: ${hm(new Date(r.ts))}`,r.dir==='to'?'איסוף:':'הורדה:',...lines,`נוסעים: ${r.pax.length}`,`אחראי/ת הנסיעה: ${L?.name||''}${L?.phone?' · '+fmtPh(L.phone):''}`].join('\n')}
 const needsOf=r=>Array.isArray(r.needs)?r.needs:r.needs?[r.needs]:[];
-function groupByDay(list){const g={};list.forEach(r=>{(g[ymd(new Date(r.ts))]??=[]).push(r)});return Object.entries(g).sort()}
+function groupByDay(list,key=r=>r.ts){const g={};list.forEach(r=>{(g[ymd(new Date(key(r)))]??=[]).push(r)});return Object.entries(g).sort()}
 
 /* ---------- client page ---------- */
 function subTabs(c){if(ui.bossOnly)return `<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>בוס גדול:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span></div>`;return `<div class="demo"><span class="row" style="gap:8px">${opsLogo(c.id,34)}<span>מחובר/ת:<br><b style="color:var(--ink);font-size:1.05rem">${esc(c.name)}</b></span></span>${ui.role==='admin'?'<button class="btn small" id="clogout">החלפת מבצעים</button>':''}<span>· נתוני דוגמה</span></div>
@@ -1633,8 +1633,9 @@ function renderDispatcher(){
   if(!tabs.some(([k])=>k===ui.tab))ui.tab=tabs[0][0];
   let body='';
   if(ui.tab==='board'){
-    const up=S.rides.filter(r=>r.ts>Date.now()-2*H&&r.status!=='merged').sort((a,b)=>a.ts-b.ts);
-    body=`${drvList()}${RO()?'<div class="tip">👁 צפייה בלבד: כאן רואים את הסטטוס של כל ההזמנות והנהגים. אישור הזמנות ופרטי נהג נעשים על ידי הסדרן.</div>':''}<div class="rides">${up.length?groupByDay(up).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}${isFree(ds)?' <span class="tag t-day">יום מוניות</span>':''}<span class="note">${rs.filter(r=>!['cancelled'].includes(r.status)).length} מוניות</span></div>`+rs.map(r=>rideRow(r,'disp')).join('')).join(''):'<div class="empty">אין נסיעות קרובות.</div>'}</div>`;
+    /* by pick-up time (what the dispatcher books), not by arrival or by when it was ordered */
+    const pk=r=>{const t=startTs(r);return isNaN(t)?r.ts:t};const up=S.rides.filter(r=>r.ts>Date.now()-2*H&&r.status!=='merged').sort((a,b)=>pk(a)-pk(b)||a.ts-b.ts);
+    body=`${drvList()}${RO()?'<div class="tip">👁 צפייה בלבד: כאן רואים את הסטטוס של כל ההזמנות והנהגים. אישור הזמנות ופרטי נהג נעשים על ידי הסדרן.</div>':''}<div class="rides">${up.length?groupByDay(up,pk).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}${isFree(ds)?' <span class="tag t-day">יום מוניות</span>':''}<span class="note">${rs.filter(r=>!['cancelled'].includes(r.status)).length} מוניות</span></div>`+rs.map(r=>rideRow(r,'disp')).join('')).join(''):'<div class="empty">אין נסיעות קרובות.</div>'}</div>`;
   }else if(ui.tab==='online'){body=renderOnline();
   }else if(ui.tab==='users'){body=renderUsers();
   }else if(ui.tab==='ceo'){body=ui.ceoAuthed?renderCeo():PROD?'<div class="empty">אישור נסיעות לילה שמור למנכ״ל. המשתמש שלך לא מוגדר כמנכ״ל.</div>':`<form class="gate ceo-panel panel" id="ceogate2"><h3>★ אזור המנכ״ל</h3><div class="note">אישור נסיעות לילה שמור למנכ״ל בלבד. הכניסה בסיסמת מנכ״ל (בדוגמה: 9999).</div><label>סיסמת מנכ״ל<input type="password" id="ceopw2"></label><div class="note" id="ceoerr2" style="color:var(--bad)" hidden>סיסמה שגויה.</div><button class="btn primary">כניסה</button></form>`;
