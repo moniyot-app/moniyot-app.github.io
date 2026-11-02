@@ -1513,6 +1513,31 @@ function daySum(adm){const now=Date.now();
     ${adm?`<form id="dbf-form" style="display:grid;gap:6px"><textarea id="dbf-txt" rows="3" maxlength="1500" placeholder="הערות לתחקיר: מה היה טוב, מה צריך לשפר, נסיעות שצריך לבדוק…" style="width:100%;font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line)"></textarea><button class="btn primary small" style="justify-self:start">📨 שליחה לסדרן</button></form>`:''}
     ${notes.length?`<div style="display:grid;gap:8px;margin-top:8px">${notes.map(n=>`<div class="emp-row" style="flex-direction:column;align-items:stretch;gap:4px${!n.readAt&&!adm?';border-color:var(--warn)':''}"><div class="note num">${dmy(n.at)} ${hm(new Date(n.at))} · ${esc(n.byName||'המנהלת')} · ${n.readAt?`<span style="color:var(--ok)">✓ הסדרן קרא ${hm(new Date(n.readAt))}</span>`:'<span style="color:var(--warn)">עוד לא נקרא</span>'}</div><div style="white-space:pre-wrap">${esc(n.text)}</div>${n.reply?`<div class="note" style="color:var(--ink)">💬 תשובת הסדרן: ${esc(n.reply)}</div>`:''}${!adm&&!n.readAt?`<div class="row" style="gap:6px;flex-wrap:wrap"><input id="dbr-${n.id}" placeholder="תגובה (לא חובה)" maxlength="300" style="flex:1;min-width:160px"><button class="btn small primary" data-dbfread="${n.id}">✓ קראתי</button></div>`:''}</div>`).join('')}</div>`:`<div class="note">${adm?'עוד לא נשלחו הערות.':'אין הערות תחקיר.'}</div>`}
   </section>`}
+/* downloadable picture: taxis per squadron (unit), with the single-passenger part, as a standing (vertical) bar chart */
+function trackPng(){const T=ui._trk;if(!T)return;const rows=T.rows.slice().sort((a,b)=>b.n-a.n),r1=x=>Math.round(x*10)/10;
+  const W=1600,H=1000,cv=document.createElement('canvas');cv.width=W;cv.height=H;const g=cv.getContext('2d'),F=getComputedStyle(document.body).fontFamily||'sans-serif';
+  g.direction='rtl';g.fillStyle='#ffffff';g.fillRect(0,0,W,H);
+  const BLUE='#2a78d6',ORANGE='#eb6834',INK='#1f2a44',MUTE='#6b7280',GRID='#e6e8ee';
+  g.fillStyle=INK;g.textAlign='right';g.font=`800 44px ${F}`;g.fillText('מוניות לפי טייסת',W-70,92);
+  g.font=`400 26px ${F}`;g.fillStyle=MUTE;const N=rows.reduce((a,x)=>a+x.n,0),S1=rows.reduce((a,x)=>a+x.s1,0);
+  g.fillText(`${T.title} · ${fmt(r1(N))} מוניות · מתוכן ${fmt(r1(S1))} עם נוסע בודד (${N?Math.round(S1/N*100):0}%)`,W-70,134);
+  /* legend */
+  const lg=(x,c,t)=>{g.fillStyle=c;g.beginPath();g.roundRect?g.roundRect(x-26,166,26,26,6):g.rect(x-26,166,26,26);g.fill();g.fillStyle=INK;g.font=`600 24px ${F}`;g.textAlign='right';g.fillText(t,x-38,188)};
+  lg(W-70,BLUE,'נסיעות עם 2 נוסעים ומעלה');lg(W-420,ORANGE,'נסיעות עם נוסע בודד');
+  /* plot area */
+  const L=110,R=W-70,TOP=250,BOT=H-170,mx=Math.max(4,...rows.map(x=>x.n)),step=Math.ceil(mx/5/(mx>20?5:1))*(mx>20?5:1),ymax=step*5,Y=v=>BOT-(v/ymax)*(BOT-TOP);
+  g.font=`400 22px ${F}`;g.textAlign='right';for(let v=0;v<=ymax;v+=step){g.strokeStyle=GRID;g.lineWidth=2;g.beginPath();g.moveTo(L,Y(v));g.lineTo(R,Y(v));g.stroke();g.fillStyle=MUTE;g.fillText(String(v),L-16,Y(v)+8)}
+  const n=Math.max(1,rows.length),slot=(R-L)/n,bw=Math.min(120,slot*.6);
+  rows.forEach((x,i)=>{const cx=R-slot*(i+.5),x0=cx-bw/2,rr=(y0,h,c,top)=>{if(h<=0)return;g.fillStyle=c;g.beginPath();if(g.roundRect)g.roundRect(x0,y0,bw,h,top?[10,10,0,0]:0);else g.rect(x0,y0,bw,h);g.fill()};
+    const yS=Y(x.s1),yN=Y(x.n);rr(yS,BOT-yS,ORANGE,x.s1>=x.n);rr(yN,yS-yN,BLUE,true);
+    g.textAlign='center';g.fillStyle=INK;g.font=`800 30px ${F}`;g.fillText(fmt(r1(x.n)),cx,yN-14);
+    if(x.s1>0&&BOT-yS>34){g.fillStyle='#fff';g.font=`700 22px ${F}`;g.fillText(fmt(r1(x.s1)),cx,BOT-(BOT-yS)/2+8)}
+    g.fillStyle=INK;g.font=`700 ${rows.length>8?20:24}px ${F}`;const nm=String(x.name).replace('★ ','');const words=nm.split(' ');let l1=nm,l2='';if(g.measureText(nm).width>slot-10&&words.length>1){const h=Math.ceil(words.length/2);l1=words.slice(0,h).join(' ');l2=words.slice(h).join(' ')}
+    g.fillText(l1,cx,BOT+38);if(l2)g.fillText(l2,cx,BOT+66);
+    g.fillStyle=MUTE;g.font=`400 20px ${F}`;g.fillText(x.n?`${Math.round(x.s1/x.n*100)}% בודד`:'',cx,BOT+(l2?96:68))});
+  g.strokeStyle=INK;g.lineWidth=2;g.beginPath();g.moveTo(L,BOT);g.lineTo(R,BOT);g.stroke();
+  g.textAlign='right';g.fillStyle=MUTE;g.font=`400 20px ${F}`;g.fillText(`רמוניות · הופק ב־${dmy(Date.now())} ${hm(new Date())} · מונית משותפת מתחלקת בין הטייסות לפי מספר הנוסעים`,W-70,H-40);
+  cv.toBlob(bl=>{const u=URL.createObjectURL(bl),a=document.createElement('a');a.download=`מוניות-לפי-טייסת-${T.cur}.png`;a.href=u;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('הגרף ירד למכשיר')},'image/png')}
 function trackCharts(cur,inM,rows,tot,sum){
   const [y,m]=cur.split('-').map(Number),nd=new Date(y,m,0).getDate(),daily=Array(nd).fill(0),dspend=Array(nd).fill(0);
   inM.forEach(r=>{const i=new Date(r.ts).getDate()-1;daily[i]++;dspend[i]+=cost(r)});
@@ -1662,8 +1687,9 @@ function renderDispatcher(){
     const all=[...rows,hRow]; /* the princesses always have a row, even with 0 */
     const sum=k=>all.reduce((a,x)=>a+x[k],0), tot=sum('s');
     const monthName=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('he-IL',{month:'long',year:'numeric'})};
+    ui._trk={title:monthName(cur),cur,rows:all.filter(x=>x.n>0||x.c.id!==PID).map(x=>({name:x.c.name,id:x.c.id,n:x.n,s1:x.s1})),tot};
     body=`${daySum(ADM)}<div class="meter-top"><div><div class="eyebrow">הוצאות · ${monthName(cur)}</div><div class="big num">${money(tot)}</div></div>
-      <label>חודש<select id="costmonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${monthName(k)}</option>`).join('')}</select></label></div>
+      <span class="row" style="gap:8px;align-items:end;flex-wrap:wrap"><label>חודש<select id="costmonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${monthName(k)}</option>`).join('')}</select></label><button class="btn small primary" data-trkpng="1">⬇ הורדת גרף: מוניות לפי טייסת</button></span></div>
       <div class="note num">מרכז (נתניה ודרומה): ${money(S.prices.south)} למונית · צפון (צפונה מנתניה): ${money(S.prices.north)} למונית</div>
       ${overPanel(cur,rows)}
       ${trackCharts(cur,inM,all,tot,sum)}<h3>טבלת פירוט</h3>
@@ -2043,6 +2069,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.smedit){const x=ui.smart.plan[+t.dataset.smedit];ui.editRide=null;ui.draft={...ui.draft,...JSON.parse(JSON.stringify(x.d))};ui.sub='orders';render();scrollTo(0,0);toast('המונית נטענה לטופס ההזמנה. תקנו ושלחו');return}
   if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;mergeAlertR(createRide(x.d,c));x.booked=true;n++});
     save();toast(n?`הוזמנו ${n} מוניות. אפשר לראות אותן ב"הזמנות"`:'אין מוניות תקינות להזמנה');render();return}
+  if(t.dataset.trkpng){trackPng();return}
   if(t.dataset.dsday){const def=ymd(new Date(Date.now()-5*H)),c=new Date(at(ui.dsDate||def,'12:00'));c.setDate(c.getDate()+ +t.dataset.dsday);const n=ymd(c);ui.dsDate=n>def?def:n;render();return}
   if(t.dataset.dbfread){const n=debrief().find(x=>x.id===t.dataset.dbfread);if(!n)return;const rp=(document.getElementById('dbr-'+n.id)?.value||'').trim();n.readAt=Date.now();if(rp)n.reply=rp;save();toast('סומן כנקרא'+(rp?'. התגובה נשלחה למנהלת':''));render();return}
   if(t.dataset.editride){const r=S.rides.find(x=>x.id===t.dataset.editride);if(!r||!canEdit(r))return;ui.editRide=r.id;ui.draft=draftFromRide(r);ui.sub='orders';render();scrollTo(0,0);toast('ההזמנה נטענה לטופס. שנו ושמרו');return}
