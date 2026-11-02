@@ -616,6 +616,8 @@ function check(d){ // d: {date,time,dir,dest,pax[]}
   if(isNight(d))add('appr',deleg(ui.cid,sD)?'נסיעת לילה (23:00–05:00): דורש אישור של הבוס הגדול (בסמכות שהאציל המנכ״ל). ההזמנה תמתין לאישור':'נסיעת לילה (23:00–05:00): דורש אישור של המנכ״ל. ההזמנה תמתין לאישור');
   {const g=!isNaN(ts)&&planGap(ui.cid,sD,d.pax);if(g)add('warn',g.none?'📅 עוד לא מילאתם תכנון חודשי לחודש הזה. ההזמנה תסומן "מחוץ לתכנון"':g.planned?`📅 מחוץ לתכנון: ב${dayLabel(sD)} תכננתם ${fmt(g.planned)} מוניות, וכבר הוזמנו ${fmt(g.used)}. ההזמנה תסומן "מחוץ לתכנון"`:`📅 מחוץ לתכנון: לא תכננתם מוניות ב${dayLabel(sD)}. ההזמנה תסומן "מחוץ לתכנון"`)}
   if(n===1)isP(ui.cid)&&d.house?add('ok','נוסע יחיד על חשבון הבית: לא נדרש אישור של הבוס הגדול'):perk('single')?add('ok','נוסע יחיד: לפי ההקלה של המבצעים שלכם לא נדרש אישור של הבוס הגדול'):add('appr','נוסע יחיד: דורש אישור של הבוס הגדול. ההזמנה תמתין לאישור');
+  /* ordering or changing during the dispatcher's sleeping hours: push may not wake him */
+  if(sleepHrs())add('warn',`🌙 ${ui.editRide?'שינוי':'הזמנה'} בשעות השינה (22:00–07:00): מומלץ להתקשר לסדרן ולעדכן אותו`);
   if(n===4)add('warn','4 נוסעים: נדרש אישור של המבצעים. סמנו את האישור למטה');
   if(n>=2&&n<=3)add('ok',`${n} נוסעים במונית`);
   return out;
@@ -1304,6 +1306,7 @@ const secMissing=cid=>S.rides.filter(r=>['pending','awaiting','active'].includes
 const RO=()=>ui.role==='princess'&&ui.page==='dispatcher';
 /* ops may change a ride (also after approval) until 3 hours before; the dispatcher re-approves it */
 /* changes: full change until 3 h before the first pick-up; from then until 10 min before, only adding a station or a passenger */
+const sleepHrs=()=>{const h=new Date().getHours();return h>=22||h<7},SLP=()=>sleepHrs()?' · 🌙 שעות השינה: מומלץ להתקשר לסדרן':'';
 const LATEMIN=10,lateEdit=r=>startTs(r)-Date.now()<3*H;
 const canEdit=r=>['pending','awaiting','active'].includes(r.status)&&startTs(r)-Date.now()>=LATEMIN*MIN&&(isP(ui.cid)?r.by===PID:clientsOf(r).includes(ui.cid));
 function draftFromRide(r){const pts=(r.dir==='to'?[r.dest,...(r.stops||[])]:[...(r.stops||[]),r.dest]).map(c=>({city:c,addr:''}));
@@ -2096,12 +2099,12 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
       const addOnly=pv.status==='active'&&same&&r.ts===pv.ts&&(r.base||'')===(pv.base||'')&&r.pax.length>pv.pax.length&&pv.pax.every(p=>r.pax.includes(p)&&keep(p))&&!needBoss(r)&&!needCeo(r);
       if(addOnly){r.status='active';r.reconfirm=false;r.paxAdd={at:Date.now(),added:r.pax.filter(p=>!pv.pax.includes(p))};if(r.cal)makeCalLinks(r);
         mark(r,'paxadd');ui.editRide=null;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;save();
-        toast('הנוסע נוסף. המונית נשארת מוזמנת, והסדרן קיבל התראה');render();return}
+        toast('הנוסע נוסף. המונית נשארת מוזמנת, והסדרן קיבל התראה'+SLP(),sleepHrs()?8000:undefined);render();return}
       r.status=needBoss(r)||needCeo(r)?'pending':'awaiting';r.confirmedAt=null;r.reconfirm=true;if(r.sms)r.sms.sent={};if(r.cal)makeCalLinks(r);
       mark(r,'changed');ui.editRide=null;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;save();
-      toast(r.status==='pending'?'השינוי נשמר. ההזמנה ממתינה לאישור החרגה ואז לסדרן':'השינוי נשמר ונשלח לסדרן לאישור מחדש');render();return}
+      toast((r.status==='pending'?'השינוי נשמר. ההזמנה ממתינה לאישור החרגה ואז לסדרן':'השינוי נשמר ונשלח לסדרן לאישור מחדש')+SLP(),sleepHrs()?8000:undefined);render();return}
     const nr=createRide(d,c),needs=!!nr.needs;mergeAlert(S.rides.find(x=>x.id===nr.id)||nr);
-    d.reason='';d.base='';d.baseOn=false;d.house=false;ui.ack4=false;ui.secOk=false;d.pax=[];d.stops=[];d.stopAddr=[];d.destAddr='';d.lead=null;d.ppt={};d.addr={};d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};ui.ack=false;save();{const up=S.rides[S.rides.length-1].unplanned;toast((needs?(nr.needs.includes('single')?'ההזמנה ממתינה לאישור הבוס הגדול':'ההזמנה ממתינה לאישור המנכ״ל'):'ההזמנה נשלחה לסדרן')+(up?' · 📅 שימו לב: מחוץ לתכנון החודשי':''))}render();return}
+    d.reason='';d.base='';d.baseOn=false;d.house=false;ui.ack4=false;ui.secOk=false;d.pax=[];d.stops=[];d.stopAddr=[];d.destAddr='';d.lead=null;d.ppt={};d.addr={};d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};ui.ack=false;save();{const up=S.rides[S.rides.length-1].unplanned;toast((needs?(nr.needs.includes('single')?'ההזמנה ממתינה לאישור הבוס הגדול':'ההזמנה ממתינה לאישור המנכ״ל'):'ההזמנה נשלחה לסדרן')+(up?' · 📅 שימו לב: מחוץ לתכנון החודשי':'')+SLP(),sleepHrs()?8000:undefined)}render();return}
   if(t.dataset.cancel){const r=S.rides.find(x=>x.id===t.dataset.cancel);
     const who=cancelActor(),opsSide=ui.page==='client';
     if(!opsSide||!lateNow(r)){r.status='cancelled';r.cancelBy={...who,at:Date.now()};mark(r,opsSide?'cancelled':'dispcancel');save();toast(opsSide?'ההזמנה בוטלה. לא נספרת בסל':'ההזמנה בוטלה');render()}else{ui.confirm=r.id;render()}return}
