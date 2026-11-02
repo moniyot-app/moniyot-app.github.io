@@ -553,7 +553,8 @@ const winBadge=(w,ds)=>{const d=wDir(w),bus=w.kind==='bus';const part=dir=>{cons
 function rideBlock(r){const s=sched(r);if(!s)return null;const T=r.dir==='to'?s.end:s.start,ds=ymd(new Date(T));
   if(dayType(ds)==='free')return null; /* taxi day: fewer limits, a taxi may go even when a minibus or flight does */
   const near=L=>(r.pts?r.pts.map(x=>x.city):[r.dest,...(r.stops||[])]).some(c=>{const st=c&&busStop(c);return st&&st.line===L});
-  for(const w of allWins(ds)){const dr=wDir(w);if(dr&&dr!==r.dir)continue;if(w.kind==='bus'&&w.line&&!near(w.line))continue; /* a line's minibus only blocks taxis from its own area */const[w0,w1]=baseMs(w,ds,r.dir),a=w0-BUF*MIN,b=w1+BUF*MIN;if(T>=a&&T<=b)return {...w,_a:a,_b:b,_dep:w.kind==='bus'&&r.dir==='from'?w0:null}}
+  /* princesses may order during a minibus or a transport flight (not during the regular flights of an air day) */
+  const PZ=isP(ui.cid);for(const w of allWins(ds)){const dr=wDir(w);if(dr&&dr!==r.dir)continue;if(PZ&&(w.kind==='bus'||w.x))continue;if(w.kind==='bus'&&w.line&&!near(w.line))continue; /* a line's minibus only blocks taxis from its own area */const[w0,w1]=baseMs(w,ds,r.dir),a=w0-BUF*MIN,b=w1+BUF*MIN;if(T>=a&&T<=b)return {...w,_a:a,_b:b,_dep:w.kind==='bus'&&r.dir==='from'?w0:null}}
   return null}
 const mName=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('he-IL',{month:'long',year:'numeric'})};
 const clientsOf=r=>[...new Set(r.pax.map(p=>emp(p)?.cid).filter(Boolean))];
