@@ -747,7 +747,8 @@ function renderReset(){return `<div class="panel" style="margin-top:24px"><h3>�
   <div class="row" style="gap:8px;margin-top:8px"><input id="rstconf" placeholder='הקלידו "איפוס" לאישור' style="width:180px"><button class="btn small danger" data-reset="rides">מחיקת הזמנות</button><button class="btn small danger" data-reset="all">איפוס מלא</button></div></div>`}
 /* approved, but the dispatcher has not entered the driver yet: also waiting for him */
 const noDrv=r=>r.status==='active'&&r.ts>Date.now()&&!(r.driverName||r.driverPhone);
-function statusOf(r){
+function statusOf(r){return statusOf0(r)+(r.restored?`<span class="st st-pending" title="${esc(r.restored.note||'')}" style="margin-inline-start:4px">🛟 שוחזרה חלקית${r.restored.paxCount?` · היו ${r.restored.paxCount} נוסעים`:''}</span>`:'')}
+function statusOf0(r){
   if(r.status==='merged')return '<span class="st st-merged">אוחדה לנסיעה אחרת</span>';
   /* when it was cancelled: in time (green, free) or late (red, counts in the basket) */
   const cAt=r.cancelBy&&r.cancelBy.at?` · ${dmy(r.cancelBy.at)} ${hm(new Date(r.cancelBy.at))}`:'';
