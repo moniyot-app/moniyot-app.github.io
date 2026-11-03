@@ -759,6 +759,11 @@ function hedPanel(r){const nd=needsOf(r),E=S.employees.filter(e=>!e.removed||r.p
   return `<tr><td colspan="${HISTCOLS.length+1}" style="background:var(--bg)"><div style="display:grid;gap:10px;padding:6px 2px">
     <b>עריכת נסיעה · ${dmy(r.ts)} ${hm(new Date(r.ts))}</b>
     <div><div class="eyebrow">נוסעים${r.restored&&r.restored.paxCount?` (היו ${r.restored.paxCount})`:''}</div>${grp.map(([c,L])=>`<div style="margin-top:4px"><span class="note" style="font-weight:700">${opsDot(c.id)}${esc(c.name)}:</span> ${L.map(e=>`<label class="row" style="display:inline-flex;gap:4px;font-weight:400;margin-inline-end:10px"><input type="checkbox" class="hed-p" value="${e.id}" ${r.pax.includes(e.id)?'checked':''}>${esc(e.name)}</label>`).join('')}</div>`).join('')}</div>
+    <div><div class="eyebrow">${r.dir==='to'?'תחנות איסוף (לפי סדר הנסיעה)':'תחנות הורדה (לפי סדר הנסיעה)'}</div>
+      <datalist id="hed-cities">${S.destinations.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+      ${[0,1,2,3].map(i=>{const pts=points(r),c=pts[i]||'',a=c?(r.pax.map(p=>(ptOf(r,p)===c?(r.addr||{})[p]:'')).find(Boolean)||''):'';return `<div class="row" style="gap:6px;margin-top:4px;flex-wrap:wrap"><span class="note num" style="width:18px">${i+1}.</span><input class="hed-c" list="hed-cities" value="${esc(c)}" placeholder="עיר${i?' (לא חובה)':''}" style="width:150px" aria-label="עיר בתחנה ${i+1}"><input class="hed-a" value="${esc(a)}" placeholder="כתובת" style="flex:1;min-width:160px" aria-label="כתובת בתחנה ${i+1}"></div>`}).join('')}
+      <label style="max-width:260px;margin-top:6px">${r.dir==='to'?'יעד (מחנה)':'מוצא (מחנה)'}<input id="hed-base" list="base-list" value="${esc(r.base||BASE)}"></label></div>
+    ${r.pax.length?`<div><div class="eyebrow">מי עולה/יורד באיזו תחנה</div>${r.pax.map(p=>`<label class="row" style="display:inline-flex;gap:4px;font-weight:400;margin-inline-end:12px">${esc(emp(p)?.name||'')}<select class="hed-pt" data-p="${p}">${[0,1,2,3].map(i=>`<option value="${i}" ${points(r).indexOf(ptOf(r,p))===i?'selected':''}>תחנה ${i+1}</option>`).join('')}</select></label>`).join('')}<div class="note">נוסע חדש שסימנת יעלה בתחנה 1. אחרי השמירה אפשר לפתוח שוב ולשנות.</div></div>`:''}
     <label style="max-width:260px">אחראי/ת<select id="hed-lead">${r.pax.map(p=>`<option value="${p}" ${leadOf(r)===p?'selected':''}>${esc(emp(p)?.name||'')}</option>`).join('')}</select><span class="note">אם האחראי/ת לא בין הנוסעים, יוגדר הראשון ברשימה</span></label>
     <div><div class="eyebrow">אישור חריגה שנדרש</div>${Object.entries(NEEDS).map(([k,l])=>`<label class="row" style="display:inline-flex;gap:4px;font-weight:400;margin-inline-end:14px"><input type="checkbox" class="hed-n" value="${k}" ${nd.includes(k)?'checked':''}>${l}</label>`).join('')}<label class="row" style="display:inline-flex;gap:4px;font-weight:400;margin-inline-end:14px"><input type="checkbox" id="hed-over" ${r.over?'checked':''}>חריגה מהסל</label></div>
     ${r.restored?'<label class="row" style="gap:6px;font-weight:400"><input type="checkbox" id="hed-done"> השלמתי את הפרטים (להסיר את הסימון "שוחזרה חלקית")</label>':''}
@@ -2136,7 +2141,13 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.hedx){ui.hed=null;render();return}
   if(t.dataset.hedsave){if(!MGR())return;const r=S.rides.find(x=>x.id===t.dataset.hedsave);if(!r)return;
     const pax=[...document.querySelectorAll('.hed-p:checked')].map(i=>i.value);if(!pax.length){toast('בחרו לפחות נוסע אחד');return}
-    const pt0=points(r)[0];r.ppt=r.ppt||{};pax.forEach(p=>{if(!r.ppt[p])r.ppt[p]=pt0});Object.keys(r.ppt).forEach(p=>{if(!pax.includes(p))delete r.ppt[p]});
+    const C=[...document.querySelectorAll('.hed-c')].map(i=>i.value.trim()),A=[...document.querySelectorAll('.hed-a')].map(i=>i.value.trim());
+    const idx=C.map((c,i)=>c?i:-1).filter(i=>i>=0);if(!idx.length){toast('צריך לפחות תחנה אחת');return}
+    const sel={};document.querySelectorAll('.hed-pt').forEach(x=>{sel[x.dataset.p]=+x.value});
+    const pick=p=>{const i=sel[p];return idx.includes(i)?i:idx[0]};const cities=idx.map(i=>C[i]);
+    if(r.dir==='to'){r.dest=cities[0];r.stops=cities.slice(1)}else{r.dest=cities[cities.length-1];r.stops=cities.slice(0,-1)}
+    const bs=document.getElementById('hed-base')?.value.trim();if(bs)r.base=bs;
+    r.ppt={};r.addr={};pax.forEach(p=>{const i=pick(p);r.ppt[p]=C[i];if(A[i])r.addr[p]=A[i]});
     const ld=document.getElementById('hed-lead')?.value;r.pax=pax;r.lead=pax.includes(ld)?ld:pax[0];
     const nd=[...document.querySelectorAll('.hed-n:checked')].map(i=>i.value);r.needs=nd.length?nd:null;r.over=!!document.getElementById('hed-over')?.checked;
     if(document.getElementById('hed-done')?.checked)delete r.restored;
