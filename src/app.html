@@ -380,6 +380,11 @@ function seed(){
     blocked:[]};
 }
 let S; try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+/* rescue copy: the largest set of rides this device has ever held. Never overwritten by a smaller one, so rides lost on the server can be restored from here */
+const RESK=KEY+'-rescue';let MASSDEL=false;
+function keepRescue(rides){try{if(!Array.isArray(rides)||!rides.length)return;const prev=JSON.parse(localStorage.getItem(RESK)||'null');const m=new Map(((prev&&prev.rides)||[]).map(r=>[r.id,r]));rides.forEach(r=>{if(r&&r.id)m.set(r.id,r)});
+  if(!prev||m.size>((prev.rides||[]).length)||rides.some(r=>JSON.stringify(m.get(r.id))!==JSON.stringify(r)))localStorage.setItem(RESK,JSON.stringify({at:Date.now(),rides:[...m.values()]}))}catch(_){}}
+try{keepRescue(S&&S.rides)}catch(_){}
 if(!S||!S.clients)S=seed();
 const BIGCITIES=[['ירושלים',31.778,35.235],['חיפה',32.794,34.990],['ראשון לציון',31.964,34.804],['פתח תקווה',32.087,34.887],['אשדוד',31.804,34.655],['באר שבע',31.252,34.791],['בני ברק',32.083,34.833],['חולון',32.011,34.774],['רמת גן',32.068,34.824],['אשקלון',31.669,34.571],['רחובות',31.894,34.811],['בת ים',32.017,34.745],['בית שמש',31.747,34.988],['חדרה',32.434,34.919],['מודיעין',31.898,35.010],['לוד',31.951,34.895],['רמלה',31.929,34.866],['נצרת',32.700,35.303],['רהט',31.393,34.754],['הוד השרון',32.150,34.888],['גבעתיים',32.072,34.811],['קריית אתא',32.809,35.106],['נהריה',33.006,35.095],['קריית גת',31.610,34.764],['עפולה',32.607,35.289],['אום אל-פחם',32.519,35.153],['יבנה',31.877,34.739],['אילת',29.558,34.948],['ראש העין',32.096,34.957],['עכו',32.928,35.076],['אלעד',32.052,34.951],['רמת השרון',32.146,34.839],['כרמיאל',32.919,35.296],['טבריה',32.795,35.531],['קריית מוצקין',32.837,35.078],['קריית ביאליק',32.829,35.086],['קריית ים',32.849,35.069],['נס ציונה',31.930,34.799],['קריית שמונה',33.207,35.570],['אור יהודה',32.029,34.857],['יהוד',32.033,34.889],['גבעת שמואל',32.078,34.848],['קריית אונו',32.064,34.856],['צפת',32.965,35.496],['דימונה',31.069,35.033],['אופקים',31.314,34.620],['נתיבות',31.423,34.589],['שדרות',31.525,34.596],['יקנעם',32.659,35.110],['זכרון יעקב',32.571,34.952],['פרדס חנה',32.473,34.973],['אור עקיבא',32.507,34.918],['טייבה',32.266,35.009],['טירה',32.234,34.950],['כפר יונה',32.316,34.935],['אבן יהודה',32.270,34.888],['קדימה',32.278,34.912],['כוכב יאיר',32.223,34.998],['מעלה אדומים',31.775,35.299],['אריאל',32.105,35.180],['גדרה',31.814,34.778],['גן יבנה',31.786,34.706],['שוהם',31.999,34.946],['מזכרת בתיה',31.853,34.849],['טירת כרמל',32.761,34.972],['נשר',32.766,35.044],['מגדל העמק',32.676,35.240],['בית שאן',32.497,35.497],['קריית מלאכי',31.730,34.745],['ערד',31.258,35.213],['שפרעם',32.806,35.170],['מעלות-תרשיחא',33.016,35.272],['סח׳נין',32.864,35.297]];
 const BUS2610=[['08:45','הגעה'],['09:15','יציאה'],['15:45','הגעה'],['17:30','יציאה']].flatMap(([t,n])=>['ta','hz'].map(l=>({from:t,to:t,note:n,winter:t,line:l})));
@@ -436,28 +441,32 @@ function flush(){if(!DB||!dbOn||dbRO)return;
   for(const[k,col]of Object.entries(ROWS)){const pre=col+':',seen=new Set();
     for(const r of S[k]||[]){if(!okId(r.id))continue;seen.add(r.id);const j=JSON.stringify(r);
       if(synced[pre+r.id]!==j){synced[pre+r.id]=j;put(col+'/'+r.id,()=>DB.doc(col+'/'+r.id).set(JSON.parse(j)))}}
-    for(const sk of Object.keys(synced))if(sk.startsWith(pre)&&!seen.has(sk.slice(pre.length))){delete synced[sk];const id=sk.slice(pre.length);put(col+'/'+id,()=>DB.doc(col+'/'+id).delete())}}}
+    const gone=Object.keys(synced).filter(sk=>sk.startsWith(pre)&&!seen.has(sk.slice(pre.length)));
+    /* safety: more than 3 rows vanishing at once is never a normal action (only the manager's reset); skip it instead of deleting */
+    if(gone.length>3&&!MASSDEL){console.warn('blocked mass delete',col,gone.length);continue}
+    gone.forEach(sk=>{delete synced[sk];const id=sk.slice(pre.length);put(col+'/'+id,()=>DB.doc(col+'/'+id).delete())})}MASSDEL=false}
 let flushT=null;
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(dbOn){clearTimeout(flushT);flushT=setTimeout(flush,300)}};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}keepRescue(S.rides);if(dbOn){clearTimeout(flushT);flushT=setTimeout(flush,300)}};
 save();
 function syncBadge(){const el=document.getElementById('syncst');if(!el)return;const n=sync.q.length+sync.busy;
   el.hidden=!dbOn&&!dbRO;el.textContent=dbRO?'👁 צפייה בלבד':n?'⟳ שומר…':'● ניסיון משותף · מסונכרן';el.className='syncst'+(dbRO?' ro':n?' busy':'')}
 let pendingRender=false;
 const typing=()=>{const a=document.activeElement;return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&!/^(checkbox|radio|button|submit|color|file)$/.test(a.type)};
-function remoteChanged(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+function remoteChanged(){keepRescue(S.rides);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
   if(typing()){pendingRender=true;return}
   clearTimeout(remoteChanged.t);remoteChanged.t=setTimeout(render,120)}
 document.addEventListener('focusout',()=>{if(pendingRender)setTimeout(()=>{if(pendingRender&&!typing()){pendingRender=false;render()}},250)});
 function applyApp(docs){docs.forEach(d=>{const j=JSON.stringify((d.data()||{}).v??null);synced['a:'+d.id]=j;S[d.id]=JSON.parse(j)})}
-async function initDb(){let db=null;try{db=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){}
+async function initDb(){if(initDb.busy)return;initDb.busy=true;try{await initDb0()}finally{initDb.busy=false}}
+async function initDb0(){let db=null;try{db=window.claude&&window.claude.use?await window.claude.use('db'):null}catch(e){}
   if(PROD)db=DB;
   if(!db){const el=document.getElementById('syncst');if(el){el.hidden=false;el.className='syncst off';el.textContent='⚠ מצב מקומי: השינויים לא נשמרים לכולם';el.title='פתחו את האפליקציה מתוך Claude כדי שכולם יראו את אותם נתונים'}return}DB=db;
   let first;try{first=await DB.collection('app').get()}catch(e){return}
   if(first.empty&&PROD){toast('המאגר עדיין ריק. צריך להריץ את קובץ נתוני הפתיחה');return}
   if(first.empty){dbOn=true;flush()}
-  else{S={};applyApp(first.docs);
+  else{dbOn=false;clearTimeout(flushT);keepRescue(S&&S.rides);const S0=S;S={};applyApp(first.docs);
     for(const[k,col]of Object.entries(ROWS)){try{const rs=await DB.collection(col).get();S[k]=rs.docs.map(d=>{const j=JSON.stringify(d.data());synced[col+':'+d.id]=j;return JSON.parse(j)})}catch(e){S[k]=S[k]||[]}}
-    migrate();dbOn=true;flush();ui.knownAct=null;ui.knownAw=awIds();ui.knownNt=ntIds(ui.cid);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}render()}
+    keepRescue(S.rides);migrate();dbOn=true;flush();ui.knownAct=null;ui.knownAw=awIds();ui.knownNt=ntIds(ui.cid);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}render()}
   syncBadge();
   DB.collection('app').onSnapshot(sn=>{let ch=false;sn.docChanges().forEach(c=>{const k=c.doc.id;
       if(c.type==='removed'){if(synced['a:'+k]!==undefined){delete synced['a:'+k];delete S[k];ch=true}return}
@@ -733,7 +742,7 @@ function renderHist(mo){const rows=histRows(mo),past=r=>r.ts<Date.now()&&!['canc
     <td style="min-width:180px">${ui.dbEd===x.r.id?`<textarea id="db-${x.r.id}" rows="3" style="width:100%" maxlength="1000" placeholder="מה קרה בנסיעה? מה לשפר?">${esc(x.note)}</textarea><div class="row" style="gap:6px;margin-top:4px"><button class="btn small primary" data-dbsave="${x.r.id}">שמירה</button><button class="btn small" data-dbx="1">ביטול</button></div>`
       :`${x.note?`<div style="white-space:pre-wrap">${esc(x.note)}</div><div class="note">${esc(x.r.debrief.by||'')} · ${dmy(x.r.debrief.at)}</div>`:''}${past(x.r)?`<button class="btn small" data-dbed="${x.r.id}">${x.note?'עריכה':'📝 הוספת תחקיר'}</button>`:''}`}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">אין נסיעות בחודש הזה.</div>'}
   <div class="note">אפשר להוסיף תחקיר או הערות לשימור לכל נסיעה שכבר יצאה.</div>`}
-function renderReset(){return `<div class="panel" style="margin-top:24px;border-color:var(--bad)"><h3 style="color:var(--bad)">איפוס נתונים</h3>
+function renderReset(){return `<div class="panel" style="margin-top:24px"><h3>🛟 שחזור נסיעות מקובץ גיבוי</h3><div class="note">קובץ גיבוי שהורד ממכשיר אחר (למשל של הסדרן). רק נסיעות שחסרות בשרת יתווספו, ושום דבר לא יימחק.</div><label class="btn small" style="display:inline-block;margin-top:6px">בחירת קובץ גיבוי<input type="file" accept=".json,application/json" data-rescueup="1" hidden></label></div><div class="panel" style="margin-top:24px;border-color:var(--bad)"><h3 style="color:var(--bad)">איפוס נתונים</h3>
   <div class="note"><b>מחיקת הזמנות:</b> מוחק את כל ההזמנות (כולל היסטוריה ותחקירים) בכל המבצעים. הנוסעים נשארים.<br><b>איפוס מלא:</b> מוחק גם את כל הנוסעים ובקשות הנוסעים.<br>בשתי האפשרויות נשארים המבצעים והסלים, לוח השנה, התכנון החודשי, ההגדרות והסיסמאות. אי אפשר לבטל. כדאי להוריד קודם את ההיסטוריה ב"מעקב והוצאות".</div>
   <div class="row" style="gap:8px;margin-top:8px"><input id="rstconf" placeholder='הקלידו "איפוס" לאישור' style="width:180px"><button class="btn small danger" data-reset="rides">מחיקת הזמנות</button><button class="btn small danger" data-reset="all">איפוס מלא</button></div></div>`}
 /* approved, but the dispatcher has not entered the driver yet: also waiting for him */
@@ -1989,7 +1998,11 @@ async function rolePwSave(k){const r=roleKeys().find(x=>x.k===k),pw=(document.ge
 
 const confirmDel=t=>{if(t.dataset.sure){return true}t.dataset.sure='1';t.textContent='בטוח? ללחוץ שוב';setTimeout(()=>{if(t.isConnected){delete t.dataset.sure;t.textContent='הסרה'}},4000);return false};
 /* ---------- render + events ---------- */
-function render(){if(lateFree())save();if(TRAIN){if(ui.page==='admin')ui.page='client';const na=document.getElementById('nav-adm');if(na)na.style.display='none';document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 מצב אימון · קשה באימונים, קל בקרב · שום דבר כאן לא אמיתי ולא נשלח לאף אחד</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
+/* rides this device still has that the server lost: restore (manager) or download to send to the manager */
+function rescueMissing(){try{if(!dbOn)return [];const R=JSON.parse(localStorage.getItem(RESK)||'null');if(!R||!R.rides)return [];const have=new Set(S.rides.map(r=>r.id));return R.rides.filter(r=>r&&r.id&&!have.has(r.id))}catch(_){return []}}
+function rescueBar(){const m=rescueMissing();if(!m.length||!(MGR()||ui.role==='disp'||ui.role==='ops'||ui.role==='princess'))return '';
+  return `<section class="panel" style="border:2px solid var(--warn);background:var(--warn-soft,#fff4e0)"><h3 style="margin:0">🛟 נמצאו במכשיר הזה ${m.length} נסיעות שחסרות בשרת</h3><div class="note" style="color:var(--ink)">המכשיר הזה שמר עותק של הנסיעות. ${MGR()?'אפשר להחזיר אותן לשרת בלחיצה, וכולם יראו אותן שוב.':'הורידו את הקובץ ושלחו אותו למנהלת, והיא תחזיר את הנסיעות.'}</div><div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap">${MGR()?`<button class="btn primary" data-rescue="1">↩ החזרת ${m.length} הנסיעות לשרת</button>`:''}<button class="btn" data-rescuedl="1">⬇ הורדת קובץ גיבוי</button></div></section>`}
+function render(){if(lateFree())save();try{let rb=document.getElementById('rescuebar');const ap=document.getElementById('app');if(!rb&&ap){rb=document.createElement('div');rb.id='rescuebar';ap.before(rb)}if(rb)rb.innerHTML=rescueBar()}catch(_){}if(TRAIN){if(ui.page==='admin')ui.page='client';const na=document.getElementById('nav-adm');if(na)na.style.display='none';document.body.classList.add('train');const tb=document.getElementById('trainbar');if(tb&&tb.hidden){tb.hidden=false;tb.innerHTML='<span>🎯 מצב אימון · קשה באימונים, קל בקרב · שום דבר כאן לא אמיתי ולא נשלח לאף אחד</span><span class="row" style="gap:6px"><button class="btn small" id="trainreset">התחלה מחדש</button><a class="btn small" href="./">יציאה מהאימון</a></span>'}}
   if(PROD&&AUTH.state!=='in'){['nav-guide','nav-client','nav-disp','nav-adm','glogout','nav-notif'].forEach(id=>{document.getElementById(id).hidden=true});renderAuth();return}
   const allowed=ui.role?ROLEP[ui.role]:[];
   if(!ui.role){if(!['client','dispatcher','admin'].includes(ui.page))ui.page='client'}
@@ -2093,6 +2106,8 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;mergeAlertR(createRide(x.d,c));x.booked=true;n++});
     save();toast(n?`הוזמנו ${n} מוניות. אפשר לראות אותן ב"הזמנות"`:'אין מוניות תקינות להזמנה');render();return}
   if(t.dataset.nday){const ds=ui.calSel||ymd(new Date()),k=t.dataset.nday;S.northDays={...(S.northDays||{})};if(k==='-')delete S.northDays[ds];else S.northDays[ds]=k;save();toast(k==='-'?'ביום הזה אין הזמנות מהצפון':`סומן ${NDK[k]}: הנסיכות יכולות להזמין מהצפון ביום הזה`);render();return}
+  if(t.dataset.rescue){if(!MGR())return;const m=rescueMissing();m.forEach(r=>S.rides.push(r));save();toast(`${m.length} נסיעות הוחזרו לשרת`);render();return}
+  if(t.dataset.rescuedl){let R=null;try{R=JSON.parse(localStorage.getItem(RESK)||'null')}catch(_){}if(!R){toast('אין גיבוי במכשיר הזה');return}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({ramoniyot:1,at:Date.now(),rides:R.rides})],{type:'application/json'}));a.download=`גיבוי-נסיעות-${ymd(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();toast('קובץ הגיבוי ירד. שלחו אותו למנהלת');return}
   if(t.dataset.trkpng){trackPng();return}
   if(t.dataset.dsday){const def=ymd(new Date(Date.now()-5*H)),c=new Date(at(ui.dsDate||def,'12:00'));c.setDate(c.getDate()+ +t.dataset.dsday);const n=ymd(c);ui.dsDate=n>def?def:n;render();return}
   if(t.dataset.dbfread){const n=debrief().find(x=>x.id===t.dataset.dbfread);if(!n)return;const rp=(document.getElementById('dbr-'+n.id)?.value||'').trim();n.readAt=Date.now();if(rp)n.reply=rp;save();toast('סומן כנקרא'+(rp?'. התגובה נשלחה למנהלת':''));render();return}
@@ -2108,7 +2123,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
     if(!dl){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([histCSV(mo)],{type:'text/csv;charset=utf-8'}));a.download=fn;document.body.appendChild(a);a.click();a.remove();toast('הקובץ ירד');return}
     try{await dl.save({filename:fn,data:histCSV(mo)});toast('הקובץ נשמר')}catch(e){if(e&&e.code!=='declined')toast('לא ניתן להוריד כרגע')}})();return}
   if(t.dataset.reset){if(ui.role!=='admin')return;if((document.getElementById('rstconf')?.value||'').trim()!=='איפוס'){toast('כדי לאפס, הקלידו "איפוס" בתיבה');return}
-    const all=t.dataset.reset==='all';S.clients.forEach(c=>{delete c.carry});S.rides=[];S.mergeVotes={};if(S.lines)S.lines={};if(S.dismissed)S.dismissed=[];if(all){S.employees=[];S.paxReq=[];ui.draft.pax=[]}
+    const all=t.dataset.reset==='all';MASSDEL=true;S.clients.forEach(c=>{delete c.carry});S.rides=[];S.mergeVotes={};if(S.lines)S.lines={};if(S.dismissed)S.dismissed=[];if(all){S.employees=[];S.paxReq=[];ui.draft.pax=[]}
     document.getElementById('rstconf').value='';save();toast(all?'האפליקציה אופסה: אין נוסעים, אין הזמנות ואין ירידה מהחודש הקודם':'כל ההזמנות נמחקו, והירידה מהחודש הקודם אופסה. הנוסעים נשארו');render();return}
   if(t.dataset.paxed){ui.paxEd=t.dataset.paxed;render();setTimeout(()=>{const i=document.getElementById('pe-name');i&&i.focus()});return}
   if(t.dataset.paxedx){ui.paxEd=null;render();return}
@@ -2324,6 +2339,8 @@ document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
   if(t.id==='costmonth'){ui.costMonth=t.value;render();return}
   if(t.dataset.price){S.prices[t.dataset.price]=Math.max(0,+t.value||0);save();toast('המחיר עודכן');render();return}
   if(t.dataset.ologo){const f=t.files&&t.files[0],cid=t.dataset.ologo;if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const cv=document.createElement('canvas'),z=96;cv.width=cv.height=z;const g=cv.getContext('2d'),k=Math.max(z/im.width,z/im.height);g.drawImage(im,(z-im.width*k)/2,(z-im.height*k)/2,im.width*k,im.height*k);client(cid).logo=cv.toDataURL('image/png');save();toast('הלוגו עודכן');render()};im.onerror=()=>toast('לא הצלחנו לקרוא את התמונה');im.src=rd.result};rd.readAsDataURL(f);return}
+  if(t.dataset.rescueup){const f=t.files&&t.files[0];if(!f||!MGR())return;f.text().then(txt=>{let J=null;try{J=JSON.parse(txt)}catch(_){}const L=J&&Array.isArray(J.rides)?J.rides:null;if(!L){toast('הקובץ לא נראה כמו גיבוי של רמוניות');return}
+    const have=new Set(S.rides.map(r=>r.id)),add=L.filter(r=>r&&r.id&&typeof r.ts==='number'&&Array.isArray(r.pax)&&!have.has(r.id));add.forEach(r=>S.rides.push(r));save();toast(add.length?`${add.length} נסיעות הוחזרו לשרת`:'כל הנסיעות בקובץ כבר קיימות בשרת');render()});return}
   if(t.id==='ds-date'&&t.value){ui.dsDate=t.value;render();return}
   if(t.dataset.ocolor){client(t.dataset.ocolor).color=t.value;save();toast('הצבע עודכן');render();return}
   if(t.dataset.perk){const[id,k]=t.dataset.perk.split('|'),c=client(id);c.perks={...(c.perks||{}),[k]:t.checked};save();toast(`${c.name}: ${t.checked?'נוספה הקלה':'בוטלה ההקלה'}: ${PERKS.find(x=>x[0]===k)[1]}`);render();return}
