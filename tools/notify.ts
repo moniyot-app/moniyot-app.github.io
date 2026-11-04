@@ -41,8 +41,8 @@ function plan(ev: any): Msg[] {
     // exceptions waiting: big boss (single passenger), CEO (night)
     if (n.status === "pending" && (!o || o.status !== "pending" || chg)) {
       const ok: string[] = n.approvedBy || [];
-      if (needs(n).includes("single"))
-        cids.filter((c) => !ok.includes(c)).forEach((c) => out.push({ to: (s) => has(s, "boss") && s.cid === c, title: "רמוניות · בוס גדול", body: "★ נסיעה עם נוסע בודד ממתינה לאישורך" + tail, tag: "bo-" + n.id }));
+      if (needs(n).includes("single") || needs(n).includes("exc"))
+        cids.filter((c) => !ok.includes(c)).forEach((c) => out.push({ to: (s) => has(s, "boss") && s.cid === c, title: "רמוניות · בוס גדול", body: (needs(n).includes("exc") ? "⚡ בקשת חריגה מהמגבלות ממתינה לאישורך" : "★ נסיעה עם נוסע בודד ממתינה לאישורך") + tail, tag: "bo-" + n.id }));
       if (needs(n).includes("night") && !n.ceoOk)
         out.push({ to: (s) => has(s, "ceo") && !has(s, "admin"), title: "רמוניות · מנכ״ל", body: "🌙 נסיעת לילה ממתינה לאישורך" + tail, tag: "ceo-" + n.id });
     }
