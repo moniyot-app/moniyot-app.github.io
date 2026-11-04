@@ -53,3 +53,13 @@ t=t.replace('<meta name="claude:viewport-fit-sides" content="cover">\n','')
 thead=head.replace(SBJS,'').replace('<link rel="manifest" href="manifest.webmanifest">\n','')
 open('train.html','w').write(lower(thead+t+'\n</body>\n</html>\n'))
 print('train ok',len(t))
+
+# preview: the prototype (fictional data, this device only) with features that are not live yet, for the manager to try
+v=SRC
+for o,n in [("const BOSSEXC=false;","const BOSSEXC=true;"),("const KEY='taxi-quota-proto-v1';","const KEY='ramoniyot-preview-v1';"),
+            ('⚠ מצב מקומי: השינויים לא נשמרים לכולם','🧪 תצוגה מקדימה · נתוני דוגמה, נשמר רק במכשיר הזה'),('<title>רמוניות</title>','<title>רמוניות · תצוגה מקדימה</title>'),
+            ('<span class="roof">TAXI</span>רמוניות</div>','<span class="roof">TAXI</span>רמוניות · תצוגה מקדימה</div>')]:
+    assert v.count(o)==1,o[:50]; v=v.replace(o,n)
+v=v.replace('<meta name="claude:viewport-fit-sides" content="cover">\n','')
+open('preview.html','w').write(lower(thead+v+'\n</body>\n</html>\n'))
+print('preview ok',len(v))
