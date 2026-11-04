@@ -593,7 +593,7 @@ function check0(d){ // d: {date,time,dir,dest,pax[]}
   {const nc=[...new Set([d.dest,...(d.stops||[]),...((d.pts||[]).map(x=>x.city))].filter(x=>x&&S.north.includes(x)))];
   /* north: only the princesses order to/from the north, for any squadron's passengers (the manager and units with the north perk are exempt) */
   if(nc.length&&ui.role!=='admin'&&!perk('north')){if(!isP(ui.cid))add('block',`${nc.join(', ')} בצפון: הזמנה מהצפון רק דרך הנסיכות`);
-    else add('ok',`${nc.join(', ')} בצפון: הנסיכות מזמינות מהצפון לכל הטייסות${northDay(d.date)?' · '+NK(d.date):''}`)}}
+    else add('ok',`${nc.join(', ')} בצפון: הנסיכות מזמינות מהצפון לכל המבצעים${northDay(d.date)?' · '+NK(d.date):''}`)}}
   {const used=[...new Set(d.pax.map(p=>ptOf(d,p)))],P=(d.pts||[]).filter(x=>used.includes(x.city)&&!NOADDR(x.city)),nm=x=>x.city||'תחנה';
   if(d.pax.length&&!d.pts)add('block','הוסיפו תחנה');
   else if(P.some(x=>!(x.addr||'').trim()))add('block',`הזינו כתובת מדויקת (רחוב ומספר, או נקודת ציון) לתחנה ב${P.filter(x=>!(x.addr||'').trim()).map(nm).join(', ')}`);
@@ -733,7 +733,7 @@ const /* daily backup (Excel/CSV): yesterday's rides and every upcoming ride, re
 bkCSV=()=>{const y=ymd(new Date(Date.now()-DAY)),now=Date.now(),q=c=>`"${String(c??'').replace(/"/g,'""')}"`;
   const L=S.rides.filter(r=>r.status!=='merged'&&(ymd(new Date(r.ts))===y||r.ts>=now)).sort((a,b)=>a.ts-b.ts);
   const rows=L.map(r=>{const s=sched(r);return [ymd(new Date(r.ts))===y?'אתמול':'עתידית',dmy(r.ts),s?hm(new Date(s.start)):'',r.dir==='to'?'למחנה':'מהמחנה',[r.dest,...(r.stops||[])].join(' / '),r.pax.map(p=>emp(p)?.name||'').join(', '),clientsOf(r).map(c=>client(c)?.name||'').join(', '),r.house?'כן':'',(statusOf0(r).replace(/<[^>]+>/g,'')),[r.driverName,r.driverPhone].filter(Boolean).join(' '),JSON.stringify(r)]});
-  return '\ufeff'+[['סוג','תאריך','שעת איסוף','כיוון','תחנות','נוסעים','טייסות','על חשבון הבית','סטטוס','נהג','נתונים לשחזור (לא לשנות)'],...rows].map(r=>r.map(q).join(',')).join('\r\n')};
+  return '\ufeff'+[['סוג','תאריך','שעת איסוף','כיוון','תחנות','נוסעים','מבצעים','על חשבון הבית','סטטוס','נהג','נתונים לשחזור (לא לשנות)'],...rows].map(r=>r.map(q).join(',')).join('\r\n')};
 const dlBackup=auto=>{const n=ymd(new Date(Date.now()-DAY)),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bkCSV()],{type:'text/csv;charset=utf-8'}));a.download=`גיבוי-רמוניות-${n}.csv`;document.body.appendChild(a);a.click();a.remove();
   try{localStorage.setItem('ram-bk-day',ymd(new Date()))}catch(_){}if(!auto)toast('קובץ הגיבוי ירד. שמרו אותו בתיקייה קבועה')};
 /* rides from a backup CSV: the last column holds each ride in full */
@@ -1577,7 +1577,7 @@ function trackPng(){const T=ui._trk;if(!T)return;const rows=T.rows.slice().sort(
   const rr=(x,y,w,h,r,c)=>{g.fillStyle=c;g.beginPath();if(g.roundRect)g.roundRect(x,y,w,h,r);else g.rect(x,y,w,h);g.fill()};
   g.direction='rtl';rr(0,0,W,H,0,BG);rr(40,40,W-80,H-80,28,'#ffffff');
   /* header */
-  g.textAlign='right';g.fillStyle=INK;g.font=`800 46px ${F}`;g.fillText('מוניות לפי טייסת',W-90,118);
+  g.textAlign='right';g.fillStyle=INK;g.font=`800 46px ${F}`;g.fillText('מוניות לפי מבצעים',W-90,118);
   g.fillStyle=MUTE;g.font=`400 24px ${F}`;g.fillText(T.title,W-90,156);
   rr(90,82,150,46,23,INK);g.fillStyle='#fff';g.textAlign='center';g.font=`800 22px ${F}`;g.fillText('רמוניות',165,113);
   /* KPI tiles */
@@ -1602,8 +1602,8 @@ function trackPng(){const T=ui._trk;if(!T)return;const rows=T.rows.slice().sort(
     g.fillText(l1,cx,BOT+40);if(l2)g.fillText(l2,cx,BOT+66);
     if(x.n){const t1=`בודד ${pc(x.s1,x.n)}%`,t2=`צפון ${pc(x.no||0,x.n)}%`;g.font=`600 18px ${F}`;const pw=Math.min(slot-16,Math.max(g.measureText(t1).width,g.measureText(t2).width)+28),y0=BOT+(l2?80:56);
       rr(cx-pw/2,y0,pw,30,15,'#fdeee6');g.fillStyle='#b4481a';g.fillText(t1,cx,y0+21);rr(cx-pw/2,y0+38,pw,30,15,'#f0ebfc');g.fillStyle='#5a3fb8';g.fillText(t2,cx,y0+59)}});
-  g.textAlign='right';g.fillStyle=MUTE;g.font=`400 18px ${F}`;g.fillText(`הופק ב־${dmy(Date.now())} ${hm(new Date())} · מונית משותפת מתחלקת בין הטייסות לפי מספר הנוסעים · מונית שעוברת צפונית לנתניה נספרת כצפון`,W-90,H-72);
-  cv.toBlob(bl=>{const u=URL.createObjectURL(bl),a=document.createElement('a');a.download=`מוניות-לפי-טייסת-${T.cur}.png`;a.href=u;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('הגרף ירד למכשיר')},'image/png')}
+  g.textAlign='right';g.fillStyle=MUTE;g.font=`400 18px ${F}`;g.fillText(`הופק ב־${dmy(Date.now())} ${hm(new Date())} · מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים · מונית שעוברת צפונית לנתניה נספרת כצפון`,W-90,H-72);
+  cv.toBlob(bl=>{const u=URL.createObjectURL(bl),a=document.createElement('a');a.download=`מוניות-לפי-מבצעים-${T.cur}.png`;a.href=u;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('הגרף ירד למכשיר')},'image/png')}
 function trackCharts(cur,inM,rows,tot,sum){
   const [y,m]=cur.split('-').map(Number),nd=new Date(y,m,0).getDate(),daily=Array(nd).fill(0),dspend=Array(nd).fill(0);
   inM.forEach(r=>{const i=new Date(r.ts).getDate()-1;daily[i]++;dspend[i]+=cost(r)});
@@ -1652,8 +1652,8 @@ function ceoTrack(){const now=new Date(),cur=ui.ceoMonth||ymd(now).slice(0,7),mk
   const box=(l,v,n)=>`<div class="kpi"><div class="eyebrow">${l}</div><div class="kv num">${v}</div><div class="note">${n||''}</div></div>`;
   return `<section class="panel"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h3 style="margin:0">🌙 מעקב נסיעות לילה</h3><label>חודש<select id="ceomonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${mName(k)}</option>`).join('')}</select></label></div>
     <div class="kpis" style="margin-top:8px">${box('נסיעות לילה שהוזמנו',went.length,'לא כולל ביטולים')}${box('אישר המנכ״ל',cnt('ceo'),'')}${box('אישר בוס גדול',cnt('boss'),'בהאצלת סמכות')}${box('ממתינות',cnt('wait'),'')}${box('נדחו',cnt('no'),'')}</div>
-    ${per.length?`<h4 style="margin:10px 0 4px">לפי טייסות</h4><div class="hbars">${per.map(x=>`<div class="hb" data-tip="${esc(x.c.name)} · ${r1(x.n)} נסיעות לילה"><span class="hl">${opsDot(x.c.id)}${esc(x.c.name)}</span><span class="ht"><span class="seg" style="width:${x.n/mx*100}%;background:${opsColor(x.c.id)}"></span><span class="hv num">${fmt(r1(x.n))}</span></span></div>`).join('')}</div><div class="note">מונית משותפת מתחלקת בין הטייסות לפי מספר הנוסעים.</div>`:''}
-    ${st.length?`<div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>איסוף</th><th>כיוון ומסלול</th><th>טייסות</th><th>נוסעים</th><th>אישור</th></tr></thead><tbody>${st.map(([r,x])=>`<tr${['no','cx'].includes(x[0])?' style="opacity:.55"':''}><td class="num"><b>${dmy(startTs(r)||r.ts)} ${hm(new Date(startTs(r)||r.ts))}</b></td><td>${r.dir==='to'?'למחנה':'מהמחנה'} · ${esc(route(r))}</td><td>${clientsOf(r).map(c=>opsDot(c)+esc(client(c)?.name||'')).join('<br>')}${r.by===PID?'<br><span class="note">ע״י הנסיכות</span>':''}</td><td>${r.pax.length}</td><td><b style="color:${x[0]==='ceo'||x[0]==='boss'?'var(--ok)':x[0]==='wait'||x[0]==='none'?'var(--warn)':'var(--bad)'}">${x[1]}</b>${r.reason?`<div class="note">${esc(r.reason)}</div>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">אין נסיעות לילה בחודש הזה.</div>'}
+    ${per.length?`<h4 style="margin:10px 0 4px">לפי מבצעים</h4><div class="hbars">${per.map(x=>`<div class="hb" data-tip="${esc(x.c.name)} · ${r1(x.n)} נסיעות לילה"><span class="hl">${opsDot(x.c.id)}${esc(x.c.name)}</span><span class="ht"><span class="seg" style="width:${x.n/mx*100}%;background:${opsColor(x.c.id)}"></span><span class="hv num">${fmt(r1(x.n))}</span></span></div>`).join('')}</div><div class="note">מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים.</div>`:''}
+    ${st.length?`<div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>איסוף</th><th>כיוון ומסלול</th><th>מבצעים</th><th>נוסעים</th><th>אישור</th></tr></thead><tbody>${st.map(([r,x])=>`<tr${['no','cx'].includes(x[0])?' style="opacity:.55"':''}><td class="num"><b>${dmy(startTs(r)||r.ts)} ${hm(new Date(startTs(r)||r.ts))}</b></td><td>${r.dir==='to'?'למחנה':'מהמחנה'} · ${esc(route(r))}</td><td>${clientsOf(r).map(c=>opsDot(c)+esc(client(c)?.name||'')).join('<br>')}${r.by===PID?'<br><span class="note">ע״י הנסיכות</span>':''}</td><td>${r.pax.length}</td><td><b style="color:${x[0]==='ceo'||x[0]==='boss'?'var(--ok)':x[0]==='wait'||x[0]==='none'?'var(--warn)':'var(--bad)'}">${x[1]}</b>${r.reason?`<div class="note">${esc(r.reason)}</div>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">אין נסיעות לילה בחודש הזה.</div>'}
     <div class="note">מוצגות נסיעות שסומנו כנסיעות לילה, לפי ההזמנה או לפי העריכה של המנהלת בהיסטוריה. החודש נקבע לפי שעת האיסוף.</div></section>`}
 function renderCeo(){const list=ceoPending();
   return `<section class="panel ceo-panel"><div class="row" style="justify-content:space-between"><h2>★ אישורי מנכ״ל · נסיעות לילה</h2></div>
@@ -1772,7 +1772,7 @@ function renderDispatcher(){
     const monthName=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('he-IL',{month:'long',year:'numeric'})};
     ui._trk={title:monthName(cur),cur,rows:all.filter(x=>x.n>0||x.c.id!==PID).map(x=>({name:x.c.name,id:x.c.id,n:x.n,s1:x.s1,no:x.no})),tot};
     body=`${daySum(MGR())}<div class="meter-top"><div><div class="eyebrow">הוצאות · ${monthName(cur)}</div><div class="big num">${money(tot)}</div></div>
-      <span class="row" style="gap:8px;align-items:end;flex-wrap:wrap"><label>חודש<select id="costmonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${monthName(k)}</option>`).join('')}</select></label><button class="btn small primary" data-trkpng="1">⬇ הורדת גרף: מוניות לפי טייסת</button></span></div>
+      <span class="row" style="gap:8px;align-items:end;flex-wrap:wrap"><label>חודש<select id="costmonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${monthName(k)}</option>`).join('')}</select></label><button class="btn small primary" data-trkpng="1">⬇ הורדת גרף: מוניות לפי מבצעים</button></span></div>
       <div class="note num">מרכז (נתניה ודרומה): ${money(S.prices.south)} למונית · צפון (צפונה מנתניה): ${money(S.prices.north)} למונית</div>
       ${overPanel(cur,rows)}
       ${trackCharts(cur,inM,all,tot,sum)}<h3>טבלת פירוט</h3>
@@ -2412,7 +2412,7 @@ document.addEventListener('change',e=>{const t=e.target,d=ui.draft;
   if(t.id==='costmonth'){ui.costMonth=t.value;render();return}
   if(t.dataset.price){S.prices[t.dataset.price]=Math.max(0,+t.value||0);save();toast('המחיר עודכן');render();return}
   if(t.dataset.ologo){const f=t.files&&t.files[0],cid=t.dataset.ologo;if(!f)return;const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const cv=document.createElement('canvas'),z=96;cv.width=cv.height=z;const g=cv.getContext('2d'),k=Math.max(z/im.width,z/im.height);g.drawImage(im,(z-im.width*k)/2,(z-im.height*k)/2,im.width*k,im.height*k);client(cid).logo=cv.toDataURL('image/png');save();toast('הלוגו עודכן');render()};im.onerror=()=>toast('לא הצלחנו לקרוא את התמונה');im.src=rd.result};rd.readAsDataURL(f);return}
-  if(t.dataset.hhouse){if(!HADM())return;if(!MGR())return;const r=S.rides.find(x=>x.id===t.dataset.hhouse);if(!r)return;r.house=t.checked;save();toast(t.checked?'סומנה על חשבון הבית: לא יורדת מאף סל':'הוחזרה לסל של הטייסת');render();return}
+  if(t.dataset.hhouse){if(!HADM())return;if(!MGR())return;const r=S.rides.find(x=>x.id===t.dataset.hhouse);if(!r)return;r.house=t.checked;save();toast(t.checked?'סומנה על חשבון הבית: לא יורדת מאף סל':'הוחזרה לסל של המבצעים');render();return}
   if(t.dataset.rescueup){const f=t.files&&t.files[0];if(!f||!MGR())return;f.text().then(txt=>{let J=null;try{J=JSON.parse(txt)}catch(_){}let L=J&&Array.isArray(J.rides)?J.rides:null;if(!L)L=csvRides(txt);if(!L){toast('הקובץ לא נראה כמו גיבוי של רמוניות');return}
     const have=new Set([...S.rides.map(r=>r.id),...(S.delIds||[])]),add=L.filter(r=>r&&r.id&&typeof r.ts==='number'&&Array.isArray(r.pax)&&!have.has(r.id));add.forEach(r=>S.rides.push(r));save();toast(add.length?`${add.length} נסיעות הוחזרו לשרת`:'כל הנסיעות בקובץ כבר קיימות בשרת');render()});return}
   if(t.id==='ceomonth'){ui.ceoMonth=t.value;render();return}
