@@ -492,6 +492,7 @@ const perk=(k,cid=ui.cid)=>!isP(cid)&&!!((S.clients.find(c=>c.id===cid)||{}).per
 const NOADDR=c=>/רמת[\s\-־]*דוד|עין[\s\-־]*שמר|רמ[״"]ד/.test(c||'');
 const client=id=>id===PID?PRINCESS:S.clients.find(c=>c.id===id);
 const COUNTS=['active','pending','awaiting','late'];
+const DONE=r=>(r.status==='active'||r.status==='late')&&r.ts<=Date.now(); /* a taxi that already went */
 const inMonth=ts=>{const d=new Date(ts),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()};
 const share=(r,cid)=>r.house?0:r.pax.length?r.pax.filter(p=>emp(p)?.cid===cid).length/r.pax.length:0;
 const used=cid=>S.rides.filter(r=>COUNTS.includes(r.status)&&inMonth(r.ts)).reduce((a,r)=>a+share(r,cid),0);
@@ -745,7 +746,7 @@ const histCSV=mo=>'﻿'+[HISTCOLS,...histRows(mo).map(x=>[x.created,x.when,x.by+
 const isFine=r=>false; /* a late cancellation is no longer a debt to the CEO: it only counts in the basket as if the taxi went */
 const fineOwers=r=>r.cancelBy&&r.cancelBy.cid&&r.cancelBy.cid!==PID?[{cid:r.cancelBy.cid,part:1}]:clientsOf(r).map(cid=>({cid,part:share({...r,house:false},cid)}));
 /* debt to the CEO: units whose taxis in the month were more than 25% single-passenger owe a fixed amount (not the princesses) */
-function singleDebts(mo){const inM=S.rides.filter(r=>COUNTS.includes(r.status)&&ymd(new Date(r.ts)).slice(0,7)===mo),one=r=>r.pax.length===1;
+function singleDebts(mo){const inM=S.rides.filter(r=>DONE(r)&&ymd(new Date(r.ts)).slice(0,7)===mo),one=r=>r.pax.length===1;
   return S.clients.map(c=>{const rs=inM.filter(r=>clientsOf(r).includes(c.id)),n=rs.reduce((a,r)=>a+share(r,c.id),0),s1=rs.filter(one).reduce((a,r)=>a+share(r,c.id),0),p=n?s1/n:0;
     return {c,n,s1,p,owe:p>.25?FINE():0,paid:(S.singlePaid||{})[mo+'|'+c.id]||null}})}
 /* the big bosses' exception approvals, per unit and per kind of limit, for the month */
@@ -1569,7 +1570,7 @@ const dbfUnread=()=>debrief().filter(n=>!n.readAt);
 function daySum(adm){const now=Date.now();
   /* the operational day runs 05:00–00:00; before 05:00 the default is the day that just ended */
   const def=ymd(new Date(now-5*H)),ds=ui.dsDate||def,from=at(ds,'05:00'),to=at(ds,'00:00')+DAY,inW=t=>t>=from&&t<to,L=[];
-  const ran=S.rides.filter(r=>inW(r.ts)&&['active','late'].includes(r.status)),cAt=r=>r.cancelBy&&r.cancelBy.at;
+  const ran=S.rides.filter(r=>inW(r.ts)&&DONE(r)),cAt=r=>r.cancelBy&&r.cancelBy.at;
   const can=S.rides.filter(r=>r.status==='cancelled'&&inW(cAt(r)||0)),late=S.rides.filter(r=>r.status==='late'&&inW(cAt(r)||0));
   const made=S.rides.filter(r=>inW(r.createdAt||0)),chg=S.rides.filter(r=>(r.changes||[]).some(c=>inW(c.at)));
   const night=ran.filter(isNight),single=ran.filter(r=>r.pax.length===1),house=ran.filter(r=>r.house),noDrvRan=ran.filter(r=>r.status==='active'&&!(r.driverName||r.driverPhone));
@@ -1779,8 +1780,9 @@ function renderDispatcher(){
     </div>`;
   }else if(ui.tab==='costs'){
     const mk=r=>ymd(new Date(r.ts)).slice(0,7), cur=ui.costMonth||ymd(new Date()).slice(0,7);
-    const months=[...new Set([cur,...S.rides.filter(r=>COUNTS.includes(r.status)).map(mk)])].sort().reverse();
-    const inM=S.rides.filter(r=>COUNTS.includes(r.status)&&mk(r)===cur);
+    const months=[...new Set([cur,...S.rides.filter(DONE).map(mk)])].sort().reverse();
+    /* tracking counts a taxi only once it has gone (approved and its time has passed; a late cancellation counts as gone) */
+    const inM=S.rides.filter(r=>DONE(r)&&mk(r)===cur);
     const one=r=>r.pax.length===1, K=['n','no','ce','s1','s1n','s1c'];
     const rows=S.clients.map(c=>{const rs=inM.filter(r=>clientsOf(r).includes(c.id));const sm=f=>rs.filter(f).reduce((a,r)=>a+share(r,c.id),0);
       return {c,n:sm(()=>1),no:sm(isNorth),ce:sm(r=>!isNorth(r)),s1:sm(one),s1n:sm(r=>one(r)&&isNorth(r)),s1c:sm(r=>one(r)&&!isNorth(r)),s:rs.reduce((a,r)=>a+cost(r)*share(r,c.id),0)}}).sort((a,b)=>b.s-a.s);
@@ -1799,7 +1801,7 @@ function renderDispatcher(){
         <tr><th>סה"כ</th><th>צפון</th><th>מרכז</th><th>סה"כ</th><th>צפון</th><th>מרכז</th></tr></thead>
       <tbody>${all.map(x=>`<tr${x.c.id===PID?' style="background:color-mix(in srgb,#c2185b 7%,transparent)"':''}><td>${esc(x.c.name)}</td>${K.map(k=>`<td class="num">${fmt(x[k])}</td>`).join('')}<td class="num"><b>${money(x.s)}</b></td></tr>`).join('')}</tbody>
       <tfoot><tr><td><b>סה"כ</b></td>${K.map(k=>`<td class="num"><b>${fmt(sum(k))}</b></td>`).join('')}<td class="num"><b>${money(tot)}</b></td></tr></tfoot></table></div>
-      <div class="note">${hs.length?`<b>מוניות על חשבון הבית של הנסיכות (${hs.length}) מופיעות בשורה נפרדת ונכללות בסה״כ ההוצאה, אבל לא יורדות מאף סל.</b> `:''}כולל נסיעות מאושרות, ממתינות וביטולים מאוחרים. מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים. מונית שעוברת בתחנה צפונית לנתניה נספרת ומתומחרת כצפון. העמוד הזה גלוי רק לסדרן.</div>
+      <div class="note">${hs.length?`<b>מוניות על חשבון הבית של הנסיכות (${hs.length}) מופיעות בשורה נפרדת ונכללות בסה״כ ההוצאה, אבל לא יורדות מאף סל.</b> `:''}נספרות רק מוניות שכבר בוצעו (וביטולים מאוחרים, שנספרים כאילו המונית יצאה). הזמנות עתידיות וממתינות נכנסות למעקב רק אחרי שהן יוצאות. מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים. מונית שעוברת בתחנה צפונית לנתניה נספרת ומתומחרת כצפון. העמוד הזה גלוי רק לסדרן.</div>
       ${(()=>{const ps=inM.filter(r=>r.by===PID||r.house).sort((a,b)=>a.ts-b.ts),pc=ps.filter(r=>!r.house);
       return `<h3 id="house">★ נסיכות · הזמנות החודש <span class="count">${ps.length}</span></h3>
       <div class="kpis"><div class="kpi"><div class="eyebrow">הזמנות של הנסיכות</div><div class="kv num">${ps.length}</div></div><div class="kpi"><div class="eyebrow">על חשבון הבית</div><div class="kv num">${hs.length}</div><div class="note">${money(hRow.s)} · לא יורדות מאף סל</div></div><div class="kpi"><div class="eyebrow">מסל המבצעים</div><div class="kv num">${pc.length}</div><div class="note">${money(pc.reduce((a,r)=>a+cost(r),0))} · יורדות מהסל של המבצעים של הנוסעים</div></div></div>
