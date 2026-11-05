@@ -486,7 +486,7 @@ const PID='__p',PRINCESS={id:PID,name:'נסיכות',quota:0,carry:0,color:'#c21
 const isP=cid=>cid===PID;
 /* fewer restrictions for a unit, set by the manager in "סלים": win = may order during flight/minibus times, types = any passenger type on air/ground days,
    north = may order to/from the north, single = a lone passenger needs no big-boss approval */
-const PERKS=[...(BOSSEXC?[['bossexc','⚡ הבוס הגדול יכול לאשר חריגה מכל מגבלה']]:[]),['win','הזמנה גם בשעות טיסה או מיניבוס'],['types','כל סוגי הנוסעים בימים אוויריים וקרקעיים'],['north','הזמנה גם מנקודות בצפון'],['single','נוסע יחיד בלי אישור בוס גדול']];
+const PERKS=[...(BOSSEXC?[['bossexc','⚡ הבוס הגדול יכול לאשר חריגה מכל מגבלה']]:[]),['win','הזמנה גם בשעות טיסה או מיניבוס'],['types','כל סוגי הנוסעים בימים אוויריים וקרקעיים'],['single','נוסע יחיד בלי אישור בוס גדול']];
 const perk=(k,cid=ui.cid)=>!isP(cid)&&!!((S.clients.find(c=>c.id===cid)||{}).perks||{})[k];
 /* fixed pick-up points (camp gate, airstrip): no street address needed */
 const NOADDR=c=>/רמת[\s\-־]*דוד|עין[\s\-־]*שמר|רמ[״"]ד/.test(c||'');
@@ -591,9 +591,9 @@ function check0(d){ // d: {date,time,dir,dest,pax[]}
   if(n>4)add('block','מקסימום 4 נוסעים במונית');
   /* pick-ups / drop-offs in the north: only the princesses order those (and the manager) */
   {const nc=[...new Set([d.dest,...(d.stops||[]),...((d.pts||[]).map(x=>x.city))].filter(x=>x&&S.north.includes(x)))];
-  /* north: any unit may order, with an explanation; the dispatcher decides when he confirms (the manager and units with the north perk need no explanation) */
+  /* north: anyone may order, with an explanation, like a night ride; the dispatcher decides when he confirms */
   if(nc.length&&northNeed(d)){if(!(d.northWhy||'').trim())add('block',`${nc.join(', ')} בצפון: כתבו הסבר למה נדרשת נסיעה מהצפון`);
-    else add('warn',`⬆ נסיעה מהצפון (${nc.join(', ')}): באישור הסדרן. ההסבר יופיע אצלו`)}}
+    else add('appr',`⬆ נסיעה מהצפון (${nc.join(', ')}): דורש אישור של הסדרן. ההזמנה תמתין לאישור שלו, וההסבר יופיע אצלו`)}}
   {const used=[...new Set(d.pax.map(p=>ptOf(d,p)))],P=(d.pts||[]).filter(x=>used.includes(x.city)&&!NOADDR(x.city)),nm=x=>x.city||'תחנה';
   if(d.pax.length&&!d.pts)add('block','הוסיפו תחנה');
   else if(P.some(x=>!(x.addr||'').trim()))add('block',`הזינו כתובת מדויקת (רחוב ומספר, או נקודת ציון) לתחנה ב${P.filter(x=>!(x.addr||'').trim()).map(nm).join(', ')}`);
@@ -907,8 +907,8 @@ function dispReqPanel(){const L=dispReq().slice().sort((a,b)=>(a.status==='pendi
   return `<div class="panel" style="grid-column:1/-1"><h3>📨 בקשות מהמבצעים${dispReqOpen().length?` <span class="count">${dispReqOpen().length}</span>`:''}</h3><div style="display:grid;gap:8px">${L.map(q=>`<div class="emp-row" style="align-items:flex-start;flex-wrap:wrap"><span style="flex:1;min-width:200px">${opsDot(q.cid)}<b>${esc(client(q.cid)?.name||'')}</b> · ${q.kind==='city'?`🏙 להוסיף את <b>${esc(q.city)}</b>${S.destinations.includes(q.city)?' <span class="note">(כבר ברשימה)</span>':''}`:'⚙️ בקשה להגדרות'}${q.text?`<br><span style="white-space:pre-wrap">${esc(q.text)}</span>`:''}<br><span class="note">${dmy(q.at)} ${hm(new Date(q.at))}</span>${q.note?`<div class="reason">💬 ${esc(q.note)}</div>`:''}</span>
     <span class="row" style="gap:6px;flex-wrap:wrap">${drSt(q)}${q.status==='pending'&&!RO()?`${q.kind==='city'&&!S.destinations.includes(q.city)?`<select id="drr-${q.id}" aria-label="אזור"><option value="south">מרכז</option><option value="north">צפון</option></select>`:''}<input id="drn-${q.id}" placeholder="הערה (לא חובה)" maxlength="200" style="width:150px"><button class="btn small primary" data-drok="${q.id}">${q.kind==='city'&&!S.destinations.includes(q.city)?'הוספת העיר':'בוצע'}</button><button class="btn small danger" data-drno="${q.id}">לא לאשר</button>`:''}</span></div>`).join('')}</div></div>`}
 const okCity=x=>true; /* every allowed city, north included (north needs an explanation and the dispatcher's approval) */
-const northNeed=d=>ui.role!=='admin'&&!perk('north')&&[d.dest,...(d.stops||[]),...((d.pts||[]).map(x=>x.city))].some(x=>x&&S.north.includes(x));
-const destHint=v=>!v?'':S.destinations.includes(v)&&S.north.includes(v)&&ui.page==='client'&&S.north.includes(v)&&ui.role!=='admin'&&!perk('north')?`<span style="color:var(--warn);font-weight:700">⬆ צפון: נדרש הסבר ואישור הסדרן</span>`:S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':`<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>${ui.page==='client'&&v.trim().length>1?` · <button type="button" class="btn small" data-drcity="${esc(v.trim())}">📨 לבקש מהסדרן להוסיף</button>`:''}`;
+const northNeed=d=>[d.dest,...(d.stops||[]),...((d.pts||[]).map(x=>x.city))].some(x=>x&&S.north.includes(x));
+const destHint=v=>!v?'':S.destinations.includes(v)&&S.north.includes(v)&&ui.page==='client'&&S.north.includes(v)?`<span style="color:var(--warn);font-weight:700">⬆ צפון: נדרש הסבר ואישור הסדרן</span>`:S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':`<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>${ui.page==='client'&&v.trim().length>1?` · <button type="button" class="btn small" data-drcity="${esc(v.trim())}">📨 לבקש מהסדרן להוסיף</button>`:''}`;
 function driverMsg(r){const s=sched(r),pts=points(r),L=emp(leadOf(r));
   const lines=pts.map((pt,i)=>{const ws=r.pax.filter(p=>ptOf(r,p)===pt);if(!ws.length)return null;const tt=s?hm(new Date(s.stops.find(x=>x.pt===pt).t)):'';
     return `${i+1}. ${tt} · ${pt}\n${ws.map(p=>`   - ${emp(p)?.name}${emp(p)?.phone?' · '+fmtPh(emp(p).phone):''}: ${(r.addr||{})[p]||'כתובת לא הוזנה'}`).join('\n')}`}).filter(Boolean);
