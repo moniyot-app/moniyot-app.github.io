@@ -580,8 +580,8 @@ function planGap(cid,ds,pax){if(!cid||isP(cid)||!ds)return null;const plan=((S.p
   if(!plan||!Object.keys(plan).length)return {none:true};
   const planned=+plan[ds]||0,used=S.rides.filter(r=>COUNTS.includes(r.status)&&ymd(new Date(r.ts))===ds).reduce((a,r)=>a+share(r,cid),0);
   return used+add>planned+0.001?{planned,used,add}:null}
-/* limits the big boss may waive (when the manager delegated it): flight/minibus times, passenger types, 3 hours ahead, allowed cities */
-const EXCRX=[ /* north is not waivable: only the princesses order from the north */[/לפחות 3 שעות/,'פחות מ־3 שעות מראש'],[/אינה ברשימת הערים|עיר במסלול אינה/,'עיר שלא ברשימה'],[/אי אפשר להזמין מונית ש/,'שעת טיסה או מיניבוס'],[/^יום (אווירי|קרקעי):/,'סוג הנוסעים']];
+/* limits the big boss may waive (when the manager delegated it): flight/minibus times, passenger types, 3 hours ahead. Not the north and not cities (the dispatcher's) */
+const EXCRX=[ /* not the north and not unlisted cities: those are the dispatcher's call */[/לפחות 3 שעות/,'פחות מ־3 שעות מראש'],[/אי אפשר להזמין מונית ש/,'שעת טיסה או מיניבוס'],[/^יום (אווירי|קרקעי):/,'סוג הנוסעים']];
 const excOn=()=>BOSSEXC&&!isP(ui.cid)&&perk('bossexc');
 function check(d){const out=check0(d);if(!excOn())return out;
   out.forEach(x=>{if(x.k!=='block')return;const m=EXCRX.find(([rx])=>rx.test(x.t));if(!m)return;x.k='appr';x.exc=m[1];x.t=`⚡ חריגה באישור הבוס הגדול (${m[1]}): ${x.t.replace(/\.?\s*אי אפשר להזמין[^]*$/,'')}`});return out}
@@ -935,8 +935,8 @@ function dispReqPanel(){const L=dispReq().slice().sort((a,b)=>(a.status==='pendi
 const okCity=x=>true; /* every allowed city, north included (north needs an explanation and the dispatcher's approval) */
 const northNeed=d=>[d.dest,...(d.stops||[]),...((d.pts||[]).map(x=>x.city))].some(x=>x&&S.north.includes(x));
 /* a city may be used when it is allowed, or (exception delegated to the big boss) any city, pending his approval */
-const cityOK=v=>S.destinations.includes(v)||(typeof excOn==='function'&&excOn()&&String(v||'').trim().length>1);
-const destHint=v=>!v?'':!S.destinations.includes(v)&&cityOK(v)&&ui.page==='client'?'<span style="color:var(--warn);font-weight:700">⚡ עיר שלא ברשימה: אפשר בבקשת חריגה לבוס הגדול</span>':S.destinations.includes(v)&&S.north.includes(v)&&ui.page==='client'&&S.north.includes(v)?`<span style="color:var(--warn);font-weight:700">⬆ צפון: נדרש הסבר ואישור הסדרן</span>`:S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':`<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>${ui.page==='client'&&v.trim().length>1?` · <button type="button" class="btn small" data-drcity="${esc(v.trim())}">📨 לבקש מהסדרן להוסיף</button>`:''}`;
+const cityOK=v=>S.destinations.includes(v); /* cities are the dispatcher's call (request to add one), not the big boss's */
+const destHint=v=>!v?'':S.destinations.includes(v)&&S.north.includes(v)&&ui.page==='client'&&S.north.includes(v)?`<span style="color:var(--warn);font-weight:700">⬆ צפון: נדרש הסבר ואישור הסדרן</span>`:S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':`<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>${ui.page==='client'&&v.trim().length>1?` · <button type="button" class="btn small" data-drcity="${esc(v.trim())}">📨 לבקש מהסדרן להוסיף</button>`:''}`;
 function driverMsg(r){const s=sched(r),pts=points(r),L=emp(leadOf(r));
   const lines=pts.map((pt,i)=>{const ws=r.pax.filter(p=>ptOf(r,p)===pt);if(!ws.length)return null;const tt=s?hm(new Date(s.stops.find(x=>x.pt===pt).t)):'';
     return `${i+1}. ${tt} · ${pt}\n${ws.map(p=>`   - ${emp(p)?.name}${emp(p)?.phone?' · '+fmtPh(emp(p).phone):''}: ${(r.addr||{})[p]||'כתובת לא הוזנה'}`).join('\n')}`}).filter(Boolean);
