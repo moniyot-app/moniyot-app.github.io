@@ -872,12 +872,18 @@ const minsOf=x=>tmin(x,BASE,null);
 /* driving between two stations; two stations in the same city still take a city drive (longer in the big cities) */
 const BIGC=new Set(['תל אביב','ירושלים','חיפה','ראשון לציון','פתח תקווה','אשדוד','באר שבע','נתניה','חולון','בני ברק','רמת גן','רחובות','אשקלון','בת ים','הרצליה','כפר סבא','רעננה']);
 const hop=(a,b,ts)=>a===b?(BIGC.has(String(a).replace(/\s*[–—-].*$/,'').trim())?12:7):tmin(a,b,ts);
-function sched(r){const T=r.ts!=null?r.ts:at(r.date,r.time),pts=points(r);if(isNaN(T)||!pts.length)return null;
+/* Tel Aviv is long: the north (Ramat Aviv, Bavli, Afeka…) and the south (Jaffa, Florentin, Shapira…) are timed as separate places, by the street address */
+const TAN=/רמת אביב|אוניברסיט|בבלי|צהלה|אפקה|נווה אביבים|הדר יוסף|תל ברוך|קרית שאול|רביבים|ל[ -]?ה?צפון|הצפון הישן|הצפון החדש|נמל תל אביב|כוכב הצפון|איינשטיין|ברודצקי|קהילת ונציה|פנחס רוזן|לבנון|מבצע קדש|יהודה המכבי|ויצמן|רוקח|ז[׳']?בוטינסקי|נורדאו|ארלוזורוב|פנקס|ירמיהו|דיזנגוף צפון|בני דן/,
+  TAS=/יפו|פלורנטין|נווה צדק|שפירא|התקווה|כפר שלם|נווה עופר|יד אליהו|קיבוץ גלויות|שלמה|סלמה|אילת|הרצל|העלייה|לוינסקי|נווה שאנן|עג[׳']?מי|גבעת עלייה|תל כביר|צהלון|שיכון ל|קריית שלום|ביאליק(?! )|התחנה המרכזית|דרום/;
+const zoneOf=(c,a)=>{const b=String(c||'').replace(/\s*[–—-].*$/,'').trim();if(b!=='תל אביב'&&b!=='תל אביב יפו'&&b!=='תל אביב-יפו')return c;a=String(a||'');return TAN.test(a)?'תל אביב – צפון':TAS.test(a)?'תל אביב – דרום':c};
+const ptAddrs=r=>{if(r.pts&&r.pts.length)return r.pts.map(x=>x.addr||'');const pts=points(r),used={};return pts.map(c=>{const L=[...new Set(r.pax.filter(p=>ptOf(r,p)===c).map(p=>(r.addr||{})[p]||'').filter(Boolean))],i=used[c]=(used[c]||0);used[c]++;return L[i]||L[0]||''})};
+function sched(r){const T=r.ts!=null?r.ts:at(r.date,r.time),P0=points(r);if(isNaN(T)||!P0.length)return null;
+  const AD=ptAddrs(r),Z=P0.map((c,i)=>zoneOf(c,AD[i])),pts=P0;
   const B=baseOf(r),out=[];
   /* 5 minutes spare on every ride, and every stop time rounded to 5 minutes (pickups earlier, drop-offs later) */
   const R5=5*MIN,dn=x=>Math.floor(x/R5)*R5,up=x=>Math.ceil(x/R5)*R5;
-  if(r.dir==='to'){let t=T-(tmin(pts[pts.length-1],B,T)+SPARE)*MIN;for(let i=pts.length-1;i>=0;i--){out.unshift({pt:pts[i],t:dn(t)});if(i)t-=(hop(pts[i-1],pts[i],t)+DWELL)*MIN}return {stops:out,start:out[0].t,end:T}}
-  let t=T+(tmin(B,pts[0],T)+SPARE)*MIN;pts.forEach((pt,i)=>{if(i)t+=(DWELL+hop(pts[i-1],pt,t))*MIN;out.push({pt,t:up(t)})});return {stops:out,start:T,end:out[out.length-1].t}}
+  if(r.dir==='to'){let t=T-(tmin(Z[Z.length-1],B,T)+SPARE)*MIN;for(let i=pts.length-1;i>=0;i--){out.unshift({pt:pts[i],t:dn(t)});if(i)t-=(hop(Z[i-1],Z[i],t)+DWELL)*MIN}return {stops:out,start:out[0].t,end:T}}
+  let t=T+(tmin(B,Z[0],T)+SPARE)*MIN;pts.forEach((pt,i)=>{if(i)t+=(DWELL+hop(Z[i-1],Z[i],t))*MIN;out.push({pt,t:up(t)})});return {stops:out,start:T,end:out[out.length-1].t}}
 const startTs=r=>{const s=sched(r);return s?s.start:NaN};
 const isNight=r=>{const s=sched(r);return !!s&&[s.start,s.end].some(x=>{const h=new Date(x).getHours();return h>=23||h<5})}; /* night = 23:00–05:00: needs the CEO */
 const schedTxt=r=>{const s=sched(r);if(!s)return '';const p=s.stops.map(x=>`${esc(x.pt)} <b class="num">${hm(new Date(x.t))}</b>`).join(' · ');
@@ -1473,7 +1479,7 @@ function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
 }
 
 /* ---------- optimization ---------- */
-const GEO={'רעננה':[32.184,34.871],'כפר סבא':[32.175,34.907],'הרצליה':[32.166,34.843],'נתניה':[32.332,34.860],'תל אביב – מרכז':[32.080,34.781],'תל אביב':[32.080,34.781],'רכבת הרצליה':[32.164,34.818],'חדרה':[32.434,34.919],
+const GEO={'רעננה':[32.184,34.871],'כפר סבא':[32.175,34.907],'הרצליה':[32.166,34.843],'נתניה':[32.332,34.860],'תל אביב – מרכז':[32.080,34.781],'תל אביב – צפון':[32.112,34.800],'תל אביב – דרום':[32.052,34.770],'תל אביב':[32.080,34.781],'רכבת הרצליה':[32.164,34.818],'חדרה':[32.434,34.919],
   'הוד השרון':[32.150,34.888],'רמת השרון':[32.146,34.839],'פתח תקווה':[32.087,34.887],'ראש העין':[32.096,34.957],'כפר יונה':[32.316,34.935],'אבן יהודה':[32.270,34.888],'קדימה':[32.278,34.912],'צורן':[32.281,34.934],
   'רמת גן':[32.068,34.824],'גבעתיים':[32.072,34.811],'בני ברק':[32.083,34.833],'חולון':[32.011,34.774],'בת ים':[32.017,34.745],'ראשון לציון':[31.964,34.804],'רחובות':[31.894,34.811],'מודיעין':[31.898,35.010],
   'ירושלים':[31.778,35.235],'חיפה':[32.794,34.990],'זכרון יעקב':[32.571,34.952],'פרדס חנה':[32.473,34.973],'כוכב יאיר':[32.223,34.998],'טייבה':[32.266,35.009],'אור יהודה':[32.029,34.857],'יהוד':[32.033,34.889],
