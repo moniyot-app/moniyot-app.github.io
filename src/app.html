@@ -869,12 +869,15 @@ const traffic=ts=>{if(ts==null||isNaN(ts))return 1;const d=new Date(ts),w=d.getD
 const tmin=(a,b,ts)=>{if(a===b)return 0;const A=geoOf(a),B=geoOf(b);if(!A||!B)return 20;const air=hav(A,B),road=air<20?air*1.35+1:air*1.2+3,v=road<15?35:road<50?60:90,
   base=5+road/v*60,busy=Math.min(base,Math.max(A[0],B[0])>31.6?25:10);return Math.max(5,Math.round(base+(traffic(ts)-1)*busy))};
 const minsOf=x=>tmin(x,BASE,null);
+/* driving between two stations; two stations in the same city still take a city drive (longer in the big cities) */
+const BIGC=new Set(['תל אביב','ירושלים','חיפה','ראשון לציון','פתח תקווה','אשדוד','באר שבע','נתניה','חולון','בני ברק','רמת גן','רחובות','אשקלון','בת ים','הרצליה','כפר סבא','רעננה']);
+const hop=(a,b,ts)=>a===b?(BIGC.has(String(a).replace(/\s*[–—-].*$/,'').trim())?12:7):tmin(a,b,ts);
 function sched(r){const T=r.ts!=null?r.ts:at(r.date,r.time),pts=points(r);if(isNaN(T)||!pts.length)return null;
   const B=baseOf(r),out=[];
   /* 5 minutes spare on every ride, and every stop time rounded to 5 minutes (pickups earlier, drop-offs later) */
   const R5=5*MIN,dn=x=>Math.floor(x/R5)*R5,up=x=>Math.ceil(x/R5)*R5;
-  if(r.dir==='to'){let t=T-(tmin(pts[pts.length-1],B,T)+SPARE)*MIN;for(let i=pts.length-1;i>=0;i--){out.unshift({pt:pts[i],t:dn(t)});if(i)t-=(tmin(pts[i-1],pts[i],t)+DWELL)*MIN}return {stops:out,start:out[0].t,end:T}}
-  let t=T+(tmin(B,pts[0],T)+SPARE)*MIN;pts.forEach((pt,i)=>{if(i)t+=(DWELL+tmin(pts[i-1],pt,t))*MIN;out.push({pt,t:up(t)})});return {stops:out,start:T,end:out[out.length-1].t}}
+  if(r.dir==='to'){let t=T-(tmin(pts[pts.length-1],B,T)+SPARE)*MIN;for(let i=pts.length-1;i>=0;i--){out.unshift({pt:pts[i],t:dn(t)});if(i)t-=(hop(pts[i-1],pts[i],t)+DWELL)*MIN}return {stops:out,start:out[0].t,end:T}}
+  let t=T+(tmin(B,pts[0],T)+SPARE)*MIN;pts.forEach((pt,i)=>{if(i)t+=(DWELL+hop(pts[i-1],pt,t))*MIN;out.push({pt,t:up(t)})});return {stops:out,start:T,end:out[out.length-1].t}}
 const startTs=r=>{const s=sched(r);return s?s.start:NaN};
 const isNight=r=>{const s=sched(r);return !!s&&[s.start,s.end].some(x=>{const h=new Date(x).getHours();return h>=23||h<5})}; /* night = 23:00–05:00: needs the CEO */
 const schedTxt=r=>{const s=sched(r);if(!s)return '';const p=s.stops.map(x=>`${esc(x.pt)} <b class="num">${hm(new Date(x.t))}</b>`).join(' · ');
