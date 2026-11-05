@@ -584,7 +584,7 @@ function planGap(cid,ds,pax){if(!cid||isP(cid)||!ds)return null;const plan=((S.p
 const EXCRX=[ /* north is not waivable: only the princesses order from the north */[/לפחות 3 שעות/,'פחות מ־3 שעות מראש'],[/אינה ברשימת הערים|עיר במסלול אינה/,'עיר שלא ברשימה'],[/אי אפשר להזמין מונית ש/,'שעת טיסה או מיניבוס'],[/^יום (אווירי|קרקעי):/,'סוג הנוסעים']];
 const excOn=()=>BOSSEXC&&!isP(ui.cid)&&perk('bossexc');
 function check(d){const out=check0(d);if(!excOn())return out;
-  out.forEach(x=>{if(x.k!=='block')return;const m=EXCRX.find(([rx])=>rx.test(x.t));if(!m)return;x.k='appr';x.exc=m[1];x.t=`⚡ חריגה באישור הבוס הגדול (${m[1]}): ${x.t}`});return out}
+  out.forEach(x=>{if(x.k!=='block')return;const m=EXCRX.find(([rx])=>rx.test(x.t));if(!m)return;x.k='appr';x.exc=m[1];x.t=`⚡ חריגה באישור הבוס הגדול (${m[1]}): ${x.t.replace(/\.?\s*אי אפשר להזמין[^]*$/,'')}`});return out}
 function check0(d){ // d: {date,time,dir,dest,pax[]}
   const out=[];const add=(k,t)=>out.push({k,t});
   const n=d.pax.length;
@@ -934,7 +934,9 @@ function dispReqPanel(){const L=dispReq().slice().sort((a,b)=>(a.status==='pendi
     <span class="row" style="gap:6px;flex-wrap:wrap">${drSt(q)}${q.status==='pending'&&!RO()?`${q.kind==='city'&&!S.destinations.includes(q.city)?`<select id="drr-${q.id}" aria-label="אזור"><option value="south">מרכז</option><option value="north">צפון</option></select>`:''}<input id="drn-${q.id}" placeholder="הערה (לא חובה)" maxlength="200" style="width:150px"><button class="btn small primary" data-drok="${q.id}">${q.kind==='city'&&!S.destinations.includes(q.city)?'הוספת העיר':'בוצע'}</button><button class="btn small danger" data-drno="${q.id}">לא לאשר</button>`:''}</span></div>`).join('')}</div></div>`}
 const okCity=x=>true; /* every allowed city, north included (north needs an explanation and the dispatcher's approval) */
 const northNeed=d=>[d.dest,...(d.stops||[]),...((d.pts||[]).map(x=>x.city))].some(x=>x&&S.north.includes(x));
-const destHint=v=>!v?'':S.destinations.includes(v)&&S.north.includes(v)&&ui.page==='client'&&S.north.includes(v)?`<span style="color:var(--warn);font-weight:700">⬆ צפון: נדרש הסבר ואישור הסדרן</span>`:S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':`<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>${ui.page==='client'&&v.trim().length>1?` · <button type="button" class="btn small" data-drcity="${esc(v.trim())}">📨 לבקש מהסדרן להוסיף</button>`:''}`;
+/* a city may be used when it is allowed, or (exception delegated to the big boss) any city, pending his approval */
+const cityOK=v=>S.destinations.includes(v)||(typeof excOn==='function'&&excOn()&&String(v||'').trim().length>1);
+const destHint=v=>!v?'':!S.destinations.includes(v)&&cityOK(v)&&ui.page==='client'?'<span style="color:var(--warn);font-weight:700">⚡ עיר שלא ברשימה: אפשר בבקשת חריגה לבוס הגדול</span>':S.destinations.includes(v)&&S.north.includes(v)&&ui.page==='client'&&S.north.includes(v)?`<span style="color:var(--warn);font-weight:700">⬆ צפון: נדרש הסבר ואישור הסדרן</span>`:S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':`<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>${ui.page==='client'&&v.trim().length>1?` · <button type="button" class="btn small" data-drcity="${esc(v.trim())}">📨 לבקש מהסדרן להוסיף</button>`:''}`;
 function driverMsg(r){const s=sched(r),pts=points(r),L=emp(leadOf(r));
   const lines=pts.map((pt,i)=>{const ws=r.pax.filter(p=>ptOf(r,p)===pt);if(!ws.length)return null;const tt=s?hm(new Date(s.stops.find(x=>x.pt===pt).t)):'';
     return `${i+1}. ${tt} · ${pt}\n${ws.map(p=>`   - ${emp(p)?.name}${emp(p)?.phone?' · '+fmtPh(emp(p).phone):''}: ${(r.addr||{})[p]||'כתובת לא הוזנה'}`).join('\n')}`}).filter(Boolean);
@@ -1345,7 +1347,7 @@ function renderRoute(){const box=document.getElementById('routebox');if(!box)ret
   const home=`<div class="rp home"><span class="dot" aria-hidden="true">${d.dir==='to'?'🏁':'▶'}</span><div class="rp-body"><b>${d.dir==='to'?'תחנת יעד':'תחנת מוצא'}</b>
     <input id="f-base" list="base-list" value="${esc(d.base||'')}" placeholder="בחרו מהרשימה או כתבו מקום, למשל ${BASE}" maxlength="60" autocomplete="off" style="width:100%" aria-label="${d.dir==='to'?'תחנת יעד':'תחנת מוצא'}">
     <div class="note num">${d.dir==='to'?'הגעה':'יציאה'} ${esc(d.time||'')}</div></div></div>`;
-  const rows=P.map((pt,i)=>{const ok=S.destinations.includes(pt.city),here=d.pax.filter(p=>idxOf(d,p)===i);
+  const rows=P.map((pt,i)=>{const ok=cityOK(pt.city),here=d.pax.filter(p=>idxOf(d,p)===i);
     const lbl=d.dir==='to'?(i===0?'תחנת מוצא':'תחנת איסוף נוספת'):(i===P.length-1?'תחנת יעד':'תחנת הורדה בדרך');
     return `<div class="rp"><span class="dot num">${i+1}</span><div class="rp-body"><b>${lbl}</b>
       <div class="row" style="gap:8px"><input class="city" list="dest-list" id="pc-${i}" data-pcity="${i}" value="${esc(pt.city)}" placeholder="עיר" autocomplete="off" aria-label="עיר בנקודה ${i+1}"><span id="pch-${i}">${destHint(pt.city)}</span>${pt.city&&P.findIndex(x=>x.city===pt.city)<i?`<button type="button" class="btn small" data-mergept="${i}" style="margin-inline-start:auto" title="אותה נקודה כמו התחנה הקודמת בעיר">איחוד עם ${esc(pt.city)} הקודמת</button>`:''}${P.length>1?`<button type="button" class="btn small danger" data-delpt="${i}" style="${pt.city&&P.findIndex(x=>x.city===pt.city)<i?'':'margin-inline-start:auto'}">הסרה</button>`:''}</div>
@@ -2490,13 +2492,13 @@ document.addEventListener('input',e=>{const t=e.target,d=ui.draft;
   if(t.id==='f-base'){d.base=t.value;renderCheck(true);return}
   if(t.id==='f-psearch'){const q=t.value.trim();document.querySelectorAll('#paxlist label').forEach(l=>{l.hidden=!!q&&!l.dataset.q.includes(q)});return}
   if(t.dataset.addr){const p=t.dataset.addr;(d.addr??={})[p]=t.value;renderCheck(true);return}
-  if(t.dataset.pcity){const i=+t.dataset.pcity,v=t.value.trim();d.pts[i].city=v;syncDraft(d);const ok=S.destinations.includes(v);
+  if(t.dataset.pcity){const i=+t.dataset.pcity,v=t.value.trim();d.pts[i].city=v;syncDraft(d);const ok=cityOK(v);
     const h=document.getElementById('pch-'+i);if(h)h.innerHTML=destHint(v);const a=document.getElementById('pa-'+i);if(a){a.disabled=!ok;a.placeholder=!ok?'קודם הזינו עיר מותרת':NOADDR(v)?'לא חובה: נקודת איסוף קבועה':'כתובת מדויקת: רחוב ומספר, או נקודת ציון'}
     const ah=document.getElementById('pah-'+i);if(ah)ah.innerHTML=ok?addrHint(d.pts[i].addr,v):'';renderCheck(true);return}
   if(t.dataset.paddr){const i=+t.dataset.paddr;d.pts[i].addr=t.value;syncDraft(d);const ah=document.getElementById('pah-'+i);if(ah)ah.innerHTML=addrHint(t.value,d.pts[i].city);renderCheck(true);return}
   if(t.dataset.saddr){(d.stopAddr??=[])[+t.dataset.saddr]=t.value;renderCheck();return}
   if(t.id==='f-addr'){d.destAddr=t.value;const h=document.getElementById('addr-ok');if(h)h.innerHTML=addrHint(t.value,d.dest);renderCheck();return}
-  if(t.id==='f-date')d.date=t.value;else if(t.id==='f-time')d.time=t.value;else if(t.id==='f-dest'){d.dest=t.value.trim();const h=document.getElementById('dest-ok');if(h)h.innerHTML=destHint(d.dest);const fa=document.getElementById('f-addr');if(fa){const ok=S.destinations.includes(d.dest);fa.disabled=!ok;fa.placeholder=ok?'רחוב ומספר, או נקודת ציון':'קודם הזינו עיר מותרת'}}else return;
+  if(t.id==='f-date')d.date=t.value;else if(t.id==='f-time')d.time=t.value;else if(t.id==='f-dest'){d.dest=t.value.trim();const h=document.getElementById('dest-ok');if(h)h.innerHTML=destHint(d.dest);const fa=document.getElementById('f-addr');if(fa){const ok=cityOK(d.dest);fa.disabled=!ok;fa.placeholder=ok?'רחוב ומספר, או נקודת ציון':'קודם הזינו עיר מותרת'}}else return;
   if(document.getElementById('checkpanel')){if(t.id==='f-time'||t.id==='f-date')renderRoute();renderCheck();}
 });
 /* color the passenger-type words everywhere, same colors as their tags */
