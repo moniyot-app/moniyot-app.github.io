@@ -38,7 +38,7 @@ button,input,select{font:inherit;color:inherit}
 .switch{display:flex;gap:4px;margin-inline-start:auto;background:var(--bg);padding:3px;border-radius:8px}
 .switch button{border:0;background:transparent;color:inherit;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:600}
 .switch button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
-.switch #nav-notif{padding:6px 8px;font-size:1rem;line-height:1;opacity:.75}.switch #nav-notif.on{opacity:1;background:transparent}
+.switch #nav-notif{padding:6px 8px;font-size:1rem;line-height:1;opacity:.75}.switch #nav-refresh{padding:6px 9px;font-size:1.1rem;line-height:1;font-weight:700}.switch #nav-notif.on{opacity:1;background:transparent}
 @media (max-width:600px){.switch{margin-inline-start:0;width:100%;flex-wrap:wrap;justify-content:center}.switch button{padding:6px 10px;font-size:.92rem}}
 .wrap{max-width:1100px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
 .demo{font-size:.85rem;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -312,6 +312,7 @@ body.train label:has(input[type=password]){display:none}
     <button id="nav-client" data-nav="client">מבצעים</button>
     <button id="nav-disp" data-nav="dispatcher">עמוד סדרן</button>
     <button id="nav-adm" data-nav="admin">המנהלת</button>
+    <button id="nav-refresh" title="רענון: טעינה מחדש של האפליקציה והנתונים העדכניים" aria-label="רענון">⟳</button>
     <button id="nav-notif" hidden title="התראות למכשיר על כל מה שמחכה לפעולה שלך">🔔</button>
     <button id="glogout" hidden>יציאה</button>
   </div>
@@ -2222,6 +2223,9 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.hdel){if(!HADM())return;if(!MGR())return;ui.hdel=t.dataset.hdel;render();return}
   if(t.dataset.hdelx){ui.hdel=null;render();return}
   if(t.dataset.hdelok){if(!HADM())return;if(!MGR())return;const id=t.dataset.hdelok;S.rides=S.rides.filter(r=>r.id!==id);(S.delIds??=[]).push(id);try{const R=JSON.parse(localStorage.getItem(RESK)||'null');if(R){R.rides=R.rides.filter(r=>r.id!==id);localStorage.setItem(RESK,JSON.stringify(R))}}catch(_){}ui.hdel=null;save();toast('הנסיעה נמחקה');render();return}
+  if(t.id==='nav-refresh'){t.disabled=true;t.textContent='…';try{clearTimeout(flushT);if(dbOn)flush()}catch(_){}
+    /* a fresh address forces the newest version of the app, not the one the browser kept */
+    setTimeout(()=>{const u=new URL(location.href);u.searchParams.set('r',Date.now().toString(36));location.replace(u.toString())},400);return}
   if(t.dataset.trkpng){trackPng();return}
   if(t.dataset.dsday){const def=ymd(new Date(Date.now()-5*H)),c=new Date(at(ui.dsDate||def,'12:00'));c.setDate(c.getDate()+ +t.dataset.dsday);const n=ymd(c);ui.dsDate=n>def?def:n;render();return}
   if(t.dataset.dbfread){const n=debrief().find(x=>x.id===t.dataset.dbfread);if(!n)return;const rp=(document.getElementById('dbr-'+n.id)?.value||'').trim();n.readAt=Date.now();if(rp)n.reply=rp;save();toast('סומן כנקרא'+(rp?'. התגובה נשלחה למנהלת':''));render();return}
