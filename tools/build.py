@@ -14,7 +14,7 @@ def lower(html):
 SBJS='<script src="vendor/supabase-2.45.4.js"></script>\n<script>window.supabase||document.write(\'<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"><\\/script>\')</script>\n'
 cfg=json.load(open('tools/prod_config.json')) if os.path.exists('tools/prod_config.json') else {"url":"__SB_URL__","key":"__SB_KEY__"}
 import datetime
-s=open('src/app.html').read().replace('__BUILD__',datetime.datetime.utcnow().strftime('%d.%m %H:%M')+' UTC')
+s=open('src/app.html').read().replace('__BUILD__',__import__('datetime').datetime.now(__import__('zoneinfo').ZoneInfo('Asia/Jerusalem')).strftime('%d.%m %H:%M'))
 SRC=s
 def rep(o,n):
     global s
