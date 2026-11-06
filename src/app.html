@@ -493,8 +493,8 @@ const perk=(k,cid=ui.cid)=>!isP(cid)&&!!((S.clients.find(c=>c.id===cid)||{}).per
 const NOADDR=c=>/רמת[\s\-־]*דוד|עין[\s\-־]*שמר|רמ[״"]ד/.test(c||'');
 const client=id=>id===PID?PRINCESS:S.clients.find(c=>c.id===id);
 const COUNTS=['active','pending','awaiting','late'];
-/* ordered by the princesses (also on a unit's behalf) or by the manager: free to be single, kept out of every single-passenger rate */
-const PZR=r=>r.by===PID||r.byRole==='princess'||r.byRole==='admin';
+/* the princesses' 'on the house' taxis are free to be single and are kept out of every single-passenger rate. A princess order charged to a unit counts for that unit like any other */
+const PZR=r=>!!r.house;
 const DONE=r=>(r.status==='active'||r.status==='late')&&r.ts<=Date.now(); /* a taxi that already went */
 const inMonth=ts=>{const d=new Date(ts),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()};
 const share=(r,cid)=>r.house?0:r.pax.length?r.pax.filter(p=>emp(p)?.cid===cid).length/r.pax.length:0;
@@ -1649,7 +1649,7 @@ function trackPng(){const T=ui._trk;if(!T)return;const rows=T.rows.slice().sort(
   rr(90,82,150,46,23,INK);g.fillStyle='#fff';g.textAlign='center';g.font=`800 22px ${F}`;g.fillText('רמוניות',165,113);
   /* KPI tiles */
   const N=rows.reduce((a,x)=>a+x.n,0),S1=rows.reduce((a,x)=>a+x.s1,0),NU=rows.reduce((a,x)=>a+(x.u||0),0),NO=rows.reduce((a,x)=>a+(x.no||0),0);
-  const tiles=[['סה״כ מוניות',fmt(r1(N)),'',INK,'#eef1f6'],['עם נוסע בודד',fmt(r1(S1)),pc(S1,NU)+'% · בלי הנסיכות',ORANGE,'#fdeee6'],['לצפון',fmt(r1(NO)),pc(NO,N)+'% מהמוניות',NORTH,'#f0ebfc']];
+  const tiles=[['סה״כ מוניות',fmt(r1(N)),'',INK,'#eef1f6'],['עם נוסע בודד',fmt(r1(S1)),pc(S1,NU)+'% · בלי על חשבון הבית',ORANGE,'#fdeee6'],['לצפון',fmt(r1(NO)),pc(NO,N)+'% מהמוניות',NORTH,'#f0ebfc']];
   const tw=(W-180-2*24)/3;tiles.forEach(([l,v,sub,c,bg],i)=>{const x=W-90-tw*(i+1)-24*i;rr(x,190,tw,118,18,bg);g.textAlign='right';g.fillStyle=MUTE;g.font=`600 22px ${F}`;g.fillText(l,x+tw-26,228);
     g.fillStyle=c;g.font=`800 50px ${F}`;g.fillText(v,x+tw-26,286);if(sub){g.fillStyle=MUTE;g.font=`400 20px ${F}`;g.textAlign='left';g.fillText(sub,x+26,286)}});
   /* legend */
@@ -1667,7 +1667,7 @@ function trackPng(){const T=ui._trk;if(!T)return;const rows=T.rows.slice().sort(
     if(x.s1>0&&BOT-yS>30){g.fillStyle='#fff';g.font=`700 21px ${F}`;g.fillText(fmt(r1(x.s1)),x0+bw/2,BOT-(BOT-yS)/2+8)}
     const nm=String(x.name).replace('★ ','');g.fillStyle=INK;g.font=`700 ${rows.length>8?20:24}px ${F}`;let l1=nm,l2='';const ws=nm.split(' ');if(g.measureText(nm).width>slot-12&&ws.length>1){const h=Math.ceil(ws.length/2);l1=ws.slice(0,h).join(' ');l2=ws.slice(h).join(' ')}
     g.fillText(l1,cx,BOT+40);if(l2)g.fillText(l2,cx,BOT+66);
-    if(x.n){const t1=x.id===PID?'נסיכות: חופשי':`בודד ${pc(x.s1,x.u||0)}%`,t2=`צפון ${pc(x.no||0,x.n)}%`;g.font=`600 18px ${F}`;const pw=Math.min(slot-16,Math.max(g.measureText(t1).width,g.measureText(t2).width)+28),y0=BOT+(l2?80:56);
+    if(x.n){const t1=x.id===PID?'על חשבון הבית':`בודד ${pc(x.s1,x.u||0)}%`,t2=`צפון ${pc(x.no||0,x.n)}%`;g.font=`600 18px ${F}`;const pw=Math.min(slot-16,Math.max(g.measureText(t1).width,g.measureText(t2).width)+28),y0=BOT+(l2?80:56);
       rr(cx-pw/2,y0,pw,30,15,'#fdeee6');g.fillStyle='#b4481a';g.fillText(t1,cx,y0+21);rr(cx-pw/2,y0+38,pw,30,15,'#f0ebfc');g.fillStyle='#5a3fb8';g.fillText(t2,cx,y0+59)}});
   g.textAlign='right';g.fillStyle=MUTE;g.font=`400 18px ${F}`;g.fillText(`הופק ב־${dmy(Date.now())} ${hm(new Date())} · מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים · מונית שעוברת צפונית לנתניה נספרת כצפון`,W-90,H-72);
   cv.toBlob(bl=>{const u=URL.createObjectURL(bl),a=document.createElement('a');a.download=`מוניות-לפי-מבצעים-${T.cur}.png`;a.href=u;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('הגרף ירד למכשיר')},'image/png')}
@@ -1675,7 +1675,7 @@ function trackCharts(cur,inM,rows,tot,sum){
   const [y,m]=cur.split('-').map(Number),nd=new Date(y,m,0).getDate(),daily=Array(nd).fill(0),dspend=Array(nd).fill(0);
   inM.forEach(r=>{const i=new Date(r.ts).getDate()-1;daily[i]++;dspend[i]+=cost(r)});
   const taxis=sum('n'),singles=sum('s1'),uT=inM.filter(r=>!PZR(r)).length,sPct=uT?inM.filter(r=>!PZR(r)&&r.pax.length===1).length/uT:0,north=sum('no'); /* single rate: units' own orders only, the princesses' are tracked apart */
-  const tiles=`<div class="kpis">${[['מוניות החודש',fmt(taxis),''],['הוצאה',money(tot),''],['ממוצע ליום',fmt(taxis/Math.max(1,inM.length?Math.min(nd,cur===ymd(new Date()).slice(0,7)?new Date().getDate():nd):1)),'מוניות'],['נוסע בודד',Math.round(sPct*100)+'%',(sPct>.25?'⚠ מעל יעד 25%':'יעד: עד 25%')+' · בלי הנסיכות'],['צפון',taxis?Math.round(north/taxis*100)+'%':'0%','מהמוניות']].map(([l,v,s])=>`<div class="kpi"><div class="eyebrow">${l}</div><div class="kv num">${v}</div><div class="note">${s}</div></div>`).join('')}</div>`;
+  const tiles=`<div class="kpis">${[['מוניות החודש',fmt(taxis),''],['הוצאה',money(tot),''],['ממוצע ליום',fmt(taxis/Math.max(1,inM.length?Math.min(nd,cur===ymd(new Date()).slice(0,7)?new Date().getDate():nd):1)),'מוניות'],['נוסע בודד',Math.round(sPct*100)+'%',(sPct>.25?'⚠ מעל יעד 25%':'יעד: עד 25%')+' · בלי על חשבון הבית'],['צפון',taxis?Math.round(north/taxis*100)+'%':'0%','מהמוניות']].map(([l,v,s])=>`<div class="kpi"><div class="eyebrow">${l}</div><div class="kv num">${v}</div><div class="note">${s}</div></div>`).join('')}</div>`;
   // daily line chart
   const W=640,H=190,pl=34,pr=12,pt=14,pb=26,mx=Math.max(4,...daily),yMax=Math.ceil(mx/4)*4,X=i=>pl+(i/(nd-1))*(W-pl-pr),Y=v=>pt+(1-v/yMax)*(H-pt-pb);
   const pts=daily.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`),last=daily.reduce((a,v,i)=>v?i:a,0);
@@ -1850,9 +1850,9 @@ function renderDispatcher(){
       <tbody>${all.map(x=>`<tr${x.c.id===PID?' style="background:color-mix(in srgb,#c2185b 7%,transparent)"':''}><td>${esc(x.c.name)}</td>${K.map(k=>`<td class="num">${fmt(x[k])}</td>`).join('')}<td class="num"><b>${money(x.s)}</b></td></tr>`).join('')}</tbody>
       <tfoot><tr><td><b>סה"כ</b></td>${K.map(k=>`<td class="num"><b>${fmt(sum(k))}</b></td>`).join('')}<td class="num"><b>${money(tot)}</b></td></tr></tfoot></table></div>
       <div class="note">${hs.length?`<b>מוניות על חשבון הבית של הנסיכות (${hs.length}) מופיעות בשורה נפרדת ונכללות בסה״כ ההוצאה, אבל לא יורדות מאף סל.</b> `:''}נספרות רק מוניות שכבר בוצעו (וביטולים מאוחרים, שנספרים כאילו המונית יצאה). הזמנות עתידיות וממתינות נכנסות למעקב רק אחרי שהן יוצאות. מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים. מונית שעוברת בתחנה צפונית לנתניה נספרת ומתומחרת כצפון. העמוד הזה גלוי רק לסדרן.</div>
-      ${(()=>{const ps=inM.filter(r=>PZR(r)||r.house).sort((a,b)=>a.ts-b.ts),pc=ps.filter(r=>!r.house);
+      ${(()=>{const ps=inM.filter(r=>r.by===PID||r.byRole==='princess'||r.house).sort((a,b)=>a.ts-b.ts),pc=ps.filter(r=>!r.house);
       return `<h3 id="house">★ נסיכות · הזמנות החודש <span class="count">${ps.length}</span></h3>
-      <div class="kpis"><div class="kpi"><div class="eyebrow">הזמנות של הנסיכות</div><div class="kv num">${ps.length}</div></div><div class="kpi"><div class="eyebrow">מתוכן נוסע בודד</div><div class="kv num">${ps.filter(r=>r.pax.length===1).length}</div><div class="note">מותר לנסיכות. לא נכלל בשיעור הנוסע הבודד של המבצעים</div></div><div class="kpi"><div class="eyebrow">על חשבון הבית</div><div class="kv num">${hs.length}</div><div class="note">${money(hRow.s)} · לא יורדות מאף סל</div></div><div class="kpi"><div class="eyebrow">מסל המבצעים</div><div class="kv num">${pc.length}</div><div class="note">${money(pc.reduce((a,r)=>a+cost(r),0))} · יורדות מהסל של המבצעים של הנוסעים</div></div></div>
+      <div class="kpis"><div class="kpi"><div class="eyebrow">הזמנות של הנסיכות</div><div class="kv num">${ps.length}</div></div><div class="kpi"><div class="eyebrow">נוסע בודד על חשבון הבית</div><div class="kv num">${hs.filter(r=>r.pax.length===1).length}</div><div class="note">מותר. לא נכלל בשיעור הנוסע הבודד. הזמנות מסל המבצעים נספרות אצל המבצעים</div></div><div class="kpi"><div class="eyebrow">על חשבון הבית</div><div class="kv num">${hs.length}</div><div class="note">${money(hRow.s)} · לא יורדות מאף סל</div></div><div class="kpi"><div class="eyebrow">מסל המבצעים</div><div class="kv num">${pc.length}</div><div class="note">${money(pc.reduce((a,r)=>a+cost(r),0))} · יורדות מהסל של המבצעים של הנוסעים</div></div></div>
       ${ps.length?`<div class="tablewrap"><table><thead><tr><th>מועד</th><th>מסלול</th><th>נוסעים</th><th>מבצעים של הנוסעים</th><th>על חשבון</th><th>סטטוס</th><th>עלות</th></tr></thead><tbody>${ps.map(r=>`<tr><td class="num">${dmy(r.ts)} ${hm(new Date(r.ts))}</td><td>${route(r)}</td><td>${r.pax.map(p=>esc(emp(p)?.name||'')).join(', ')}</td><td>${clientsOf(r).map(c=>opsDot(c)+esc(client(c)?.name||'')).join('<br>')}</td><td>${r.house?'<b>הבית</b>':'סל המבצעים'}</td><td>${statusOf(r)}</td><td class="num"><b>${money(cost(r))}</b></td></tr>`).join('')}</tbody><tfoot><tr><td colspan="6"><b>סה״כ הזמנות הנסיכות</b></td><td class="num"><b>${money(ps.reduce((a,r)=>a+cost(r),0))}</b></td></tr></tfoot></table></div>`:'<div class="empty">הנסיכות לא הזמינו מוניות בחודש הזה.</div>'}`})()}${finesPanel(cur)}${excPanel(cur)}${ui.role==='admin'&&ui.page==='admin'?actPanel(cur):''}${renderHist(cur)}`;
   }else if(ui.tab==='quotas'){
     body=`<div class="tablewrap"><table><thead><tr><th>לוגו</th><th>צבע</th><th>שם המבצעים (לחצו לעריכה)</th>${PROD?'':'<th>סיסמת כניסה</th><th>טלפון בוס גדול (משמש כסיסמה שלו)</th>'}<th>סל חודשי</th><th>ירד מהחודש הקודם (מחושב אוטומטית)</th><th>נוצל</th><th>ניצול</th><th></th><th>המבצעים רואים את הסל</th><th>הקלות (פחות מגבלות)</th></tr></thead><tbody>${S.clients.map(c=>{const u=used(c.id),L=limit(c),p=u/L;
