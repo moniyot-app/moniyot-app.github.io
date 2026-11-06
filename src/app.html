@@ -338,7 +338,8 @@ const dayLabel=ds=>{const d=new Date(ds+'T12:00');const t=ymd(new Date());const 
 const TYPE={business:'ביזנס',premium:'פרימיום',regular:'תיירים'};
 const KEY='taxi-quota-proto-v1';
 const PROD=false,SB_URL='',SB_KEY='';
-const BOSSEXC=true; /* preview: the big boss may approve an exception to any limit, for units the manager allowed */
+const BOSSEXC=true;
+const BUILD='__BUILD__'; /* set by the build: shows which version this device runs */ /* preview: the big boss may approve an exception to any limit, for units the manager allowed */
 const TRAIN=false; /* training sandbox (train.html): fictional data on this device only, no passwords */
 
 /* ---------- sample data ---------- */
@@ -1956,7 +1957,7 @@ const RULES=`<div class="tablewrap"><table style="min-width:420px"><thead><tr><t
   <tr><td>${tag('regular')}</td><td>רק יחד עם ביזנס</td><td>רק יחד עם ביזנס או פרימיום</td><td>✓</td></tr></tbody></table></div>
   <ul class="note" style="margin:0;padding-inline-start:18px;display:grid;gap:2px"><li>מזמינים לפחות 3 שעות לפני האיסוף הראשון.</li><li>שינוי בהזמנה: עד 3 שעות לפני האיסוף אפשר לשנות כרגיל. משם ועד 10 דקות לפני האיסוף אפשר רק להוסיף תחנה או נוסע.</li><li>נוסע בודד דורש אישור של הבוס הגדול. 4 נוסעים דורשים אישור של המבצעים בזמן ההזמנה. נסיעה בין 23:00 ל־05:00 דורשת אישור של המנכ״ל.</li><li>עד 4 נוסעים במונית, ורק לערים המותרות.</li><li>ביום אווירי אי אפשר להזמין 45 דקות לפני ואחרי טיסה. מיניבוס: מותר להגיע למחנה לפניו, חסום רק להגיע איתו ועד 45 דקות אחריו. ביום קרקעי מותר להזמין גם בשעות המיניבוס, אם הנוסעים זכאים.</li><li>מותר לבטל עד 23:00 בערב שלפני הנסיעה, ולפחות 3 שעות לפני היציאה, גם אחרי אישור הסדרן. ביטול מאוחר יותר נספר בסל כאילו המונית יצאה.</li><li>מבצעים שבחודש יותר מ־25% מהמוניות שלהם היו עם נוסע בודד חייבים למנכ״ל 1,000 ₪, אם הזמינו לפחות 5 מוניות באותו חודש (לא כולל הנסיכות).</li></ul>`;
 function renderGuide(){const GR=ui.bossOnly?['boss']:ROLEG[ui.role]||['ops'];if(!GR.includes(ui.grole))ui.grole=GR[0];const r=ui.grole,g=G[r];
-  app.innerHTML=`<section class="panel"><h1 style="font-size:1.4rem">הוראות שימוש</h1><div class="note">${GR.length>1?'בחרו תפקיד. ':''}למעלה סיכום קצר, ולמטה הסבר לכל פעולה עם כפתור "לנסות עכשיו" שמעביר ישר למקום.</div>
+  app.innerHTML=`<section class="panel"><h1 style="font-size:1.4rem">הוראות שימוש <span class="note num" style="font-size:.75rem;font-weight:400">גרסה ${BUILD}</span></h1><div class="note">${GR.length>1?'בחרו תפקיד. ':''}למעלה סיכום קצר, ולמטה הסבר לכל פעולה עם כפתור "לנסות עכשיו" שמעביר ישר למקום.</div>
     <div class="tabs" role="tablist">${[['adm',ui.role==='princess'?'ניהול':'המנהלת'],['princess','★ נסיכות'],['ops','מבצעים'],['boss','בוס גדול'],['disp','סדרן'],['ceo','מנכ״ל']].filter(([k])=>GR.includes(k)).sort((a,b)=>GR.indexOf(a[0])-GR.indexOf(b[0])).map(([k,l])=>`<button role="tab" data-grole="${k}" aria-selected="${r===k}">${l}</button>`).join('')}</div>
     <div><h2>${g.title}</h2><div class="note">${g.intro}</div></div>
     </section>
