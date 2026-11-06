@@ -749,7 +749,7 @@ const isFine=r=>false; /* a late cancellation is no longer a debt to the CEO: it
 const fineOwers=r=>r.cancelBy&&r.cancelBy.cid&&r.cancelBy.cid!==PID?[{cid:r.cancelBy.cid,part:1}]:clientsOf(r).map(cid=>({cid,part:share({...r,house:false},cid)}));
 /* debt to the CEO: units whose taxis in the month were more than 25% single-passenger owe a fixed amount (not the princesses) */
 function singleDebts(mo){const inM=S.rides.filter(r=>DONE(r)&&ymd(new Date(r.ts)).slice(0,7)===mo),one=r=>r.pax.length===1&&r.by!==PID;
-  return S.clients.map(c=>{const rs=inM.filter(r=>clientsOf(r).includes(c.id)),n=rs.reduce((a,r)=>a+share(r,c.id),0),s1=rs.filter(one).reduce((a,r)=>a+share(r,c.id),0),p=n?s1/n:0;
+  return S.clients.map(c=>{const rs=inM.filter(r=>clientsOf(r).includes(c.id)&&r.by!==PID),n=rs.reduce((a,r)=>a+share(r,c.id),0),s1=rs.filter(one).reduce((a,r)=>a+share(r,c.id),0),p=n?s1/n:0;
     return {c,n,s1,p,few:n<DEBTMIN(),owe:p>.25&&n>=DEBTMIN()?FINE():0,paid:(S.singlePaid||{})[mo+'|'+c.id]||null}})}
 /* the big bosses' exception approvals, per unit and per kind of limit, for the month */
 /* the big boss's own tally: what he approved and rejected this month */
@@ -999,7 +999,7 @@ function renderManager(c){
   const pend=mgrPending(c.id);
   const mine=S.rides.filter(r=>inMonth(r.ts)&&COUNTS.includes(r.status)&&clientsOf(r).includes(c.id));
   const done=mine.filter(r=>r.status!=='pending'),shared=done.filter(r=>clientsOf(r).length>1).length, singles=done.filter(r=>r.pax.length===1&&r.by!==PID).length;
-  const pct=done.length?singles/done.length:0, P=x=>Math.round(x*100), col=x=>x>.25?'var(--bad)':x>.2?'var(--warn)':'var(--ok)';
+  const own=done.filter(r=>r.by!==PID).length,pct=own?singles/own:0, P=x=>Math.round(x*100), col=x=>x>.25?'var(--bad)':x>.2?'var(--warn)':'var(--ok)';
   const after=r=>(singles+1)/(done.length+1);
   app.innerHTML=subTabs(c)+`
   <section class="panel"><h2>${esc(c.name)} · בוס גדול</h2>${meter(c)}
@@ -1135,7 +1135,7 @@ function planFor(c,mk){const now=new Date(),today=ymd(now),[y,m]=mk.split('-').m
   return {days,Q,L,usedNow,carryNext,isCur,nd,R,airN,grN,freeN}}
 function effTips(c,P,proj){const mine=S.rides.filter(r=>inMonth(r.ts)&&COUNTS.includes(r.status)&&clientsOf(r).includes(c.id));const tips=[];
   const singles=mine.filter(r=>r.pax.length===1&&r.by!==PID).length,low=mine.filter(r=>r.pax.length<3).length,shared=mine.filter(r=>clientsOf(r).length>1).length;
-  if(mine.length&&singles/mine.length>.15)tips.push(`<b>${Math.round(singles/mine.length*100)}% מהנסיעות החודש היו עם נוסע בודד.</b> צירוף נוסע נוסף, או איחוד ב"מי פנוי באלנבי", חוסך כמעט מונית שלמה בכל פעם.`);
+  const ownN=mine.filter(r=>r.by!==PID).length;if(ownN&&singles/ownN>.15)tips.push(`<b>${Math.round(singles/ownN*100)}% מהנסיעות החודש היו עם נוסע בודד.</b> צירוף נוסע נוסף, או איחוד ב"מי פנוי באלנבי", חוסך כמעט מונית שלמה בכל פעם.`);
   if(low)tips.push(`<b>${low} נסיעות יצאו עם פחות מ־3 נוסעים.</b> אם תתאמו שעות בין נוסעים, למשל הגעה באותה שעה, אפשר למלא מוניות ולחסוך.`);
   tips.push(`<b>חלקתם ${shared} מוניות עם מבצעים אחרים החודש.</b> כל מונית משותפת יורדת מהסל רק לפי מספר הנוסעים שלכם בה. בדקו את "מי פנוי באלנבי" אחרי כל הזמנה.`);
   const fr=P.days.filter(x=>!x.past&&x.ty==='free').length;
@@ -1646,8 +1646,8 @@ function trackPng(){const T=ui._trk;if(!T)return;const rows=T.rows.slice().sort(
   g.fillStyle=MUTE;g.font=`400 24px ${F}`;g.fillText(T.title,W-90,156);
   rr(90,82,150,46,23,INK);g.fillStyle='#fff';g.textAlign='center';g.font=`800 22px ${F}`;g.fillText('רמוניות',165,113);
   /* KPI tiles */
-  const N=rows.reduce((a,x)=>a+x.n,0),S1=rows.reduce((a,x)=>a+x.s1,0),NO=rows.reduce((a,x)=>a+(x.no||0),0);
-  const tiles=[['סה״כ מוניות',fmt(r1(N)),'',INK,'#eef1f6'],['עם נוסע בודד',fmt(r1(S1)),pc(S1,N)+'% מהמוניות',ORANGE,'#fdeee6'],['לצפון',fmt(r1(NO)),pc(NO,N)+'% מהמוניות',NORTH,'#f0ebfc']];
+  const N=rows.reduce((a,x)=>a+x.n,0),S1=rows.reduce((a,x)=>a+x.s1,0),NU=rows.reduce((a,x)=>a+(x.u||0),0),NO=rows.reduce((a,x)=>a+(x.no||0),0);
+  const tiles=[['סה״כ מוניות',fmt(r1(N)),'',INK,'#eef1f6'],['עם נוסע בודד',fmt(r1(S1)),pc(S1,NU)+'% · בלי הנסיכות',ORANGE,'#fdeee6'],['לצפון',fmt(r1(NO)),pc(NO,N)+'% מהמוניות',NORTH,'#f0ebfc']];
   const tw=(W-180-2*24)/3;tiles.forEach(([l,v,sub,c,bg],i)=>{const x=W-90-tw*(i+1)-24*i;rr(x,190,tw,118,18,bg);g.textAlign='right';g.fillStyle=MUTE;g.font=`600 22px ${F}`;g.fillText(l,x+tw-26,228);
     g.fillStyle=c;g.font=`800 50px ${F}`;g.fillText(v,x+tw-26,286);if(sub){g.fillStyle=MUTE;g.font=`400 20px ${F}`;g.textAlign='left';g.fillText(sub,x+26,286)}});
   /* legend */
@@ -1665,7 +1665,7 @@ function trackPng(){const T=ui._trk;if(!T)return;const rows=T.rows.slice().sort(
     if(x.s1>0&&BOT-yS>30){g.fillStyle='#fff';g.font=`700 21px ${F}`;g.fillText(fmt(r1(x.s1)),x0+bw/2,BOT-(BOT-yS)/2+8)}
     const nm=String(x.name).replace('★ ','');g.fillStyle=INK;g.font=`700 ${rows.length>8?20:24}px ${F}`;let l1=nm,l2='';const ws=nm.split(' ');if(g.measureText(nm).width>slot-12&&ws.length>1){const h=Math.ceil(ws.length/2);l1=ws.slice(0,h).join(' ');l2=ws.slice(h).join(' ')}
     g.fillText(l1,cx,BOT+40);if(l2)g.fillText(l2,cx,BOT+66);
-    if(x.n){const t1=`בודד ${pc(x.s1,x.n)}%`,t2=`צפון ${pc(x.no||0,x.n)}%`;g.font=`600 18px ${F}`;const pw=Math.min(slot-16,Math.max(g.measureText(t1).width,g.measureText(t2).width)+28),y0=BOT+(l2?80:56);
+    if(x.n){const t1=x.id===PID?'נסיכות: חופשי':`בודד ${pc(x.s1,x.u||0)}%`,t2=`צפון ${pc(x.no||0,x.n)}%`;g.font=`600 18px ${F}`;const pw=Math.min(slot-16,Math.max(g.measureText(t1).width,g.measureText(t2).width)+28),y0=BOT+(l2?80:56);
       rr(cx-pw/2,y0,pw,30,15,'#fdeee6');g.fillStyle='#b4481a';g.fillText(t1,cx,y0+21);rr(cx-pw/2,y0+38,pw,30,15,'#f0ebfc');g.fillStyle='#5a3fb8';g.fillText(t2,cx,y0+59)}});
   g.textAlign='right';g.fillStyle=MUTE;g.font=`400 18px ${F}`;g.fillText(`הופק ב־${dmy(Date.now())} ${hm(new Date())} · מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים · מונית שעוברת צפונית לנתניה נספרת כצפון`,W-90,H-72);
   cv.toBlob(bl=>{const u=URL.createObjectURL(bl),a=document.createElement('a');a.download=`מוניות-לפי-מבצעים-${T.cur}.png`;a.href=u;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('הגרף ירד למכשיר')},'image/png')}
@@ -1690,7 +1690,7 @@ function trackCharts(cur,inM,rows,tot,sum){
     <div class="hbars">${rows.map(x=>`<div class="hb" data-tip="${esc(x.c.name)} · ${fmt(x.n)} מוניות (מרכז ${fmt(x.ce)}, צפון ${fmt(x.no)}) · ${money(x.s)}"><span class="hl">${opsDot(x.c.id)}${esc(x.c.name)}</span>
       <span class="ht"><span class="seg" style="width:${x.ce/maxN*100}%;background:var(--s1)"></span>${x.no?`<span class="seg" style="width:${x.no/maxN*100}%;background:var(--s2)"></span>`:''}<span class="hv num">${fmt(x.n)} · ${money(x.s)}</span></span></div>`).join('')}</div></figure>`;
   // single-passenger share vs 25%
-  const sp=rows.map(x=>({c:x.c,p:x.n?x.s1/x.n:0,n:x.s1})),sMax=Math.max(.5,...sp.map(x=>x.p));
+  const sp=rows.filter(x=>x.c.id!==PID).map(x=>({c:x.c,p:x.u?x.s1/x.u:0,n:x.s1})),sMax=Math.max(.5,...sp.map(x=>x.p));
   const single=`<figure class="chart"><figcaption><b>נוסע בודד לפי מבצעים</b><span class="legend"><i class="tgt"></i>יעד 25%</span></figcaption>
     <div class="hbars">${sp.map(x=>`<div class="hb" data-tip="${esc(x.c.name)} · ${Math.round(x.p*100)}% (${fmt(x.n)} נסיעות עם נוסע בודד)"><span class="hl">${opsDot(x.c.id)}${esc(x.c.name)}</span>
       <span class="ht"><span class="tgtl" style="inset-inline-start:${25/sMax}%"></span><span class="seg" style="width:${x.p/sMax*100}%;background:${x.p>.25?'var(--bad)':'var(--s1)'}"></span><span class="hv num">${Math.round(x.p*100)}%${x.p>.25?' ⚠ מעל היעד':''}</span></span></div>`).join('')}</div></figure>`;
@@ -1829,15 +1829,15 @@ function renderDispatcher(){
     /* tracking counts a taxi only once it has gone (approved and its time has passed; a late cancellation counts as gone) */
     const inM=S.rides.filter(r=>DONE(r)&&mk(r)===cur);
     /* the princesses may order single-passenger taxis freely: not counted in the units' or the overall single rate */
-    const one=r=>r.pax.length===1&&r.by!==PID, K=['n','no','ce','s1','s1n','s1c'];
+    const one=r=>r.pax.length===1&&r.by!==PID, K=['n','no','ce','s1','s1n','s1c','u'];
     const rows=S.clients.map(c=>{const rs=inM.filter(r=>clientsOf(r).includes(c.id));const sm=f=>rs.filter(f).reduce((a,r)=>a+share(r,c.id),0);
-      return {c,n:sm(()=>1),no:sm(isNorth),ce:sm(r=>!isNorth(r)),s1:sm(one),s1n:sm(r=>one(r)&&isNorth(r)),s1c:sm(r=>one(r)&&!isNorth(r)),s:rs.reduce((a,r)=>a+cost(r)*share(r,c.id),0)}}).sort((a,b)=>b.s-a.s);
+      return {c,n:sm(()=>1),u:sm(r=>r.by!==PID),no:sm(isNorth),ce:sm(r=>!isNorth(r)),s1:sm(one),s1n:sm(r=>one(r)&&isNorth(r)),s1c:sm(r=>one(r)&&!isNorth(r)),s:rs.reduce((a,r)=>a+cost(r)*share(r,c.id),0)}}).sort((a,b)=>b.s-a.s);
     /* the princesses' "on the house" taxis: no unit's basket, but real money, so they get their own row and list */
-    const hs=inM.filter(r=>r.house),hc=f=>hs.filter(f).length,hRow={c:{id:PID,name:'★ נסיכות · על חשבון הבית'},n:hs.length,no:hc(isNorth),ce:hc(r=>!isNorth(r)),s1:hc(one),s1n:hc(r=>one(r)&&isNorth(r)),s1c:hc(r=>one(r)&&!isNorth(r)),s:hs.reduce((a,r)=>a+cost(r),0)};
+    const hs=inM.filter(r=>r.house),hc=f=>hs.filter(f).length,hRow={c:{id:PID,name:'★ נסיכות · על חשבון הבית'},n:hs.length,u:0,no:hc(isNorth),ce:hc(r=>!isNorth(r)),s1:hc(one),s1n:hc(r=>one(r)&&isNorth(r)),s1c:hc(r=>one(r)&&!isNorth(r)),s:hs.reduce((a,r)=>a+cost(r),0)};
     const all=[...rows,hRow]; /* the princesses always have a row, even with 0 */
     const sum=k=>all.reduce((a,x)=>a+x[k],0), tot=sum('s');
     const monthName=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('he-IL',{month:'long',year:'numeric'})};
-    ui._trk={title:monthName(cur),cur,rows:all.filter(x=>x.n>0||x.c.id!==PID).map(x=>({name:x.c.name,id:x.c.id,n:x.n,s1:x.s1,no:x.no})),tot};
+    ui._trk={title:monthName(cur),cur,rows:all.filter(x=>x.n>0||x.c.id!==PID).map(x=>({name:x.c.name,id:x.c.id,n:x.n,s1:x.s1,no:x.no,u:x.u})),tot};
     body=`${daySum(MGR())}<div class="meter-top"><div><div class="eyebrow">הוצאות · ${monthName(cur)}</div><div class="big num">${money(tot)}</div></div>
       <span class="row" style="gap:8px;align-items:end;flex-wrap:wrap"><label>חודש<select id="costmonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${monthName(k)}</option>`).join('')}</select></label><button class="btn small primary" data-trkpng="1">⬇ הורדת גרף: מוניות לפי מבצעים</button></span></div>
       <div class="note num">מרכז (נתניה ודרומה): ${money(S.prices.south)} למונית · צפון (צפונה מנתניה): ${money(S.prices.north)} למונית</div>
