@@ -763,7 +763,7 @@ function singleDebts(mo){const inM=S.rides.filter(r=>DONE(r)&&ymd(new Date(r.ts)
 /* the big boss's own tally: what he approved and rejected this month */
 function bossTrack(c){const mo=ymd(new Date()).slice(0,7),L=S.rides.filter(r=>ymd(new Date(r.ts)).slice(0,7)===mo&&clientsOf(r).includes(c.id)&&r.status!=='merged');
   const ok=L.filter(r=>(r.approvedBy||[]).includes(c.id)),no=L.filter(r=>r.cancelBy&&r.cancelBy.k==='boss'&&r.cancelBy.cid===c.id);
-  const n=k=>ok.filter(r=>needsOf(r).includes(k)).length,kinds=BOSSEXC?[...new Set(ok.filter(r=>needsOf(r).includes('exc')).flatMap(excKindsOf))]:[];
+  const n=k=>ok.filter(r=>needsOf(r).includes(k)).length,kinds=BOSSEXC?[...new Set(ok.filter(r=>needsOf(r).includes('exc')).flatMap(excKindsOf))].filter(k=>EXCRX.some(x=>x[1]===k)):[];
   const box=(l,v,sub)=>`<div class="kpi"><div class="eyebrow">${l}</div><div class="kv num">${v}</div><div class="note">${sub||''}</div></div>`;
   return `<h3 style="margin:10px 0 4px">📊 מה אישרת החודש</h3><div class="kpis">${box('אישרת',ok.length,'בקשות')}${box('נוסע יחיד',n('single'),'')}${BOSSEXC&&perk('bossexc',c.id)||n('exc')?box('⚡ חריגות מהמגבלות',n('exc'),kinds.map(k=>`${esc(k)}: ${ok.filter(r=>needsOf(r).includes('exc')&&excKindsOf(r).includes(k)).length}`).join(' · ')):''}${n('night')?box('🌙 נסיעות לילה',n('night'),'בהאצלה מהמנכ״ל'):''}${box('דחית',no.length,'')}</div>`}
 /* working hours: when the units (ordering, changing, cancelling) and the dispatcher (approving, drivers, changes) are active */
@@ -790,7 +790,7 @@ function actPanel(mo){const E=actEvents(mo);if(!E.length)return `<h3 id="act">�
 function excKindsOf(r){if(r.excKinds&&r.excKinds.length)return r.excKinds;return (r.excWhy||[]).map(t=>{const m=EXCRX.find(([rx])=>rx.test(t));return m?m[1]:'אחר'})}
 function excPanel(mo){const L=S.rides.filter(r=>needsOf(r).includes('exc')&&ymd(new Date(r.ts)).slice(0,7)===mo&&r.status!=='merged');
   const on=S.clients.filter(c=>perk('bossexc',c.id));if(!L.length&&!on.length)return '';
-  const kinds=[...new Set([...EXCRX.map(x=>x[1]),...L.flatMap(excKindsOf)])];
+  const kinds=EXCRX.map(x=>x[1]); /* only the limits the big boss may still waive */
   const st=(r,cid)=>r.cancelBy&&r.cancelBy.k==='boss'&&r.cancelBy.cid===cid?'no':(r.approvedBy||[]).includes(cid)?'ok':r.status==='pending'?'wait':'';
   const rows=S.clients.map(c=>{const R=L.filter(r=>clientsOf(r).includes(c.id)),ok=R.filter(r=>st(r,c.id)==='ok');return {c,on:perk('bossexc',c.id),ok:ok.length,no:R.filter(r=>st(r,c.id)==='no').length,wait:R.filter(r=>st(r,c.id)==='wait').length,k:Object.fromEntries(kinds.map(k=>[k,ok.filter(r=>excKindsOf(r).includes(k)).length]))}}).filter(x=>x.on||x.ok||x.no||x.wait);
   return `<h3 id="excs">⚡ חריגות שאישר הבוס הגדול</h3><div class="note">לכל מבצעים שקיבלו סמכות לאשר חריגה מהמגבלות: כמה בקשות הבוס הגדול אישר, דחה או עוד לא החליט, ובכמה מהן כל סוג של מגבלה. בקשה אחת יכולה לכלול כמה מגבלות.</div>
