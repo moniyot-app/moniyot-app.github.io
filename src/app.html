@@ -589,8 +589,8 @@ function planGap(cid,ds,pax){if(!cid||isP(cid)||!ds)return null;const plan=((S.p
   if(!plan||!Object.keys(plan).length)return {none:true};
   const planned=+plan[ds]||0,used=S.rides.filter(r=>COUNTS.includes(r.status)&&ymd(new Date(r.ts))===ds).reduce((a,r)=>a+share(r,cid),0);
   return used+add>planned+0.001?{planned,used,add}:null}
-/* limits the big boss may waive (when the manager delegated it): flight/minibus times, passenger types, 3 hours ahead. Not the north and not cities (the dispatcher's) */
-const EXCRX=[ /* not the north and not unlisted cities: those are the dispatcher's call */[/לפחות 3 שעות/,'פחות מ־3 שעות מראש'],[/אי אפשר להזמין מונית ש/,'שעת טיסה או מיניבוס'],[/^יום (אווירי|קרקעי):/,'סוג הנוסעים']];
+/* limits the big boss may waive (when the manager delegated it): flight/minibus times and passenger types. Not 3 hours ahead, not the north, not cities */
+const EXCRX=[ /* not the north and not unlisted cities: those are the dispatcher's call */[/אי אפשר להזמין מונית ש/,'שעת טיסה או מיניבוס'],[/^יום (אווירי|קרקעי):/,'סוג הנוסעים']];
 const excOn=()=>BOSSEXC&&!isP(ui.cid)&&perk('bossexc');
 function check(d){const out=check0(d);if(!excOn())return out;
   out.forEach(x=>{if(x.k!=='block')return;const m=EXCRX.find(([rx])=>rx.test(x.t));if(!m)return;x.k='appr';x.exc=m[1];x.t=`⚡ חריגה באישור הבוס הגדול (${m[1]}): ${x.t.replace(/\.?\s*אי אפשר להזמין[^]*$/,'')}`});return out}
