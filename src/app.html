@@ -70,6 +70,7 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .pax label{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--ink);font-weight:400;cursor:pointer}
 .pax label.off{opacity:.5;cursor:not-allowed}
 .pax input{padding:0}
+.pax:not(.min){max-height:320px;overflow-y:auto;padding:2px}
 .tag{display:inline-block;font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px;letter-spacing:.02em;white-space:nowrap}
 .t-business{background:var(--biz-soft);color:var(--biz);border:1px solid var(--biz)}
 .t-premium{background:var(--prem-soft);color:var(--prem);border:1px solid var(--prem)}
@@ -1313,9 +1314,10 @@ function renderClient(){if(ui.bossOnly)ui.sub='manager';if(ui.role==='princess')
       <div class="note">⏱ מזמינים לפחות 3 שעות לפני שהמונית יוצאת (שעת האיסוף הראשון). הכי מוקדם עכשיו: <b class="num">${(()=>{const e=new Date(Date.now()+3*H);return (ymd(e)===ymd(new Date())?'היום':dayLabel(ymd(e)))+' '+hm(e)})()}</b></div>
       <datalist id="base-list">${[BASE,...S.destinations].map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>
       <datalist id="dest-list">${S.destinations.filter(okCity).map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>
-      <div class="eyebrow">1. נוסעים (עד 4)${isP(c.id)?' · מכל המבצעים':''}</div>
-      ${isP(c.id)?`<input id="f-psearch" placeholder="חיפוש נוסע לפי שם או מבצעים" autocomplete="off">`:''}
-      <div class="pax" id="paxlist">${emps.map(e=>`<label data-q="${esc(e.name+' '+(client(e.cid)?.name||''))}"><input type="checkbox" id="p-${e.id}" data-pax="${e.id}" ${d.pax.includes(e.id)?'checked':''}>${isP(c.id)?opsLogo(e.cid,18):''}<span style="flex:1">${esc(e.name)}</span>${tag(e.type)}</label>`).join('')}</div>
+      <div class="row" style="justify-content:space-between;gap:8px"><div class="eyebrow">1. נוסעים (עד 4)${isP(c.id)?' · מכל המבצעים':''}</div><button type="button" class="btn small" data-paxmin="1" aria-expanded="${!paxMin()}">${paxMin()?'▾ הצגת כל הנוסעים':'▴ צמצום הרשימה'}</button></div>
+      <input id="f-psearch" placeholder="${isP(c.id)?'חיפוש נוסע לפי שם או מבצעים':'חיפוש נוסע לפי שם'}" autocomplete="off">
+      ${paxMin()?'<div class="note">מוצגים רק הנוסעים שנבחרו. לבחירת נוסע נוסף, חפשו אותו לפי שם.</div>':''}
+      <div class="pax${paxMin()?' min':''}" id="paxlist">${emps.map(e=>`<label data-q="${esc(e.name+' '+(client(e.cid)?.name||''))}"${paxMin()&&!d.pax.includes(e.id)?' hidden':''}><input type="checkbox" id="p-${e.id}" data-pax="${e.id}" ${d.pax.includes(e.id)?'checked':''}>${isP(c.id)?opsLogo(e.cid,18):''}<span style="flex:1">${esc(e.name)}</span>${tag(e.type)}</label>`).join('')}</div>
       <div id="routebox" style="display:grid;gap:8px"></div>
     </section>
     <section class="panel" aria-live="polite" id="checkpanel"></section>
@@ -1323,6 +1325,7 @@ function renderClient(){if(ui.bossOnly)ui.sub='manager';if(ui.role==='princess')
   <section class="panel"><h2>ההזמנות שלי</h2><div class="rides">${my.length?groupByDay(my).map(([ds,rs])=>`<div class="day">${dayLabel(ds)}${isFree(ds)?' <span class="tag t-day">יום מוניות</span>':''}</div>`+rs.map(r=>rideRow(r,'client',c.id)).join('')).join(''):'<div class="empty">אין הזמנות קרובות.</div>'}</div></section>`;
   renderRoute();renderCheck();
 }
+const paxMin=()=>{try{return localStorage.getItem('ram-paxmin')==='1'}catch(_){return !!ui.paxMin}};
 const addrOf=(d,p)=>{if(d.pts&&d.pts.length){const q=d.pts[idxOf(d,p)];if(q&&q.addr)return q.addr}const pt=ptOf(d,p);if(pt===d.dest&&d.destAddr)return d.destAddr;const i=(d.stops||[]).indexOf(pt);if(i>=0&&(d.stopAddr||[])[i])return d.stopAddr[i];return ''}; /* every passenger uses the address of their station */
 function addrSane(a){a=(a||'').trim();if(!a)return {k:'none'};
   if(a.length<4||!/[֐-׿A-Za-z]{2,}/.test(a)||/(.)\1{3,}/.test(a)||/^[\d\s,.\-]+$/.test(a))return {k:'bad',m:'הכתובת לא נראית תקינה'};
@@ -2259,6 +2262,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.dsday){const def=ymd(new Date(Date.now()-5*H)),c=new Date(at(ui.dsDate||def,'12:00'));c.setDate(c.getDate()+ +t.dataset.dsday);const n=ymd(c);ui.dsDate=n>def?def:n;render();return}
   if(t.dataset.dbfread){const n=debrief().find(x=>x.id===t.dataset.dbfread);if(!n)return;const rp=(document.getElementById('dbr-'+n.id)?.value||'').trim();n.readAt=Date.now();if(rp)n.reply=rp;save();toast('סומן כנקרא'+(rp?'. התגובה נשלחה למנהלת':''));render();return}
   if(t.dataset.editride){const r=S.rides.find(x=>x.id===t.dataset.editride);if(!r||!canEdit(r))return;ui.editRide=r.id;ui.draft=draftFromRide(r);ui.sub='orders';render();scrollTo(0,0);toast('ההזמנה נטענה לטופס. שנו ושמרו');return}
+  if(t.dataset.paxmin){const v=!paxMin();ui.paxMin=v;try{localStorage.setItem('ram-paxmin',v?'1':'0')}catch(_){}render();return}
   if(t.dataset.editx){ui.editRide=null;const d=ui.draft;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;render();return}
   if(t.dataset.sdpaid){if(!(ui.role==='admin'&&ui.page==='admin'))return;const k=t.dataset.sdpaid;S.singlePaid={...(S.singlePaid||{})};if(S.singlePaid[k])delete S.singlePaid[k];else S.singlePaid[k]=Date.now();save();toast(S.singlePaid[k]?'סומן כשולם':'הסימון בוטל');render();return}
   if(t.dataset.finepaid){if(ui.role!=='admin')return;const r=S.rides.find(x=>x.id===t.dataset.finepaid);r.finePaid=r.finePaid?null:Date.now();save();toast(r.finePaid?'הקנס סומן כשולם':'הסימון בוטל');render();return}
@@ -2533,7 +2537,7 @@ document.addEventListener('input',e=>{const t=e.target,d=ui.draft;
   if(t.id==='f-reason'){d.reason=t.value;renderCheck(true);return}
   if(t.id==='f-nwhy'){d.northWhy=t.value;renderCheck(true);return}
   if(t.id==='f-base'){d.base=t.value;renderCheck(true);return}
-  if(t.id==='f-psearch'){const q=t.value.trim();document.querySelectorAll('#paxlist label').forEach(l=>{l.hidden=!!q&&!l.dataset.q.includes(q)});return}
+  if(t.id==='f-psearch'){const q=t.value.trim(),mn=paxMin();document.querySelectorAll('#paxlist label').forEach(l=>{const on=l.querySelector('input').checked;l.hidden=q?!l.dataset.q.includes(q):(mn&&!on)});return}
   if(t.dataset.addr){const p=t.dataset.addr;(d.addr??={})[p]=t.value;renderCheck(true);return}
   if(t.dataset.pcity){const i=+t.dataset.pcity,v=t.value.trim();d.pts[i].city=v;syncDraft(d);const ok=cityOK(v);
     const h=document.getElementById('pch-'+i);if(h)h.innerHTML=destHint(v);const a=document.getElementById('pa-'+i);if(a){a.disabled=!ok;a.placeholder=!ok?'קודם הזינו עיר מותרת':NOADDR(v)?'לא חובה: נקודת איסוף קבועה':'כתובת מדויקת: רחוב ומספר, או נקודת ציון'}
