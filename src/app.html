@@ -626,7 +626,8 @@ function check0(d){ // d: {date,time,dir,dest,pax[]}
   const sD=isNaN(ts)?d.date:ymd(new Date(ts)), sT=isNaN(ts)?d.time:hm(new Date(ts));
   if(isNaN(ts))add('block','בחרו תאריך ושעה');
   else if(ts<Date.now()+3*H&&(()=>{const r=ui.editRide&&S.rides.find(x=>x.id===ui.editRide);return r&&lateEdit(r)})()){if(ts<Date.now()+LATEMIN*MIN)add('block',`אפשר לשנות רק עד ${LATEMIN} דקות לפני האיסוף`);else add('warn','⏱ שינוי של הרגע האחרון: אפשר רק להוסיף תחנה או נוסע. הסדרן יקבל התראה מיד')}
-  else if(ts<Date.now()+3*H)add('block','חייבים להזמין לפחות 3 שעות לפני הנסיעה');
+  else if(ts<Date.now()+3*H&&pLateOK(d)){if(ts<Date.now()+LATEMIN*MIN)add('block',`אפשר להזמין עד ${LATEMIN} דקות לפני האיסוף`);else add('warn','⏱ נסיכות: הזמנה של פחות מ־3 שעות מראש מותרת, כי המונית לא יוצאת מהמחנה. כדאי להתקשר לסדרן כדי לוודא שהוא ראה')}
+  else if(ts<Date.now()+3*H)add('block',isP(ui.cid)?'חייבים להזמין לפחות 3 שעות לפני נסיעה שיוצאת מהמחנה':'חייבים להזמין לפחות 3 שעות לפני הנסיעה');
   else add('ok','מוזמן לפחות 3 שעות מראש');
   if(!d.dest)add('block','הזינו עיר');
   else if(!S.destinations.includes(d.dest))add('block',`העיר "${d.dest}" אינה ברשימת הערים המותרות. אי אפשר להזמין אליה מונית`);
@@ -901,6 +902,8 @@ const opsLogo=(cid,sz=18)=>{const c=client(cid);if(!c)return '';if(c.logo)return
   return `<i class="ologo" title="${esc(c.name)} · ${L.m}" style="width:${sz}px;height:${sz}px;background:${col};color:${col}"><svg viewBox="0 0 24 24" width="${Math.round(sz*.78)}" height="${Math.round(sz*.78)}" aria-hidden="true">${ICONS[L.k]}</svg></i>`};
 const opsDot=cid=>opsLogo(cid,18);
 const stripe=cids=>{const cs=cids.map(opsColor),n=cs.length;if(!n)return '';const g=n===1?cs[0]:`linear-gradient(${cs.map((c,i)=>`${c} ${i*100/n}% ${(i+1)*100/n}%`).join(',')})`;return `<span class="ostripe" style="background:${g}" aria-hidden="true"></span>`};
+/* the princesses may order less than 3 hours ahead, unless the taxi leaves the Ramon camp */
+const pLateOK=d=>isP(ui.cid)&&!(d.dir==='from'&&/רמון/.test(baseOf(d)));
 const BASE='מחנה רמון',baseOf=r=>((r&&r.base)||'').trim()||BASE;
 const fmtPh=p=>{p=String(p);return p.length===10?p.slice(0,3)+'-'+p.slice(3):p.slice(0,2)+'-'+p.slice(2)};
 /* drivers the dispatcher already used: name → phone and company, so a known name fills the rest */
@@ -1015,7 +1018,7 @@ const mark=(r,k)=>{r.upd={k,at:Date.now(),by:ui.page==='client'?ui.cid:null};r.s
   /* activity log (for the working-hours tracking): who did what, when */
   (r.log??=[]).push({k,at:Date.now(),role:ui.page==='dispatcher'?'disp':ui.role});if(r.log.length>40)r.log=r.log.slice(-40)};
 /* an exception not approved by 3 hours before the first pick-up is rejected automatically (not counted in the basket) */
-const EXPH=3,expDue=r=>r.status==='pending'&&startTs(r)-Date.now()<EXPH*H,expSoon=r=>r.status==='pending'&&!expDue(r)&&startTs(r)-Date.now()<(EXPH+1)*H;
+const EXPH=3,expDue=r=>r.status==='pending'&&startTs(r)-Date.now()<(r.pLate?0:EXPH*H), /* a princess's short-notice order waits for approval until its pickup */expSoon=r=>r.status==='pending'&&!r.pLate&&!expDue(r)&&startTs(r)-Date.now()<(EXPH+1)*H;
 const canWriteRide=r=>!PROD||MGR()||ui.role==='disp'||ui.role==='ceo'||ui.role==='boss'||(ui.role==='ops'&&clientsOf(r).includes(ui.cid));
 function expireRun(){try{if(PROD&&!dbOn)return 0;let n=0;S.rides.forEach(r=>{if(expDue(r)&&canWriteRide(r)){r.status='cancelled';r.expired=true;r.cancelBy={k:'auto',at:Date.now()};mark(r,'expired');n++}});if(n)save();return n}catch(_){return 0}}
 setInterval(()=>{if(expireRun())render()},60*1000);
@@ -1318,7 +1321,7 @@ function renderClient(){if(ui.bossOnly)ui.sub='manager';if(ui.role==='princess')
         <label>לפי מה קובעים את השעה<select id="f-dir"><option value="to" ${d.dir==='to'?'selected':''}>שעת הגעה ליעד (כמה תחנות איסוף)</option><option value="from" ${d.dir==='from'?'selected':''}>שעת יציאה מהמוצא (כמה תחנות הורדה)</option></select></label>
         <label>${d.dir==='to'?'שעת הגעה ליעד':'שעת יציאה מהמוצא'}<input type="time" id="f-time" value="${d.time}" step="300"></label>
       </div>
-      <div class="note">⏱ מזמינים לפחות 3 שעות לפני שהמונית יוצאת (שעת האיסוף הראשון). הכי מוקדם עכשיו: <b class="num">${(()=>{const e=new Date(Date.now()+3*H);return (ymd(e)===ymd(new Date())?'היום':dayLabel(ymd(e)))+' '+hm(e)})()}</b></div>
+      <div class="note">⏱ מזמינים לפחות 3 שעות לפני שהמונית יוצאת (שעת האיסוף הראשון).${isP(c.id)?' <b>נסיכות:</b> מונית שלא יוצאת מהמחנה אפשר להזמין גם פחות מ־3 שעות מראש.':''} הכי מוקדם עכשיו: <b class="num">${(()=>{const e=new Date(Date.now()+3*H);return (ymd(e)===ymd(new Date())?'היום':dayLabel(ymd(e)))+' '+hm(e)})()}</b></div>
       <datalist id="base-list">${[BASE,...S.destinations].map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>
       <datalist id="dest-list">${S.destinations.filter(okCity).map(x=>`<option value="${esc(x)}"></option>`).join('')}</datalist>
       <div class="row" style="justify-content:space-between;gap:8px"><div class="eyebrow">1. נוסעים (עד 4)${isP(c.id)?' · מכל המבצעים':''}</div><button type="button" class="btn small" data-paxmin="1" aria-expanded="${!paxMin()}">${paxMin()?'▾ הצגת כל הנוסעים':'▴ צמצום הרשימה'}</button></div>
@@ -1494,7 +1497,7 @@ function editProblem(r,d){const nt=at(d.date,d.time);if(startTs(r)-Date.now()<LA
 /* creates a ride from a checked draft (used by the order form and by the smart planner) */
 function createRide(d,c){const nd=[],ex=excOn()?check(d).filter(x=>x.exc):[];if(ex.length)nd.push('exc');if(d.pax.length===1&&!(isP(ui.cid)&&d.house)&&!perk('single'))nd.push('single');if(isNight(d))nd.push('night');
     const house=!!(d.house&&isP(ui.cid)),needs=nd.length;const over=!house&&!isP(c.id)&&used(c.id)+1>limit(c);
-    const r={id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',northWhy:northNeed(d)?(d.northWhy||'').trim():undefined,base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,excWhy:ex.length?ex.map(x=>x.t.replace(/^⚡ חריגה באישור הבוס הגדול \([^)]*\): /,'')):undefined,excKinds:ex.length?ex.map(x=>x.exc):undefined,over,house:house||undefined,createdAt:Date.now()};S.rides.push(r);return r}
+    const r={id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',northWhy:northNeed(d)?(d.northWhy||'').trim():undefined,base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,excWhy:ex.length?ex.map(x=>x.t.replace(/^⚡ חריגה באישור הבוס הגדול \([^)]*\): /,'')):undefined,excKinds:ex.length?ex.map(x=>x.exc):undefined,over,house:house||undefined,pLate:startTs(d)<Date.now()+3*H||undefined,createdAt:Date.now()};S.rides.push(r);return r}
 function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   const DSP=mode==='disp'||mode==='dview';
   /* approval lists (big boss, CEO, exceptions tab) are not grouped by day: show the ride's date on the card */
