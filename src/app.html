@@ -143,6 +143,11 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .rp .dot.add{background:transparent;border:1px dashed var(--muted);color:var(--muted)}
 .rp-body{display:grid;gap:6px;min-width:0}
 .rp-body input.city{width:150px}
+.ac-w{position:relative;display:inline-block}
+.ac{position:absolute;top:calc(100% + 2px);inset-inline-start:0;min-width:190px;z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.14);max-height:250px;overflow-y:auto;padding:4px}
+.ac button{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:start;background:none;border:0;padding:8px 10px;border-radius:7px;font:inherit;color:var(--ink);cursor:pointer}
+.ac button:hover,.ac button:focus{background:var(--accent-soft)}
+.ac .ac-no{padding:8px 10px;color:var(--bad);font-size:.9rem}
 .pchip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 12px;cursor:pointer;font-size:.9rem;color:var(--ink)}
 .pchip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);font-weight:700}
 .paddr{display:flex;gap:8px;align-items:center;font-weight:400;color:var(--ink);font-size:.88rem}
@@ -1010,7 +1015,14 @@ function dispReqPanel(){const L=dispReq().slice().sort((a,b)=>(a.status==='pendi
 const okCity=x=>true; /* every allowed city, north included (north needs an explanation and the dispatcher's approval) */
 const northNeed=d=>[d.dest,...(d.stops||[]),...((d.pts||[]).map(x=>x.city))].some(x=>x&&S.north.includes(x));
 /* a city may be used when it is allowed, or (exception delegated to the big boss) any city, pending his approval */
-const cityOK=v=>S.destinations.includes(v); /* cities are the dispatcher's call (request to add one), not the big boss's */
+const cityOK=v=>S.destinations.includes(v);
+/* dropdown of allowed cities while typing a city in the order, so a city outside the list shows at once */
+const cNorm=v=>(v||'').replace(/[-–\s'״"׳]/g,'').replace(/יי/g,'י').replace(/וו/g,'ו');
+function cityAC(i,v){const box=document.getElementById('pcs-'+i),inp=document.getElementById('pc-'+i);if(!box)return;const q=cNorm(v.trim());
+  if(!q||S.destinations.includes(v.trim())){box.hidden=true;inp?.setAttribute('aria-expanded','false');return}
+  const L=S.destinations.filter(c=>cNorm(c).includes(q)).sort((a,b)=>(cNorm(b).startsWith(q)-cNorm(a).startsWith(q))||a.localeCompare(b,'he')).slice(0,8);
+  box.innerHTML=L.length?L.map(c=>`<button type="button" role="option" data-acpick="${i}" data-c="${esc(c)}"><span>${esc(c)}</span>${S.north.includes(c)?'<span class="tag t-north">צפון</span>':''}</button>`).join(''):`<div class="ac-no">✕ "${esc(v.trim())}" לא ברשימת הערים המאושרות. אפשר לבקש אותה מהסדרן בלשונית "ערים ובקשות לסדרן"</div>`;
+  box.hidden=false;inp?.setAttribute('aria-expanded','true')} /* cities are the dispatcher's call (request to add one), not the big boss's */
 const destHint=v=>!v?'':S.destinations.includes(v)&&S.north.includes(v)&&ui.page==='client'&&S.north.includes(v)?`<span style="color:var(--warn);font-weight:700">⬆ צפון: נדרש הסבר ואישור הסדרן</span>`:S.destinations.includes(v)?'<span style="color:var(--ok);font-weight:700">✓ עיר מותרת</span>':`<span style="color:var(--bad);font-weight:700">✕ עיר לא מותרת</span>${ui.page==='client'&&v.trim().length>1?` · <button type="button" class="btn small" data-drcity="${esc(v.trim())}">📨 לבקש מהסדרן להוסיף</button>`:''}`;
 function driverMsg(r){const s=sched(r),pts=points(r),L=emp(leadOf(r));
   const lines=pts.map((pt,i)=>{const ws=r.pax.filter(p=>ptOf(r,p)===pt);if(!ws.length)return null;const tt=s?hm(new Date(s.stops.find(x=>x.pt===pt).t)):'';
@@ -1410,7 +1422,7 @@ function renderRoute(){const box=document.getElementById('routebox');if(!box)ret
   const rows=P.map((pt,i)=>{const ok=cityOK(pt.city),here=d.pax.filter(p=>idxOf(d,p)===i);
     const lbl=d.dir==='to'?(i===0?'תחנת מוצא':'תחנת איסוף נוספת'):(i===P.length-1?'תחנת יעד':'תחנת הורדה בדרך');
     return `<div class="rp"><span class="dot num">${i+1}</span><div class="rp-body"><b>${lbl}</b>
-      <div class="row" style="gap:8px"><input class="city" list="dest-list" id="pc-${i}" data-pcity="${i}" value="${esc(pt.city)}" placeholder="עיר" autocomplete="off" aria-label="עיר בנקודה ${i+1}"><span id="pch-${i}">${destHint(pt.city)}</span>${pt.city&&P.findIndex(x=>x.city===pt.city)<i?`<button type="button" class="btn small" data-mergept="${i}" style="margin-inline-start:auto" title="אותה נקודה כמו התחנה הקודמת בעיר">איחוד עם ${esc(pt.city)} הקודמת</button>`:''}${P.length>1?`<button type="button" class="btn small danger" data-delpt="${i}" style="${pt.city&&P.findIndex(x=>x.city===pt.city)<i?'':'margin-inline-start:auto'}">הסרה</button>`:''}</div>
+      <div class="row" style="gap:8px"><span class="ac-w"><input class="city" id="pc-${i}" data-pcity="${i}" value="${esc(pt.city)}" placeholder="עיר" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="pcs-${i}" aria-expanded="false" aria-label="עיר בנקודה ${i+1}"><div class="ac" id="pcs-${i}" role="listbox" hidden></div></span><span id="pch-${i}">${destHint(pt.city)}</span>${pt.city&&P.findIndex(x=>x.city===pt.city)<i?`<button type="button" class="btn small" data-mergept="${i}" style="margin-inline-start:auto" title="אותה נקודה כמו התחנה הקודמת בעיר">איחוד עם ${esc(pt.city)} הקודמת</button>`:''}${P.length>1?`<button type="button" class="btn small danger" data-delpt="${i}" style="${pt.city&&P.findIndex(x=>x.city===pt.city)<i?'':'margin-inline-start:auto'}">הסרה</button>`:''}</div>
       <input id="pa-${i}" data-paddr="${i}" value="${esc(pt.addr||'')}" placeholder="${!ok?'קודם הזינו עיר מותרת':NOADDR(pt.city)?'לא חובה: נקודת איסוף קבועה':'כתובת מדויקת: רחוב ומספר, או נקודת ציון'}" ${ok?'':'disabled'} autocomplete="off" maxlength="80" aria-label="כתובת מדויקת בנקודה ${i+1}"><span id="pah-${i}">${ok?addrHint(pt.addr,pt.city):''}</span>${ok&&tAt(i)?(()=>{const st=s.stops[i],hh=new Date(st.t).getHours(),nt=hh>=23||hh<5;return `<div class="ptime${nt?' night':''}">⏱ ${d.dir==='to'?'שעת איסוף משוערת':'שעת הורדה משוערת'}: <b class="num">${tAt(i)}</b>${nt?' · 🌙 בשעות הלילה, דורש אישור מנכ״ל':''}</div>`})():''}
       ${d.pax.length?`<div class="note">${d.dir==='to'?'מי עולה כאן?':'מי יורד כאן?'} (לחיצה על שם מעבירה אותו לנקודה הזו)</div><div class="row" style="gap:6px">${d.pax.map(p=>`<button type="button" class="pchip" data-assign="${p}|${i}" aria-pressed="${idxOf(d,p)===i}">${esc(emp(p).name)}</button>`).join('')}</div>
         <div class="note">כולם נאספים בכתובת של התחנה. נוסע שנאסף ממקום אחר? מוסיפים בשבילו תחנה.</div>`:''}
@@ -2219,6 +2231,11 @@ document.addEventListener('mousemove',e=>{const el=e.target.closest?.('[data-tip
 document.addEventListener('toggle',e=>{const dd=e.target;if(!dd.dataset||!dd.dataset.rid)return;const L=ui.openR||(ui.openR=[]);const i=L.indexOf(dd.dataset.rid);if(dd.open&&i<0)L.push(dd.dataset.rid);if(!dd.open&&i>=0)L.splice(i,1)},true);
 document.addEventListener('input',e=>{const el=e.target;if(!el||!el.dataset||!el.dataset.drvname)return;const D=drivers()[el.value.trim()];if(!D)return;const id=el.dataset.drvname,ph=document.getElementById('ph-'+id),co=document.getElementById('dc-'+id);if(ph&&D.phone)ph.value=fmtPh(D.phone);if(co&&D.co&&!co.value)co.value=D.co});
 document.addEventListener('keydown',e=>{const el=e.target;if(e.key==='Enter'&&el&&el.dataset&&el.dataset.drventer){e.preventDefault();document.querySelector(`[data-phone="${el.dataset.drventer}"]`)?.click()}});
+/* city dropdown: pick with the pointer before the input loses focus; close when leaving the field */
+document.addEventListener('pointerdown',e=>{const b=e.target.closest&&e.target.closest('[data-acpick]');if(!b)return;e.preventDefault();const i=b.dataset.acpick,inp=document.getElementById('pc-'+i);if(!inp)return;
+  inp.value=b.dataset.c;inp.dispatchEvent(new Event('input',{bubbles:true}));const box=document.getElementById('pcs-'+i);if(box)box.hidden=true;inp.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(()=>document.getElementById('pa-'+i)?.focus(),60)});
+document.addEventListener('focusout',e=>{if(!e.target.dataset||e.target.dataset.pcity==null)return;const i=e.target.dataset.pcity;setTimeout(()=>{const box=document.getElementById('pcs-'+i);if(box&&!box.contains(document.activeElement)){box.hidden=true;document.getElementById('pc-'+i)?.setAttribute('aria-expanded','false')}},150)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&e.target.dataset&&e.target.dataset.pcity!=null){const b=document.getElementById('pcs-'+e.target.dataset.pcity);if(b)b.hidden=true}});
 document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a[data-smsgo]');if(!a)return;const[rid,p]=a.dataset.smsgo.split('|'),r=S.rides.find(x=>x.id===rid);
   if(r&&r.sms){r.sms.sent={...(r.sms.sent||{}),[p]:Date.now()};save();setTimeout(render,400)}});
 document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{localStorage.removeItem(KEY);sessionStorage.clear()}catch(_){}location.reload();return}
@@ -2565,7 +2582,7 @@ document.addEventListener('input',e=>{const t=e.target,d=ui.draft;
   if(t.id==='c-search'){const nz=v=>v.replace(/[-–\s'״"׳]/g,'').replace(/יי/g,'י').replace(/וו/g,'ו'),q=t.value.trim(),qn=nz(q);let n=0;document.querySelectorAll('#citylist [data-cq]').forEach(e=>{const on=!q||nz(e.dataset.cq).includes(qn);e.hidden=!on;if(on)n++});const z=document.getElementById('c-none');if(z)z.hidden=n>0;const dc=document.getElementById('drc');if(dc&&!n)dc.value=q;return}
   if(t.id==='f-psearch'){const q=t.value.trim(),mn=paxMin();document.querySelectorAll('#paxlist label').forEach(l=>{const on=l.querySelector('input').checked;l.hidden=q?!l.dataset.q.includes(q):(mn&&!on)});return}
   if(t.dataset.addr){const p=t.dataset.addr;(d.addr??={})[p]=t.value;renderCheck(true);return}
-  if(t.dataset.pcity){const i=+t.dataset.pcity,v=t.value.trim();d.pts[i].city=v;syncDraft(d);const ok=cityOK(v);
+  if(t.dataset.pcity){const i=+t.dataset.pcity,v=t.value.trim();d.pts[i].city=v;syncDraft(d);const ok=cityOK(v);cityAC(i,t.value);
     const h=document.getElementById('pch-'+i);if(h)h.innerHTML=destHint(v);const a=document.getElementById('pa-'+i);if(a){a.disabled=!ok;a.placeholder=!ok?'קודם הזינו עיר מותרת':NOADDR(v)?'לא חובה: נקודת איסוף קבועה':'כתובת מדויקת: רחוב ומספר, או נקודת ציון'}
     const ah=document.getElementById('pah-'+i);if(ah)ah.innerHTML=ok?addrHint(d.pts[i].addr,v):'';renderCheck(true);return}
   if(t.dataset.paddr){const i=+t.dataset.paddr;d.pts[i].addr=t.value;syncDraft(d);const ah=document.getElementById('pah-'+i);if(ah)ah.innerHTML=addrHint(t.value,d.pts[i].city);renderCheck(true);return}
