@@ -611,6 +611,7 @@ function check0(d){ // d: {date,time,dir,dest,pax[]}
   /* pick-ups / drop-offs in the north: only the princesses order those (and the manager) */
   {const nc=[...new Set([d.dest,...(d.stops||[]),...((d.pts||[]).map(x=>x.city))].filter(x=>x&&S.north.includes(x)))];
   /* north: anyone may order, with an explanation, like a night ride; the dispatcher decides when he confirms */
+  if(nc.length&&d.date)add('warn',northDay(d.date)?`⬆ ${d.date.split('-').reverse().slice(0,2).join('.')} מוגדר יום ${NDK[northDay(d.date)]}`:`⚠ ${d.date.split('-').reverse().slice(0,2).join('.')} לא מוגדר יום צפון. הסדרן יבדוק שזו לא מונית במקום תובלה`);
   if(nc.length&&northNeed(d)){if(!(d.northWhy||'').trim())add('block',`${nc.join(', ')} בצפון: כתבו הסבר למה נדרשת נסיעה מהצפון`);
     else add('appr',`⬆ נסיעה מהצפון (${nc.join(', ')}): דורש אישור של הסדרן. ההזמנה תמתין לאישור שלו, וההסבר יופיע אצלו${northWinHit(d)?'. השעה חופפת לטיסה/מיניבוס, אבל ביום שאינו יום צפון זה מותר מהצפון':''}`)}}
   {const used=[...new Set(d.pax.map(p=>ptOf(d,p)))],P=(d.pts||[]).filter(x=>used.includes(x.city)&&!NOADDR(x.city)),nm=x=>x.city||'תחנה';
@@ -805,7 +806,7 @@ function needBox(r,mode,DSP){if(!['pending','awaiting'].includes(r.status))retur
   if(nd.includes('four'))L.push(['👥 4 נוסעים',NEEDS.four,'בוס גדול',ok.length>0]);
   if(nd.includes('night'))L.push(['🌙 נסיעת לילה',r.reason||'איסוף או הגעה בין 23:00 ל־05:00','מנכ״ל',!!r.ceoOk]);
   if(r.northWhy)L.push(['⬆ נסיעה מהצפון',r.northWhy,'סדרן',r.status==='active']);
-  if(DSP&&(r.northWhy||hasNorth(r))){const w=northWinHit(r);L.push(['⚠ לבדוק שזו לא מונית במקום תובלה',w?`יש ${w.kind==='bus'?'מיניבוס':'טיסה'} ב־${w.from} באותו יום`:'','סדרן',false])}
+  if(DSP&&(r.northWhy||hasNorth(r))){const nd0=northDay(ymd(new Date(r.ts)));if(nd0)L.push(['⬆ יום '+NDK[nd0],'היום מוגדר יום צפון בלוח השנה','לידיעה',true]);else{const w=northWinHit(r);L.push(['⚠ זה לא יום צפון · לבדוק שזו לא מונית במקום תובלה',w?`יש ${w.kind==='bus'?'מיניבוס':'טיסה'} ב־${w.from} באותו יום`:'היום לא מוגדר יום צפון בלוח השנה','סדרן',false])}}
   if(r.over)L.push(['📦 חריגה מהסל','ההזמנה מעל הסל החודשי של המבצעים','לידיעה',true]);
   if(!L.length)return '';
   const head=mode==='mgr'?'מה אתה מתבקש לאשר':'מה נדרש לאשר בהזמנה הזו';
