@@ -70,7 +70,8 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .pax label{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--ink);font-weight:400;cursor:pointer}
 .pax label.off{opacity:.5;cursor:not-allowed}
 .pax input{padding:0}
-.pax label[hidden],#citylist .chip[hidden]{display:none}
+.pax label[hidden],#citylist .chip[hidden],#j-newbox[hidden]{display:none}
+.jpick{display:flex;gap:8px;align-items:flex-start;flex-wrap:nowrap;padding:6px 8px;border:1px solid var(--line);border-radius:8px}.jpick input{flex:none;margin-top:3px}
 .pax:not(.min){max-height:260px;overflow-y:auto;padding:2px}
 .tag{display:inline-block;font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px;letter-spacing:.02em;white-space:nowrap}
 .t-business{background:var(--biz-soft);color:var(--biz);border:1px solid var(--biz)}
@@ -1192,6 +1193,8 @@ function renderMerge(c){
 const joinReqs=()=>(S.joinReqs??=[]);
 const rideOwners=r=>[...new Set([...clientsOf(r),r.by].filter(x=>x&&x!==PID))];
 const joinable=(r,cid)=>['awaiting','active'].includes(r.status)&&r.pax.length<4&&r.ts>Date.now()+3*H&&!rideOwners(r).includes(cid)&&!r.house;
+/* the ride's planned stops (city + address, and the planned time there), to pick one when joining */
+const joinStops=r=>{const s=sched(r),seen=new Set(),out=[];r.pax.forEach(p=>{const city=ptOf(r,p),addr=((r.addr||{})[p]||'').trim(),k=city+'|'+addr;if(!city||seen.has(k))return;seen.add(k);const st=s&&s.stops&&s.stops.find(x=>x.pt===city);out.push({city,addr,t:st?st.t:null})});return out};
 const joinIn=cid=>joinReqs().filter(q=>q.status==='pending'&&(()=>{const r=S.rides.find(x=>x.id===q.rid);return r&&rideOwners(r).includes(cid)})());
 function joinPanel(c){if(isP(c.id))return '';const cid=c.id,now=Date.now();
   const L=S.rides.filter(r=>joinable(r,cid)).sort((a,b)=>a.ts-b.ts).slice(0,40);
@@ -1201,12 +1204,15 @@ function joinPanel(c){if(isP(c.id))return '';const cid=c.id,now=Date.now();
   const form=r=>{const free=4-r.pax.length,E=S.employees.filter(e=>e.cid===cid&&!e.removed&&!r.pax.includes(e.id)),f=ui.joinF||{};
     return `<form class="jform" data-jform="${r.id}" style="display:grid;gap:8px;margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px">
       <div class="eyebrow">מי מצטרף? (עד ${free})</div><div class="pax" style="max-height:200px;overflow-y:auto">${E.map(e=>`<label><input type="checkbox" data-jpax="${e.id}"${(f.pax||[]).includes(e.id)?' checked':''}> ${esc(e.name)} ${tag(e.type||'regular')}</label>`).join('')||'<div class="note">אין נוסעים זמינים</div>'}</div>
-      <div class="row" style="gap:8px;flex-wrap:wrap"><label>${r.dir==='to'?'עיר איסוף':'עיר ירידה'}<input id="j-city" list="dest-list" value="${esc(f.city||'')}" autocomplete="off" required></label><label>כתובת<input id="j-addr" value="${esc(f.addr||'')}" placeholder="רחוב ומספר"></label></div>
+      <div class="eyebrow">${r.dir==='to'?'נקודת איסוף':'נקודת ירידה'}</div>
+      <div style="display:grid;gap:4px">${joinStops(r).map((x,k)=>`<label class="jpick"><input type="radio" name="j-pick" value="${k}"${String(f.pick??'0')===String(k)?' checked':''}> <span>📍 ${esc(x.city)}${x.addr?', '+esc(x.addr):''} <span class="note">· ${r.dir==='to'?'איסוף מתוכנן':'ירידה מתוכננת'} ${x.t?hm(new Date(x.t)):''}</span></span></label>`).join('')}
+        <label class="jpick"><input type="radio" name="j-pick" value="new"${f.pick==='new'||!joinStops(r).length?' checked':''}> <span>➕ כתובת אחרת (תחנה נוספת במסלול)</span></label></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"${f.pick==='new'||!joinStops(r).length?'':' hidden'} id="j-newbox"><label>עיר<input id="j-city" list="dest-list" value="${esc(f.city||'')}" autocomplete="off"></label><label>כתובת<input id="j-addr" value="${esc(f.addr||'')}" placeholder="רחוב ומספר"></label></div>
       <label>הערה (לא חובה)<input id="j-note" maxlength="120" value="${esc(f.note||'')}"></label>
       <div class="row" style="gap:6px"><button class="btn primary small">שליחת בקשה להצטרף</button><button type="button" class="btn small" data-jclose="1">ביטול</button></div></form>`};
   return `<section class="panel"><h2>🚕 מוניות של מבצעים אחרים · אפשר להצטרף ${L.length?`<span class="count soft">${L.length}</span>`:''}</h2>
     <div class="note">מוניות עתידיות של מבצעים אחרים עם מקום פנוי (בלי שמות נוסעים). מבקשים להצטרף, המבצעים של המונית מאשרים, ואז הסדרן מאשר מחדש. המונית יורדת מהסל לפי מספר הנוסעים של כל מבצעים.</div>
-    ${inc.length?`<div class="nbox" role="status"><strong>📥 בקשות להצטרף למוניות שלכם (${inc.length})</strong>${inc.map(q=>{const r=S.rides.find(x=>x.id===q.rid);return `<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:6px"><span>${opsLogo(q.cid,16)}<b>${esc(client(q.cid)?.name||'')}</b> מבקשים לצרף ${q.pax.length} ${q.pax.length===1?'נוסע':'נוסעים'} (${esc(q.city)}) למונית ${rTxt(r)}${q.note?` · "${esc(q.note)}"`:''}</span><span class="row" style="gap:6px"><button class="btn small primary" data-jok="${q.id}">מאשרים</button><button class="btn small" data-jno="${q.id}">לא מאשרים</button></span></div>`}).join('')}</div>`:''}
+    ${inc.length?`<div class="nbox" role="status"><strong>📥 בקשות להצטרף למוניות שלכם (${inc.length})</strong>${inc.map(q=>{const r=S.rides.find(x=>x.id===q.rid);return `<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:6px"><span>${opsLogo(q.cid,16)}<b>${esc(client(q.cid)?.name||'')}</b> מבקשים לצרף ${q.pax.length} ${q.pax.length===1?'נוסע':'נוסעים'} (${esc(q.city)}${q.addr?', '+esc(q.addr):''}${q.newStop?' · תחנה נוספת':' · מתחנה קיימת'}) למונית ${rTxt(r)}${q.note?` · "${esc(q.note)}"`:''}</span><span class="row" style="gap:6px"><button class="btn small primary" data-jok="${q.id}">מאשרים</button><button class="btn small" data-jno="${q.id}">לא מאשרים</button></span></div>`}).join('')}</div>`:''}
     ${mine.length?`<div class="eyebrow" style="margin-top:8px">הבקשות שלכם</div>${mine.map(q=>{const r=S.rides.find(x=>x.id===q.rid);return `<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap;margin:4px 0"><span class="note" style="color:var(--ink)">${r?rTxt(r):'הזמנה שנמחקה'} · ${q.pax.map(p=>esc(emp(p)?.name||'')).join(', ')}</span><span class="row" style="gap:6px">${st[q.status]||''}${q.status==='pending'?`<button class="btn small" data-jcancel="${q.id}">ביטול הבקשה</button>`:''}</span></div>`}).join('')}`:''}
     <div style="margin-top:10px">${L.length?L.map(r=>{const free=4-r.pax.length,sent=joinReqs().some(q=>q.rid===r.id&&q.cid===cid&&q.status==='pending');
       return `<div class="sugg"><div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${rTxt(r)}</b><span class="row" style="gap:6px">${rideOwners(r).map(y=>opsLogo(y,18)).join('')}<span class="note">${free} ${free===1?'מקום פנוי':'מקומות פנויים'}</span>${sent?'<span class="st st-pending">ביקשתם להצטרף</span>':ui.joinFor===r.id?'':`<button class="btn small primary" data-jopen="${r.id}">בקשה להצטרף</button>`}</span></div>
@@ -2378,7 +2384,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.dsday){const def=ymd(new Date(Date.now()-5*H)),c=new Date(at(ui.dsDate||def,'12:00'));c.setDate(c.getDate()+ +t.dataset.dsday);const n=ymd(c);ui.dsDate=n>def?def:n;render();return}
   if(t.dataset.dbfread){const n=debrief().find(x=>x.id===t.dataset.dbfread);if(!n)return;n.readAt=Date.now();save();toast('סומן כנקרא');render();return}
   if(t.dataset.editride){const r=S.rides.find(x=>x.id===t.dataset.editride);if(!r||!canEdit(r))return;ui.editRide=r.id;ui.draft=draftFromRide(r);ui.sub='orders';render();scrollTo(0,0);toast('ההזמנה נטענה לטופס. שנו ושמרו');return}
-  if(t.dataset.jopen){ui.joinFor=t.dataset.jopen;ui.joinF={pax:[],city:'',addr:'',note:''};render();return}
+  if(t.dataset.jopen){ui.joinFor=t.dataset.jopen;ui.joinF={pax:[],city:'',addr:'',note:'',pick:'0'};render();return}
   if(t.dataset.jclose){ui.joinFor=null;ui.joinF=null;render();return}
   if(t.dataset.jcancel){const q=joinReqs().find(x=>x.id===t.dataset.jcancel);if(q&&q.status==='pending'){q.status='gone';q.doneAt=Date.now();save();toast('הבקשה בוטלה')}render();return}
   if(t.dataset.jno){const q=joinReqs().find(x=>x.id===t.dataset.jno);if(q){q.status='no';q.doneAt=Date.now();q.byCid=ui.cid;save();toast('הבקשה נדחתה')}render();return}
@@ -2557,11 +2563,11 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
 });
 document.addEventListener('toggle',e=>{const t=e.target;if(t&&t.id==='wk-box'){try{localStorage.setItem('ram-wk-open',t.open?'1':'0')}catch(_){}const l=t.querySelector('summary .note:last-child');if(l)l.textContent=t.open?'▲ צמצום':'▼ פתיחה';return}if(t&&t.id==='ds-box'){try{localStorage.setItem('ram-ds-open',t.open?'1':'0')}catch(_){}const l=t.querySelector('summary .note:last-child');if(l)l.textContent=t.open?'▲ צמצום':'▼ פתיחה'}},true);
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target;
-  if(f.dataset.jform){const r=S.rides.find(x=>x.id===f.dataset.jform),pax=[...f.querySelectorAll('[data-jpax]:checked')].map(x=>x.dataset.jpax),city=f.querySelector('#j-city').value.trim(),addr=f.querySelector('#j-addr').value.trim(),note=f.querySelector('#j-note').value.trim();
+  if(f.dataset.jform){const r=S.rides.find(x=>x.id===f.dataset.jform),pax=[...f.querySelectorAll('[data-jpax]:checked')].map(x=>x.dataset.jpax),note=f.querySelector('#j-note').value.trim(),pk=f.querySelector('[name=j-pick]:checked')?.value??'new',js=r?joinStops(r)[+pk]:null;let city=f.querySelector('#j-city').value.trim(),addr=f.querySelector('#j-addr').value.trim();if(pk!=='new'&&js){city=js.city;addr=js.addr}
     if(!r||!joinable(r,ui.cid)){toast('ההזמנה כבר לא זמינה להצטרפות');ui.joinFor=null;render();return}
     if(!pax.length){toast('בחרו לפחות נוסע אחד');return}if(pax.length>4-r.pax.length){toast(`במונית יש מקום ל־${4-r.pax.length} בלבד`);return}
     if(!cityOK(city)){toast('בחרו עיר מרשימת הערים המאושרות');return}if(!addr&&!NOADDR(city)){toast('כתבו כתובת');return}
-    joinReqs().push({id:'jr'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),rid:r.id,cid:ui.cid,pax,city,addr,note,at:Date.now(),status:'pending'});
+    joinReqs().push({id:'jr'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),rid:r.id,cid:ui.cid,pax,city,addr,note,newStop:pk==='new'&&!points(r).includes(city),at:Date.now(),status:'pending'});
     ui.joinFor=null;ui.joinF=null;save();toast('הבקשה נשלחה למבצעים של המונית');render();return}
   if(f.id==='ceogate'||f.id==='ceogate2'){const v=document.getElementById(f.id==='ceogate'?'ceopw':'ceopw2').value;if(TRAIN||v==='9999'){ui.ceoAuthed=true;if(f.id==='ceogate')ui.ceoOnly=true;render()}else{const e=document.getElementById(f.id==='ceogate'?'ceoerr':'ceoerr2');if(e)e.hidden=false}return}
   if(f.id==='authf'){authSubmit().catch(e=>{AUTH.msg='הכניסה נכשלה: '+(e&&e.message||e);renderAuth()});return}
@@ -2682,7 +2688,7 @@ document.addEventListener('input',e=>{const t=e.target,d=ui.draft;
   if(t.id==='f-reason'){d.reason=t.value;renderCheck(true);return}
   if(t.id==='f-nwhy'){d.northWhy=t.value;renderCheck(true);return}
   if(t.id==='f-base'){d.base=t.value;renderCheck(true);return}
-  if(t.closest&&t.closest('[data-jform]')&&ui.joinF){const f=t.closest('[data-jform]');ui.joinF={pax:[...f.querySelectorAll('[data-jpax]:checked')].map(x=>x.dataset.jpax),city:f.querySelector('#j-city').value,addr:f.querySelector('#j-addr').value,note:f.querySelector('#j-note').value};return}
+  if(t.closest&&t.closest('[data-jform]')&&ui.joinF){const f=t.closest('[data-jform]');const pk=f.querySelector('[name=j-pick]:checked')?.value??'new';const was=ui.joinF.pick;ui.joinF={pax:[...f.querySelectorAll('[data-jpax]:checked')].map(x=>x.dataset.jpax),city:f.querySelector('#j-city').value,addr:f.querySelector('#j-addr').value,note:f.querySelector('#j-note').value,pick:pk};const nb=document.getElementById('j-newbox');if(nb)nb.hidden=pk!=='new';if(pk==='new'&&was!=='new')document.getElementById('j-city')?.focus();return}
   if(t.id==='c-search'){const nz=v=>v.replace(/[-–\s'״"׳]/g,'').replace(/יי/g,'י').replace(/וו/g,'ו'),q=t.value.trim(),qn=nz(q);let n=0;document.querySelectorAll('#citylist [data-cq]').forEach(e=>{const on=!q||nz(e.dataset.cq).includes(qn);e.hidden=!on;if(on)n++});const z=document.getElementById('c-none');if(z)z.hidden=n>0;const dc=document.getElementById('drc');if(dc&&!n)dc.value=q;return}
   if(t.id==='f-psearch'){const q=t.value.trim(),mn=paxMin();document.querySelectorAll('#paxlist label').forEach(l=>{const on=l.querySelector('input').checked;l.hidden=q?!l.dataset.q.includes(q):(mn&&!on)});return}
   if(t.dataset.addr){const p=t.dataset.addr;(d.addr??={})[p]=t.value;renderCheck(true);return}
