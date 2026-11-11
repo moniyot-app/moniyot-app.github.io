@@ -936,8 +936,9 @@ const traffic=ts=>{if(ts==null||isNaN(ts))return 1;const d=new Date(ts),w=d.getD
 /* drive time in minutes. Road ≈ air distance × 1.2 (×1.35 inside a city); average speed by trip length.
    Rush hour slows only the city part of the trip (leaving Gush Dan / a big city), not the whole highway:
    e.g. Tel Aviv → מחנה רמון ≈ 2:05 off-peak, ≈ 2:15 in the morning rush (+5 min spare) */
-const tmin=(a,b,ts)=>{if(a===b)return 0;const A=geoOf(a),B=geoOf(b);if(!A||!B)return 20;const air=hav(A,B),road=air<20?air*1.35+1:air*1.2+3,v=road<15?35:road<50?60:90,
-  base=5+road/v*60,busy=Math.min(base,Math.max(A[0],B[0])>31.6?25:10);return Math.max(5,Math.round(base+(traffic(ts)-1)*busy))};
+const tmin=(a,b,ts)=>{if(a===b)return 0;const A=geoOf(a),B=geoOf(b);if(!A||!B)return 20;const air=hav(A,B),road=air<20?air*1.35+1:air*1.2+3,
+  /* speed rises with distance, but a longer drive never comes out shorter than a nearer one (no jumps between the speed bands) */
+  drv=road<15?road/35*60:road<50?Math.max(road,15/35*60):Math.max(road/90*60,50),base=5+drv,busy=Math.min(base,Math.max(A[0],B[0])>31.6?25:10);return Math.max(5,Math.round(base+(traffic(ts)-1)*busy))};
 const minsOf=x=>tmin(x,BASE,null);
 /* driving between two stations; two stations in the same city still take a city drive (longer in the big cities) */
 const BIGC=new Set(['תל אביב','ירושלים','חיפה','ראשון לציון','פתח תקווה','אשדוד','באר שבע','נתניה','חולון','בני ברק','רמת גן','רחובות','אשקלון','בת ים','הרצליה','כפר סבא','רעננה']);
