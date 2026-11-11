@@ -177,7 +177,7 @@ input.bad,select.bad{border-color:var(--warn);background:var(--warn-soft)}
 .chart:first-child{grid-column:1/-1}
 .chart figcaption{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
 .chart svg{width:100%;height:auto;display:block}
-.chart .gl{stroke:var(--line);stroke-width:1}.chart .ax{fill:var(--muted);font-size:11px;font-family:var(--font-body)}
+.chart .gl{stroke:var(--line);stroke-width:1}.chart .tday{fill:var(--accent)}.chart .ax{fill:var(--muted);font-size:11px;font-family:var(--font-body)}
 .chart .ln{fill:none;stroke:var(--s1);stroke-width:2;stroke-linejoin:round}.chart .area{fill:var(--s1);opacity:.1}
 .chart .dot{fill:var(--s1);stroke:var(--surface);stroke-width:2}.chart .hit{fill:transparent;cursor:crosshair}.chart .hit:hover{fill:color-mix(in srgb,var(--s1) 8%,transparent)}
 .legend{display:flex;gap:6px;align-items:center;font-size:.82rem;color:var(--muted)}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px}
@@ -1804,15 +1804,20 @@ function trackCharts(cur,inM,rows,tot,sum){
   const taxis=sum('n'),singles=sum('s1'),uT=inM.filter(r=>!PZR(r)).length,sPct=uT?inM.filter(r=>!PZR(r)&&r.pax.length===1).length/uT:0,north=sum('no'); /* single rate: units' own orders only, the princesses' are tracked apart */
   const tiles=`<div class="kpis">${[['מוניות החודש',fmt(taxis),''],['הוצאה',money(tot),''],['ממוצע ליום',fmt(taxis/Math.max(1,inM.length?Math.min(nd,cur===ymd(new Date()).slice(0,7)?new Date().getDate():nd):1)),'מוניות'],['נוסע בודד',Math.round(sPct*100)+'%',(sPct>.25?'⚠ מעל יעד 25%':'יעד: עד 25%')+' · בלי על חשבון הבית'],['צפון',taxis?Math.round(north/taxis*100)+'%':'0%','מהמוניות']].map(([l,v,s])=>`<div class="kpi"><div class="eyebrow">${l}</div><div class="kv num">${v}</div><div class="note">${s}</div></div>`).join('')}</div>`;
   // daily line chart
-  const W=640,H=190,pl=34,pr=12,pt=14,pb=26,mx=Math.max(4,...daily),yMax=Math.ceil(mx/4)*4,X=i=>pl+(i/(nd-1))*(W-pl-pr),Y=v=>pt+(1-v/yMax)*(H-pt-pb);
+  const W=640,H=214,pl=34,pr=12,pt=14,pb=50,mx=Math.max(4,...daily),yMax=Math.ceil(mx/4)*4,X=i=>pl+(i/(nd-1))*(W-pl-pr),Y=v=>pt+(1-v/yMax)*(H-pt-pb);
   const pts=daily.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`),last=daily.reduce((a,v,i)=>v?i:a,0);
   const grid=[0,.5,1].map(f=>{const v=Math.round(yMax*f);return `<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${pl-6}" y="${Y(v)+4}" class="ax" text-anchor="end">${v}</text>`}).join('');
-  const xt=daily.map((v,i)=>(i===0||(i+1)%5===0)?`<text x="${X(i)}" y="${H-8}" class="ax" text-anchor="middle">${i+1}</text>`:'').join('');
-  const hits=daily.map((v,i)=>`<rect x="${(X(i)-(W-pl-pr)/(nd-1)/2).toFixed(1)}" y="${pt}" width="${((W-pl-pr)/(nd-1)).toFixed(1)}" height="${H-pt-pb}" class="hit" data-tip="${i+1}.${m} · ${v} מוניות · ${money(dspend[i])}"/>`).join('');
+  const xt=daily.map((v,i)=>(i===0||(i+1)%5===0)?`<text x="${X(i)}" y="${H-32}" class="ax" text-anchor="middle">${i+1}</text>`:'').join('');
+  /* under the axis: which days were taxi days (from the calendar) */
+  const DT=i=>dayType(`${y}-${pad(m)}-${pad(i+1)}`),DTL={free:'יום מוניות',normal:'יום קרקעי',restricted:'יום אווירי'},cw=(W-pl-pr)/(nd-1);
+  const tdays=daily.map((v,i)=>DT(i)==='free'?`<rect x="${(X(i)-cw/2+1).toFixed(1)}" y="${H-24}" width="${(cw-2).toFixed(1)}" height="9" rx="3" class="tday"/>`:'').join('');
+  const tdn=daily.filter((v,i)=>DT(i)==='free').length;
+  const hits=daily.map((v,i)=>`<rect x="${(X(i)-(W-pl-pr)/(nd-1)/2).toFixed(1)}" y="${pt}" width="${((W-pl-pr)/(nd-1)).toFixed(1)}" height="${H-pt-pb}" class="hit" data-tip="${i+1}.${m} · ${DTL[DT(i)]||''} · ${v} מוניות · ${money(dspend[i])}"/>`).join('');
   const line=`<figure class="chart"><figcaption><b>מוניות לפי יום</b><span class="note">${mName(cur)}</span></figcaption>
     <svg viewBox="0 0 ${W} ${H}" role="img" style="direction:ltr" aria-label="מספר מוניות לפי יום בחודש">${grid}${xt}
       <path d="M${pts.join('L')}L${X(nd-1)},${Y(0)}L${X(0)},${Y(0)}Z" class="area"/><path d="M${pts.join('L')}" class="ln"/>
-      <circle cx="${X(last)}" cy="${Y(daily[last])}" r="4.5" class="dot"/>${hits}</svg></figure>`;
+      <circle cx="${X(last)}" cy="${Y(daily[last])}" r="4.5" class="dot"/>${tdays}${hits}</svg>
+    <div class="note" style="display:flex;align-items:center;gap:6px;margin-top:2px"><span style="display:inline-block;width:18px;height:9px;border-radius:3px;background:var(--accent)"></span>יום מוניות (${tdn} ימים החודש). בשאר הימים יש מענה אחר (אווירי או קרקעי)</div></figure>`;
   // stacked bars north/center per ops
   const maxN=Math.max(1,...rows.map(x=>x.n));
   const stack=`<figure class="chart"><figcaption><b>מוניות לפי מבצעים</b><span class="legend"><i style="background:var(--s1)"></i>מרכז <i style="background:var(--s2)"></i>צפון</span></figcaption>
