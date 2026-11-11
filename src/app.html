@@ -1759,7 +1759,7 @@ function weekFile(){const W=weekData(ui.wkOff??0),t=`דוח שבועי ${dmy(W.f
 function trkWeek(){const t=new Date();t.setHours(0,0,0,0);const from=t.getTime()-7*DAY,now=Date.now(),L=S.rides.filter(r=>DONE(r)&&r.ts>=from&&r.ts<=now);
   const one=r=>r.pax.length===1&&!PZR(r);
   const rows=S.clients.map(c=>{const rs=L.filter(r=>clientsOf(r).includes(c.id)),sm=f=>rs.filter(f).reduce((a,r)=>a+share(r,c.id),0);return {name:c.name,id:c.id,n:sm(()=>1),s1:sm(one),no:sm(isNorth),u:sm(r=>!PZR(r)),hn:0,hno:0}});
-  const hs=L.filter(r=>r.house);if(hs.length)rows.push({name:'★ נסיכות · על חשבון הבית',id:PID,n:hs.length,s1:hs.filter(r=>r.pax.length===1).length,no:hs.filter(isNorth).length,u:0,hn:hs.length,hno:hs.filter(isNorth).length});
+  const hs=L.filter(r=>r.house);if(hs.length)rows.push({name:'נסיכות',id:PID,n:hs.length,s1:hs.filter(r=>r.pax.length===1).length,no:hs.filter(isNorth).length,u:0,hn:hs.length,hno:hs.filter(isNorth).length});
   const d=x=>{const z=new Date(x);return `${pad(z.getDate())}.${pad(z.getMonth()+1)}`};
   return {title:`שבוע אחרון · מ־${d(from)} עד ${d(now)}`,cur:`${d(from)}-${d(now)}`,rows}}
 function trackPng(){const T=trkWeek();if(!T)return;const rows=T.rows.slice().sort((a,b)=>b.n-a.n),r1=x=>Math.round(x*10)/10,pc=(a,b)=>b?Math.round(a/b*100):0;
