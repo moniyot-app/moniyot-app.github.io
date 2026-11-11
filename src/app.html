@@ -1763,7 +1763,7 @@ function trkWeek(){const t=new Date();t.setHours(0,0,0,0);const from=t.getTime()
   const d=x=>{const z=new Date(x);return `${pad(z.getDate())}.${pad(z.getMonth()+1)}`};
   return {title:`שבוע אחרון · מ־${d(from)} עד ${d(now)}`,cur:`${d(from)}-${d(now)}`,rows}}
 function trackPng(){const T=trkWeek();if(!T)return;const rows=T.rows.slice().sort((a,b)=>b.n-a.n),r1=x=>Math.round(x*10)/10,pc=(a,b)=>b?Math.round(a/b*100):0;
-  const W=1600,H=1100,cv=document.createElement('canvas');cv.width=W*2;cv.height=H*2;const g=cv.getContext('2d');g.scale(2,2);const F=getComputedStyle(document.body).fontFamily||'sans-serif';
+  const W=1600,H=1140,cv=document.createElement('canvas');cv.width=W*2;cv.height=H*2;const g=cv.getContext('2d');g.scale(2,2);const F=getComputedStyle(document.body).fontFamily||'sans-serif';
   const BLUE='#2a78d6',ORANGE='#eb6834',NORTH='#7c5cdb',INK='#1f2a44',MUTE='#6b7280',GRID='#e8ebf1',BG='#f5f7fb';
   const rr=(x,y,w,h,r,c)=>{g.fillStyle=c;g.beginPath();if(g.roundRect)g.roundRect(x,y,w,h,r);else g.rect(x,y,w,h);g.fill()};
   g.direction='rtl';rr(0,0,W,H,0,BG);rr(40,40,W-80,H-80,28,'#ffffff');
@@ -1780,7 +1780,7 @@ function trackPng(){const T=trkWeek();if(!T)return;const rows=T.rows.slice().sor
   const lg=(x,c,t)=>{rr(x-22,354,22,22,6,c);g.fillStyle=INK;g.font=`600 21px ${F}`;g.textAlign='right';g.fillText(t,x-32,372);return x-32-g.measureText(t).width-40};
   let lx=lg(W-90,BLUE,'2 נוסעים ומעלה');lx=lg(lx,ORANGE,'נוסע בודד');lg(lx,NORTH,'מתוכן לצפון');
   /* plot */
-  const L=150,R=W-90,TOP=470,BOT=H-230,mx=Math.max(4,...rows.map(x=>x.n)),stp=[1,2,5,10,20,25,50,100].find(v=>mx/v<=6)||Math.ceil(mx/6),ymax=Math.ceil(mx/stp)*stp,Y=v=>BOT-(v/ymax)*(BOT-TOP);
+  const L=150,R=W-90,TOP=470,BOT=H-262,mx=Math.max(4,...rows.map(x=>x.n)),stp=[1,2,5,10,20,25,50,100].find(v=>mx/v<=6)||Math.ceil(mx/6),ymax=Math.ceil(mx/stp)*stp,Y=v=>BOT-(v/ymax)*(BOT-TOP);
   g.font=`400 20px ${F}`;g.textAlign='right';g.setLineDash([6,8]);for(let v=0;v<=ymax;v+=stp){g.strokeStyle=v?GRID:'#c9cfdb';g.lineWidth=v?1.5:2;if(!v)g.setLineDash([]);g.beginPath();g.moveTo(L,Y(v));g.lineTo(R,Y(v));g.stroke();g.fillStyle=MUTE;g.fillText(String(v),L-18,Y(v)+7)}g.setLineDash([]);
   const n=Math.max(1,rows.length),slot=(R-L)/n,bw=Math.min(96,slot*.42),nw=Math.max(14,bw*.34),gap=10;
   rows.forEach((x,i)=>{const cx=R-slot*(i+.5),x0=cx-(bw+gap+nw)/2+nw+gap,nx=x0-gap-nw;
@@ -1793,7 +1793,7 @@ function trackPng(){const T=trkWeek();if(!T)return;const rows=T.rows.slice().sor
     g.fillText(l1,cx,BOT+40);if(l2)g.fillText(l2,cx,BOT+66);
     if(x.n){const t1=x.id===PID?`${fmt(x.hn||0)} על חשבון הבית`:`בודד ${pc(x.s1,x.u||0)}%`,t2=`צפון ${pc(x.no||0,x.n)}%`;g.font=`600 18px ${F}`;const pw=Math.min(slot-16,Math.max(g.measureText(t1).width,g.measureText(t2).width)+28),y0=BOT+(l2?80:56);
       rr(cx-pw/2,y0,pw,30,15,'#fdeee6');g.fillStyle='#b4481a';g.fillText(t1,cx,y0+21);rr(cx-pw/2,y0+38,pw,30,15,'#f0ebfc');g.fillStyle='#5a3fb8';g.fillText(t2,cx,y0+59)}});
-  g.textAlign='right';g.fillStyle=MUTE;g.font=`400 18px ${F}`;g.fillText(`הופק ב־${dmy(Date.now())} ${hm(new Date())} · מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים · מונית שעוברת צפונית לנתניה נספרת כצפון`,W-90,H-72);
+  g.textAlign='right';g.fillStyle=MUTE;g.font=`400 18px ${F}`;g.fillText(`הופק ב־${dmy(Date.now())} ${hm(new Date())} · מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים · מונית שעוברת צפונית לנתניה נספרת כצפון`,W-90,H-80);
   cv.toBlob(bl=>{const u=URL.createObjectURL(bl),a=document.createElement('a');a.download=`מוניות-לפי-מבצעים-${T.cur}.png`;a.href=u;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('הגרף ירד למכשיר')},'image/png')}
 function trackCharts(cur,inM,rows,tot,sum){
   const [y,m]=cur.split('-').map(Number),nd=new Date(y,m,0).getDate(),daily=Array(nd).fill(0),dspend=Array(nd).fill(0);
