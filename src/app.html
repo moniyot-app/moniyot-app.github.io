@@ -1749,7 +1749,14 @@ function weekRep(){const off=ui.wkOff??0,W=weekData(off),title=`${dmy(W.from).sl
 function weekFile(){const W=weekData(ui.wkOff??0),t=`דוח שבועי ${dmy(W.from).slice(0,5)}–${dmy(W.to-1).slice(0,5)}`;
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${t}</title><style>body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#1f2a44;background:#fff;line-height:1.5}h1{font-size:1.5rem;margin:0 0 4px}h3{margin:22px 0 6px;border-bottom:2px solid #e8ebf1;padding-bottom:4px}h4{margin:14px 0 4px}.note{color:#6b7280;font-size:.92rem}.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0}.kpi{border:1px solid #e8ebf1;border-radius:10px;padding:8px 10px}.eyebrow{font-size:.8rem;color:#6b7280}.kv{font-size:1.5rem;font-weight:700}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #e8ebf1;padding:6px 8px;text-align:start}.num{font-variant-numeric:tabular-nums}.wn{border-inline-start:3px solid #9aa4b8;padding:4px 10px;margin:6px 0}.wd{border-color:#eb6834}ul{margin:4px 0;padding-inline-start:20px}@media print{body{margin:0}}</style></head><body><h1>רמוניות · ${t}</h1><div class="note">הופק ${dmy(Date.now())} ${hm(new Date())}</div>${weekBody(W,true)}</body></html>`}
 /* downloadable picture: taxis per squadron (unit), with the single-passenger part, as a standing (vertical) bar chart */
-function trackPng(){const T=ui._trk;if(!T)return;const rows=T.rows.slice().sort((a,b)=>b.n-a.n),r1=x=>Math.round(x*10)/10,pc=(a,b)=>b?Math.round(a/b*100):0;
+/* the downloadable graph looks back exactly one week: from the same weekday last week (00:00) until now */
+function trkWeek(){const t=new Date();t.setHours(0,0,0,0);const from=t.getTime()-7*DAY,now=Date.now(),L=S.rides.filter(r=>DONE(r)&&r.ts>=from&&r.ts<=now);
+  const one=r=>r.pax.length===1&&!PZR(r);
+  const rows=S.clients.map(c=>{const rs=L.filter(r=>clientsOf(r).includes(c.id)),sm=f=>rs.filter(f).reduce((a,r)=>a+share(r,c.id),0);return {name:c.name,id:c.id,n:sm(()=>1),s1:sm(one),no:sm(isNorth),u:sm(r=>!PZR(r)),hn:0,hno:0}});
+  const hs=L.filter(r=>r.house);if(hs.length)rows.push({name:'★ נסיכות · על חשבון הבית',id:PID,n:hs.length,s1:hs.filter(r=>r.pax.length===1).length,no:hs.filter(isNorth).length,u:0,hn:hs.length,hno:hs.filter(isNorth).length});
+  const d=x=>{const z=new Date(x);return `${pad(z.getDate())}.${pad(z.getMonth()+1)}`};
+  return {title:`שבוע אחרון · מ־${d(from)} עד ${d(now)}`,cur:`${d(from)}-${d(now)}`,rows}}
+function trackPng(){const T=trkWeek();if(!T)return;const rows=T.rows.slice().sort((a,b)=>b.n-a.n),r1=x=>Math.round(x*10)/10,pc=(a,b)=>b?Math.round(a/b*100):0;
   const W=1600,H=1100,cv=document.createElement('canvas');cv.width=W*2;cv.height=H*2;const g=cv.getContext('2d');g.scale(2,2);const F=getComputedStyle(document.body).fontFamily||'sans-serif';
   const BLUE='#2a78d6',ORANGE='#eb6834',NORTH='#7c5cdb',INK='#1f2a44',MUTE='#6b7280',GRID='#e8ebf1',BG='#f5f7fb';
   const rr=(x,y,w,h,r,c)=>{g.fillStyle=c;g.beginPath();if(g.roundRect)g.roundRect(x,y,w,h,r);else g.rect(x,y,w,h);g.fill()};
@@ -1952,7 +1959,7 @@ function renderDispatcher(){
     const monthName=k=>{const[y,m]=k.split('-');return new Date(+y,+m-1,1).toLocaleDateString('he-IL',{month:'long',year:'numeric'})};
     ui._trk={title:monthName(cur),cur,rows:all.filter(x=>x.n>0||x.c.id!==PID).map(x=>({name:x.c.name,id:x.c.id,n:x.n,s1:x.s1,no:x.no,u:x.u,hn:x.c.id===PID?hRow.n:0,hno:x.c.id===PID?hRow.no:0})),tot};
     body=`${daySum(MGR())}${MGR()?weekRep():''}<div class="meter-top"><div><div class="eyebrow">הוצאות · ${monthName(cur)}</div><div class="big num">${money(tot)}</div></div>
-      <span class="row" style="gap:8px;align-items:end;flex-wrap:wrap"><label>חודש<select id="costmonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${monthName(k)}</option>`).join('')}</select></label><button class="btn small primary" data-trkpng="1">⬇ הורדת גרף: מוניות לפי מבצעים</button></span></div>
+      <span class="row" style="gap:8px;align-items:end;flex-wrap:wrap"><label>חודש<select id="costmonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${monthName(k)}</option>`).join('')}</select></label><button class="btn small primary" data-trkpng="1">⬇ הורדת גרף: מוניות לפי מבצעים · שבוע אחרון</button></span></div>
       <div class="note num">מרכז (נתניה ודרומה): ${money(S.prices.south)} למונית · צפון (צפונה מנתניה): ${money(S.prices.north)} למונית</div>
       ${overPanel(cur,rows)}
       ${trackCharts(cur,inM,all,tot,sum)}<h3>טבלת פירוט</h3>
