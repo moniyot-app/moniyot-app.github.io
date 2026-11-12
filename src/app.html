@@ -1562,6 +1562,8 @@ function createRide(d,c){const nd=[],ex=excOn()?check(d).filter(x=>x.exc):[];if(
     const house=!!(d.house&&isP(ui.cid)),needs=nd.length;const over=!house&&!isP(c.id)&&used(c.id)+1>limit(c);
     const r={id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),by:ui.cid,byRole:ui.role,sec:ui.secOk?'ok':'pending',ts:at(d.date,d.time),dir:d.dir,dest:d.dest,stops:[...d.stops],pax:[...d.pax],reason:isNight(d)?(d.reason||'').trim():'',northWhy:northNeed(d)?(d.northWhy||'').trim():undefined,base:(d.base||'').trim(),lead:d.lead,ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()])),status:needs?'pending':'awaiting',needs:needs?nd:null,excWhy:ex.length?ex.map(x=>x.t.replace(/^⚡ חריגה באישור הבוס הגדול \([^)]*\): /,'')):undefined,excKinds:ex.length?ex.map(x=>x.exc):undefined,over,house:house||undefined,pLate:startTs(d)<Date.now()+3*H||undefined,createdAt:Date.now()};S.rides.push(r);return r}
 /* linking is always at the Ramon camp: a taxi that arrives at the camp, and a taxi that leaves the camp 0–90 minutes after that arrival */
+/* the driver's details on a ride (and, for linked taxis, the same car: the caller copies them to the partner) */
+function setDriver(r,ph,nm,co){if(r.driverPhone===ph&&r.driverName===nm&&(r.driverCo||'')===co)return;r.driverPhone=ph;r.driverName=nm;r.driverCo=co;mark(r,'driver');makeCalLinks(r);const to=r.pax.filter(p=>emp(p)?.phone);r.sms={at:Date.now(),to,missing:r.pax.filter(p=>!emp(p)?.phone),sent:{...((r.sms||{}).sent||{})}}}
 const LINKGAP=90,atRamon=r=>/רמון/.test(baseOf(r));
 function linkGap(a,b){const[x,y]=a.dir==='to'?[a,b]:[b,a];if(x.dir!=='to'||y.dir!=='from'||!atRamon(x)||!atRamon(y))return null;
   const g=Math.round((y.ts-x.ts)/MIN);return g>=0&&g<=LINKGAP?{g,first:x,second:y}:null}
@@ -2339,8 +2341,8 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
     if(ph&&!/^0\d{8,9}$/.test(ph)){toast('מספר הטלפון לא תקין. למשל: 050-1234567');document.getElementById('ph-'+r.id)?.focus();return}
     const co=(document.getElementById('dc-'+r.id)?.value||'').trim();if(ph===(r.driverPhone||'')&&nm===(r.driverName||'')&&co===(r.driverCo||'')){toast('לא שונה דבר');return}
     if(nm)drivers()[nm]={phone:ph||(drivers()[nm]||{}).phone||'',co:co||(drivers()[nm]||{}).co||''};
-    r.driverPhone=ph;r.driverName=nm;r.driverCo=co;mark(r,'driver');makeCalLinks(r);const to=r.pax.filter(p=>emp(p)?.phone);r.sms={at:Date.now(),to,missing:r.pax.filter(p=>!emp(p)?.phone),sent:{...((r.sms||{}).sent||{})}};save();
-    toast('פרטי הנהג נשמרו. המבצעים קיבלו אותם וישלחו הודעה לנוסעים');render();return}
+    setDriver(r,ph,nm,co);const o=linkOf(r);if(o)setDriver(o,ph,nm,co);save();
+    toast('פרטי הנהג נשמרו'+(o?` גם במונית המחוברת (${o.dir==='from'?'יציאה':'הגעה'} ${hm(new Date(o.ts))})`:'')+'. המבצעים קיבלו אותם וישלחו הודעה לנוסעים',o?7000:undefined);render();return}
   if(t.dataset.seen){const r=S.rides.find(x=>x.id===t.dataset.seen);(r.seenBy??=[]).push(ui.cid);save();render();return}
   if(t.dataset.seenall){notices(ui.cid).forEach(r=>(r.seenBy??=[]).push(ui.cid));save();render();return}
   if(t.dataset.grole){ui.grole=t.dataset.grole;render();scrollTo(0,0);return}
@@ -2410,7 +2412,8 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
     if(dl){try{await dl.save({filename:fn,data:html});toast('הדוח ירד');return}catch(_){}}
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));a.download=fn;document.body.appendChild(a);a.click();a.remove();toast('הדוח ירד. אפשר לפתוח ולהדפיס או לשמור כ־PDF')})();return}
   if(t.dataset.link){const[a,b]=t.dataset.link.split('|').map(id=>S.rides.find(x=>x.id===id));if(!a||!b||linkOf(a)||linkOf(b)||!linkGap(a,b)){toast('אי אפשר לחבר את המוניות האלה');render();return}
-    a.link=b.id;b.link=a.id;a.linkAt=b.linkAt=Date.now();save();toast('המוניות חוברו: אותו רכב, עלות של מונית אחת');render();return}
+    a.link=b.id;b.link=a.id;a.linkAt=b.linkAt=Date.now();const hasD=x=>x.driverName||x.driverPhone,src=hasD(a)&&!hasD(b)?[a,b]:hasD(b)&&!hasD(a)?[b,a]:null;if(src)setDriver(src[1],src[0].driverPhone||'',src[0].driverName||'',src[0].driverCo||'');
+    save();toast('המוניות חוברו: אותו רכב, עלות של מונית אחת'+(src?'. פרטי הנהג הועתקו למונית השנייה':''));render();return}
   if(t.dataset.unlink){const a=S.rides.find(x=>x.id===t.dataset.unlink),b=a&&S.rides.find(x=>x.id===a.link);if(a)delete a.link;if(b&&b.link===a.id)delete b.link;save();toast('החיבור בוטל');render();return}
   if(t.dataset.paxmin){const v=!paxMin();ui.paxMin=v;try{localStorage.setItem('ram-paxmin',v?'1':'0')}catch(_){}render();return}
   if(t.dataset.editx){ui.editRide=null;const d=ui.draft;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;render();return}
