@@ -506,10 +506,10 @@ const NOADDR=c=>/רמת[\s\-־]*דוד|עין[\s\-־]*שמר|רמ[״"]ד/.test(c
 const client=id=>id===PID?PRINCESS:S.clients.find(c=>c.id===id);
 const COUNTS=['active','pending','awaiting','late'];
 /* the princesses' 'on the house' taxis are free to be single and are kept out of every single-passenger rate. A princess order charged to a unit counts for that unit like any other */
-const PZR=r=>!!r.house;
+const PZR=r=>!!r.house||!!r.partOf; /* on the house, or a unit's late leaving of a shared taxi (not a single-passenger taxi) */
 const DONE=r=>(r.status==='active'||r.status==='late')&&r.ts<=Date.now(); /* a taxi that already went */
 const inMonth=ts=>{const d=new Date(ts),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()};
-const share=(r,cid)=>r.house?0:r.pax.length?r.pax.filter(p=>emp(p)?.cid===cid).length/r.pax.length:0;
+const share=(r,cid)=>r.house?0:r.pax.length?r.pax.filter(p=>emp(p)?.cid===cid).length/r.pax.length*(r.part??1):0; /* part: a unit that left a shared taxi late pays only its part */
 const used=cid=>S.rides.filter(r=>COUNTS.includes(r.status)&&inMonth(r.ts)).reduce((a,r)=>a+share(r,cid),0);
 /* carry-over: what a unit went over its quota last month comes off this month's basket (computed from the rides, never stored) */
 const prevMonthUsed=cid=>{const n=new Date(),p=new Date(n.getFullYear(),n.getMonth()-1,1);return S.rides.filter(r=>{const d=new Date(r.ts);return COUNTS.includes(r.status)&&d.getFullYear()===p.getFullYear()&&d.getMonth()===p.getMonth()}).reduce((a,r)=>a+share(r,cid),0)};
@@ -522,7 +522,7 @@ const price=r=>isNorth(r)?S.prices.north:S.prices.south;
 const LIVE=r=>r&&!['cancelled','merged'].includes(r.status);
 const linkOf=r=>{const o=r.link&&S.rides.find(x=>x.id===r.link);return o&&o.link===r.id&&LIVE(o)&&LIVE(r)?o:null};
 const linkFree=r=>{const o=linkOf(r);if(!o)return false;const a=price(r),b=price(o);return b>a||(b===a&&(o.ts<r.ts||(o.ts===r.ts&&o.id<r.id)))};
-const cost=r=>linkFree(r)?0:price(r);
+const cost=r=>linkFree(r)?0:price(r)*(r.part??1);
 const spend=cid=>S.rides.filter(r=>COUNTS.includes(r.status)&&inMonth(r.ts)).reduce((a,r)=>a+cost(r)*share(r,cid),0);
 const isFree=ds=>dayType(ds)==='free';
 const isWeekend=ts=>{const d=new Date(ts),w=d.getDay();return w===5||w===6||(w===0&&d.getHours()<6)};
@@ -1573,6 +1573,18 @@ function linkBox(r,mode){const o=linkOf(r),D=mode==='disp';const lbl=x=>`${x.dir
   if(o){const g=linkGap(r,o);return `<div class="tip" style="border-color:var(--accent)">🔗 <b>מחוברת</b> ל${lbl(o)}<div>${g?linkTxt(g):''}</div>אותו רכב, ועלות של מונית אחת לשתיהן${linkFree(r)?' (העלות נספרת במונית השנייה)':''}. שתיהן נספרות בסל של המבצעים.${D?`<div class="row" style="margin-top:6px"><button class="btn small" data-unlink="${r.id}">ניתוק</button></div>`:''}</div>`}
   if(!D)return '';const C=linkCands(r);if(!C.length)return '';
   return `<div class="tip">🔗 <b>אפשר לחבר לאותו רכב:</b>${C.map(x=>`<div class="row" style="justify-content:space-between;gap:6px;margin-top:4px;flex-wrap:wrap"><span>${lbl(x)}<br><span class="note" style="color:var(--ink)">${linkTxt(linkGap(r,x))}</span></span><button class="btn small primary" data-link="${r.id}|${x.id}">חיבור</button></div>`).join('')}<div class="note">מוניות מחוברות עולות כמונית אחת, ועדיין נספרות בסל של המבצעים.</div></div>`}
+/* a shared taxi: passengers of more than one unit. A unit cancels only its own passengers; the taxi goes on for the others */
+const sharedFor=(r,cid)=>!!cid&&!isP(cid)&&r.by!==PID&&clientsOf(r).includes(cid)&&clientsOf(r).some(c=>c!==cid);
+const myPart=(r,cid)=>r.pax.filter(p=>emp(p)?.cid===cid).length;
+function leaveRide(r,cid){noteSingleOk(r);const mine=r.pax.filter(p=>emp(p)?.cid===cid),rest=r.pax.filter(p=>!mine.includes(p));if(!mine.length||!rest.length)return false;
+  const late=lateNow(r),now=Date.now(),who={...cancelActor(),at:now};
+  if(late){const lk=lateKind(r),c=JSON.parse(JSON.stringify(r));Object.assign(c,{id:'p'+now.toString(36)+Math.random().toString(36).slice(2,5),by:cid,pax:mine,lead:mine[0],partOf:r.id,part:mine.length/r.pax.length,status:'late',lateWhy:lk==='line'?'line':r.status==='active'?'ordered':'3h',cancelBy:who,createdAt:now,changes:[],log:[],link:undefined,joined:undefined,sms:undefined,seenBy:[]});S.rides.push(c)}
+  (r.changes??=[]).push({at:now,by:cid,prev:JSON.parse(JSON.stringify({ts:r.ts,pax:r.pax,dest:r.dest,stops:r.stops||[],lead:r.lead,ppt:r.ppt||{},addr:r.addr||{},base:r.base||'',reason:r.reason||'',status:r.status,house:!!r.house}))});
+  r.pax=rest;mine.forEach(p=>{if(r.ppt)delete r.ppt[p];if(r.addr)delete r.addr[p]});if(mine.includes(r.lead))r.lead=rest[0];
+  const used=new Set(rest.map(p=>ptOf(r,p))),pts=points(r).filter(x=>used.has(x));if(pts.length){if(r.dir==='to'){r.dest=pts[0];r.stops=pts.slice(1)}else{r.dest=pts[pts.length-1];r.stops=pts.slice(0,-1)}}
+  (r.left??=[]).push({cid,pax:mine,at:now,late});if(r.status==='active'){r.status='awaiting';r.reconfirm=true}
+  if(rest.length===1&&!r.house&&!needsOf(r).includes('single')){r.needs=[...needsOf(r),'single'];if(!restoreSingleOk(r)&&needBoss(r)&&r.ts>now+3*H)r.status='pending'}
+  mark(r,'changed');return true}
 function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   const DSP=mode==='disp'||mode==='dview';
   /* approval lists (big boss, CEO, exceptions tab) are not grouped by day: show the ride's date on the card */
@@ -1585,12 +1597,12 @@ function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
     if(mode==='ceo')acts=`<button class="btn small primary" data-ceook="${r.id}">אישור</button><button class="btn small danger" data-ceono="${r.id}">דחייה</button>`;
     else if(mode==='pboss')acts=`<button class="btn small primary" data-pok="${r.id}">אישור (נסיכות)</button><button class="btn small danger" data-pno="${r.id}">דחייה</button>`;
     else if(mode==='mgr')acts=`<button class="btn small primary" data-mgrok="${r.id}">${needsOf(r).includes('exc')?'אישור החריגה':'אישור'}</button><button class="btn small danger" data-mgrno="${r.id}">דחייה</button>`;
-    else if(mode==='client')acts=`${canEdit(r)?`<button class="btn small" data-editride="${r.id}">שינוי</button>`:''}<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
+    else if(mode==='client')acts=`${canEdit(r)?`<button class="btn small" data-editride="${r.id}">שינוי</button>`:''}${sharedFor(r,cid)?`<button class="btn small danger" data-leave="${r.id}">הוצאת הנוסעים שלנו</button>`:`<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`}`;
     else if(mode==='dview')acts='';
     else acts=(r.status==='awaiting'?`<button class="btn small primary" data-confirm="${r.id}">אישור</button>`:'')+(mode==='disp'&&['awaiting','active'].includes(r.status)?`<button class="btn small" data-ask="${r.id}">💬 בקשת שינוי</button>`:'')+`<button class="btn small danger" data-cancel="${r.id}">ביטול</button>`;
   }
   const PH=sleepHrs()?'<div style="margin:4px 0;font-weight:700">📞 אחרי 22:00 חובה להתקשר לסדרן ולעדכן על הביטול. בלי שיחה, המונית תיחשב כאילו לא בוטלה.</div>':'';
-  const late=ui.confirm===r.id?(lateNow(r)?`<div class="lateconfirm">${lateWhy(r)}: הביטול ייחשב כאילו הנסיעה יצאה, והיא תיספר בסל.${lateKind(r)==='line'?' זה בניגוד לנהלים.':''}${PH} <button class="btn small danger" data-latecancel="${r.id}">לבטל בכל זאת</button><button class="btn small" data-keep="1">השאר</button></div>`:`<div class="lateconfirm">${PH}<button class="btn small danger" data-nightcancel="${r.id}">התקשרתי לסדרן · לבטל</button><button class="btn small" data-keep="1">השאר</button></div>`):'';
+  const late=ui.confirm==='L:'+r.id?`<div class="lateconfirm">${lateNow(r)?`${lateWhy(r)}: המונית ממשיכה לשאר הנוסעים, והחלק שלכם (${myPart(r,cid)} מתוך ${r.pax.length} נוסעים) ייספר בסל שלכם.`:'המונית ממשיכה לשאר הנוסעים בלי הנוסעים שלכם, ועוברת לסדרן לאישור מחדש.'}${PH}<button class="btn small danger" data-leaveok="${r.id}">${sleepHrs()?'התקשרתי לסדרן · להוציא':'להוציא את הנוסעים שלנו'}</button><button class="btn small" data-keep="1">השאר</button></div>`:ui.confirm===r.id?(lateNow(r)?`<div class="lateconfirm">${lateWhy(r)}: הביטול ייחשב כאילו הנסיעה יצאה, והיא תיספר בסל.${lateKind(r)==='line'?' זה בניגוד לנהלים.':''}${PH} <button class="btn small danger" data-latecancel="${r.id}">לבטל בכל זאת</button><button class="btn small" data-keep="1">השאר</button></div>`:`<div class="lateconfirm">${PH}<button class="btn small danger" data-nightcancel="${r.id}">התקשרתי לסדרן · לבטל</button><button class="btn small" data-keep="1">השאר</button></div>`):'';
   const pre=t=>`<pre style="white-space:pre-wrap;font-family:inherit;color:var(--ink);background:var(--bg);padding:8px 10px;border-radius:6px;margin:4px 0">${t}</pre>`;
   const full=r.pax.map(p=>{const e=emp(p);return `<div>${leadOf(r)===p?'★ ':''}${esc(e?.name||'')} ${tag(e?.type||'regular')} ${opsTag(e?.cid,16)}<span class="note">${esc([ptOf(r,p),(r.addr||{})[p]||''].filter(Boolean).join(', '))}${e?.phone?' · '+fmtPh(e.phone):''}</span></div>`}).join('');
   const drvForm=mode==='disp'&&live&&(r.status==='awaiting'||r.status==='active')?`<div class="row drvf" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px"><span class="note" style="font-weight:700">🚕 נהג:</span><input id="dn-${r.id}" list="drv-names" placeholder="שם הנהג" value="${esc(r.driverName||'')}" style="width:130px" aria-label="שם הנהג" maxlength="40" data-drventer="${r.id}" data-drvname="${r.id}" autocomplete="off"><input id="ph-${r.id}" inputmode="tel" placeholder="טלפון הנהג" value="${esc(r.driverPhone?fmtPh(r.driverPhone):'')}" style="width:130px" aria-label="טלפון הנהג" class="num" data-drventer="${r.id}"><input id="dc-${r.id}" placeholder="חברה" value="${esc(r.driverCo||'')}" style="width:110px" aria-label="שם החברה של הנהג" maxlength="40" data-drventer="${r.id}"><button class="btn small${drv?'':' primary'}" data-phone="${r.id}">${drv?'עדכון':'שמירה ושליחה למבצעים'}</button></div>`:'';
@@ -1834,6 +1846,9 @@ function trackCharts(cur,inM,rows,tot,sum){
 }
 const deleg=(cid,ds)=>{const g=(S.nightDeleg||{})[cid];return !!g&&(!g.until||ds<=g.until)};
 const delegAll=r=>clientsOf(r).every(c=>deleg(c,ymd(new Date(r.ts))));
+/* a single-passenger approval is remembered: if the taxi stops being single and later becomes single again, the units that approved it stay approved */
+const noteSingleOk=r=>{if(needsOf(r).includes('single')&&(r.approvedBy||[]).length)r.singleOkBy=[...new Set([...(r.singleOkBy||[]),...r.approvedBy])]};
+const restoreSingleOk=r=>{const nd=needsOf(r);if(!nd.includes('single')||nd.includes('exc')||(nd.includes('night')&&delegAll(r))||!(r.singleOkBy||[]).length)return false;const ok=clientsOf(r).filter(x=>r.singleOkBy.includes(x));if(!ok.length)return false;r.approvedBy=[...new Set([...(r.approvedBy||[]),...ok])];return true};
 const needBoss=r=>needsOf(r).some(k=>k==='single'||k==='exc'||(k==='night'&&delegAll(r)))&&!clientsOf(r).every(x=>(r.approvedBy||[]).includes(x));
 const needCeo=r=>needsOf(r).includes('night')&&!r.ceoOk&&!delegAll(r);
 /* princess may approve single-passenger exceptions on behalf of some units (e.g. יבא) */
@@ -2402,7 +2417,8 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
     const add=q.pax.filter(p=>!r?.pax.includes(p));
     if(!r||!['awaiting','active'].includes(r.status)||r.ts<Date.now()+LATEMIN*MIN){q.status='gone';q.doneAt=Date.now();save();toast('ההזמנה כבר לא זמינה להצטרפות');render();return}
     if(r.pax.length+add.length>4){toast(`אין מספיק מקום: במונית ${r.pax.length} נוסעים, ואפשר עד 4`);return}
-    (r.changes??=[]).push({at:Date.now(),by:ui.cid,prev:JSON.parse(JSON.stringify({ts:r.ts,pax:r.pax,dest:r.dest,stops:r.stops||[],lead:r.lead,ppt:r.ppt||{},addr:r.addr||{},base:r.base||'',reason:r.reason||'',status:r.status,house:!!r.house}))});
+    noteSingleOk(r);(r.changes??=[]).push({at:Date.now(),by:ui.cid,prev:JSON.parse(JSON.stringify({ts:r.ts,pax:r.pax,dest:r.dest,stops:r.stops||[],lead:r.lead,ppt:r.ppt||{},addr:r.addr||{},base:r.base||'',reason:r.reason||'',status:r.status,house:!!r.house}))});
+    r.needs=needsOf(r).filter(k=>k!=='single');if(!r.needs.length)r.needs=null;
     if(!points(r).includes(q.city))r.stops=[...(r.stops||[]),q.city];
     add.forEach(p=>{r.pax.push(p);(r.ppt??={})[p]=q.city;if(q.addr)(r.addr??={})[p]=q.addr});
     r.joined=[...(r.joined||[]),{cid:q.cid,pax:add,at:Date.now()}];r.status='awaiting';r.reconfirm=true;delete r.latePick;
@@ -2460,7 +2476,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.addstop){const d=ui.draft;d.stops.push(S.destinations.find(x=>x!==d.dest&&!d.stops.includes(x))||S.destinations[0]);render();return}
   if(t.dataset.delstop){ui.draft.stops.splice(+t.dataset.delstop,1);(ui.draft.stopAddr||[]).splice(+t.dataset.delstop,1);render();return}
   if(t.dataset.sub){ui.sub=t.dataset.sub;ui.confirm=null;render();if(t.dataset.tocities)setTimeout(()=>document.getElementById('citylist')?.scrollIntoView({block:'start'}),50);return}
-  if(t.dataset.mgrok){const r=S.rides.find(x=>x.id===t.dataset.mgrok);(r.approvedBy??=[]).push(ui.cid);(r.approvedAt??={})[ui.cid]=Date.now();
+  if(t.dataset.mgrok){const r=S.rides.find(x=>x.id===t.dataset.mgrok);(r.approvedBy??=[]).push(ui.cid);(r.approvedAt??={})[ui.cid]=Date.now();noteSingleOk(r);
     toast(afterApproval(r));mark(r,r.status==='awaiting'?'tod':'bossok');r.upd.by=null;save();render();return}
   if(t.dataset.ologodel){delete client(t.dataset.ologodel).logo;save();toast('הלוגו הוסר. מוצגות ראשי התיבות');render();return}
   if(t.dataset.delegon){const cid=t.dataset.delegon,u=document.getElementById('dg-'+cid)?.value||'';(S.nightDeleg??={})[cid]={until:u,at:Date.now()};save();toast(`הבוס הגדול של ${client(cid).name} מאשר עכשיו נסיעות לילה${u?' עד '+dayLabel(u):''}`);render();return}
@@ -2468,7 +2484,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.ceook){const r=S.rides.find(x=>x.id===t.dataset.ceook);r.ceoOk=true;toast(afterApproval(r));mark(r,r.status==='awaiting'?'tod':'ceook');save();render();return}
   if(t.dataset.ceono){const r=S.rides.find(x=>x.id===t.dataset.ceono);r.status='cancelled';r.cancelBy={k:'ceo',at:Date.now()};mark(r,'ceono');save();toast('נסיעת הלילה נדחתה');render();return}
   if(t.id==='ceologout'){ui.ceoOnly=false;ui.ceoAuthed=false;render();return}
-  if(t.dataset.pok){const r=S.rides.find(x=>x.id===t.dataset.pok),cs=pBossOf(r);if(!cs.length)return;(r.approvedBy??=[]).push(...cs);r.pOk=true;
+  if(t.dataset.pok){const r=S.rides.find(x=>x.id===t.dataset.pok),cs=pBossOf(r);if(!cs.length)return;(r.approvedBy??=[]).push(...cs);r.pOk=true;noteSingleOk(r);
     toast(afterApproval(r));mark(r,r.status==='awaiting'?'tod':'bossok');r.upd.by=null;save();render();return}
   if(t.dataset.pno){const r=S.rides.find(x=>x.id===t.dataset.pno);if(!pBossOf(r).length)return;r.status='cancelled';r.cancelBy={k:'princess',at:Date.now()};mark(r,'bossno');r.upd.by=null;save();toast('הבקשה נדחתה');render();return}
   if(t.dataset.mgrno){const r=S.rides.find(x=>x.id===t.dataset.mgrno);r.status='cancelled';r.cancelBy={k:'boss',cid:ui.cid,at:Date.now()};mark(r,'bossno');r.upd.by=null;save();toast('הבקשה נדחתה');render();return}
@@ -2490,7 +2506,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
       const hs=isP(ui.cid)?!!d.house:!!r.house,ex=excOn()?check(d).filter(x=>x.exc):[],nd=ex.length?['exc']:[];if(ex.length){r.excWhy=ex.map(x=>x.t.replace(/^⚡ חריגה באישור הבוס הגדול \([^)]*\): /,''));r.excKinds=ex.map(x=>x.exc)}else{delete r.excWhy;delete r.excKinds}if(d.pax.length===1&&!(isP(ui.cid)&&hs)&&!perk('single'))nd.push('single');if(isNight(d))nd.push('night');const same=JSON.stringify([...nd].sort())===JSON.stringify([...needsOf(r)].sort());
       (r.changes??=[]).push({at:Date.now(),by:ui.cid,prev:JSON.parse(JSON.stringify({ts:r.ts,pax:r.pax,dest:r.dest,stops:r.stops||[],lead:r.lead,ppt:r.ppt||{},addr:r.addr||{},base:r.base||'',reason:r.reason||'',status:r.status,house:!!r.house}))});
       Object.assign(r,{ts:at(d.date,d.time),dest:d.dest,stops:[...d.stops],pax:[...d.pax],lead:d.lead,base:(d.base||'').trim(),house:hs,northWhy:northNeed(d)?(d.northWhy||'').trim():undefined,reason:isNight(d)?(d.reason||'').trim():'',ppt:Object.fromEntries(d.pax.map(p=>[p,ptOf(d,p)])),addr:Object.fromEntries(d.pax.map(p=>[p,addrOf(d,p).trim()]))});
-      if(!same){r.needs=nd.length?nd:null;r.approvedBy=[];r.ceoOk=false;r.pOk=false}
+      if(!same){noteSingleOk(r);r.needs=nd.length?nd:null;r.approvedBy=[];r.ceoOk=false;r.pOk=false;restoreSingleOk(r)}
       if(r.dispAsk&&r.dispAsk.open)Object.assign(r.dispAsk,{open:false,doneBy:'edit',reply:r.dispAsk.reply||'שינו את ההזמנה',replyAt:Date.now()});
       const pv=r.changes[r.changes.length-1].prev,keep=p=>JSON.stringify([(pv.ppt||{})[p],(pv.addr||{})[p]])===JSON.stringify([r.ppt[p],r.addr[p]]);
       /* only passengers were added to an approved ride (same time, same people and stops for everyone already in it): it stays ordered, the dispatcher just gets a notice */
@@ -2511,6 +2527,9 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
     if(!opsSide||!lateNow(r)){r.status='cancelled';r.cancelBy={...who,at:Date.now()};mark(r,opsSide?'cancelled':'dispcancel');save();toast(opsSide?'ההזמנה בוטלה. לא נספרת בסל':'ההזמנה בוטלה');render()}else{ui.confirm=r.id;render()}return}
   if(t.dataset.latecancel){{const r=S.rides.find(x=>x.id===t.dataset.latecancel);const lk=lateKind(r);r.lateWhy=lk==='line'?'line':r.status==='active'?'ordered':'3h';if(r.lateWhy==='ordered')r.fineAmt=FINE();r.status='late';r.cancelBy={...cancelActor(),at:Date.now()};mark(r,'late')}ui.confirm=null;save();toast('בוטלה. הנסיעה נספרת בסל'+(sleepHrs()?' · 📞 חובה להתקשר לסדרן':''),sleepHrs()?8000:undefined);render();return}
   if(t.dataset.keep){ui.confirm=null;render();return}
+  if(t.dataset.leave){const r=S.rides.find(x=>x.id===t.dataset.leave);if(!r)return;ui.confirm='L:'+r.id;render();return}
+  if(t.dataset.leaveok){const r=S.rides.find(x=>x.id===t.dataset.leaveok);if(!r)return;const late=lateNow(r),n=myPart(r,ui.cid);if(!leaveRide(r,ui.cid)){toast('לא נמצאו נוסעים שלכם במונית');return}ui.confirm=null;save();
+    toast(`${n===1?'הנוסע שלכם הוצא':'הנוסעים שלכם הוצאו'} מהמונית. היא ממשיכה לשאר ועוברת לסדרן לאישור מחדש`+(late?'. החלק שלכם נספר בסל':'')+(sleepHrs()?' · 📞 חובה להתקשר לסדרן':''),8000);render();return}
   if(t.dataset.approve){const r=S.rides.find(x=>x.id===t.dataset.approve);r.status='active';r.confirmedAt=Date.now();mark(r,'confirmed');save();toast('סומן כמאושר');render();return}
   if(t.dataset.mok){const key=t.dataset.mok,[aid,bid,variant]=key.split('|'),a=S.rides.find(x=>x.id===aid),b=S.rides.find(x=>x.id===bid);
     const v=((S.mergeVotes??={})[key]??=[]);(isP(ui.cid)?pVoteCids(a,b):[ui.cid]).forEach(x=>{if(!v.includes(x))v.push(x)});
