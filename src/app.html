@@ -1851,7 +1851,8 @@ const deleg=(cid,ds)=>{const g=(S.nightDeleg||{})[cid];return !!g&&(!g.until||ds
 const delegAll=r=>clientsOf(r).every(c=>deleg(c,ymd(new Date(r.ts))));
 /* a single-passenger approval is remembered: if the taxi stops being single and later becomes single again, the units that approved it stay approved */
 const noteSingleOk=r=>{if(needsOf(r).includes('single')&&(r.approvedBy||[]).length)r.singleOkBy=[...new Set([...(r.singleOkBy||[]),...r.approvedBy])]};
-const restoreSingleOk=r=>{const nd=needsOf(r);if(!nd.includes('single')||nd.includes('exc')||(nd.includes('night')&&delegAll(r))||!(r.singleOkBy||[]).length)return false;const ok=clientsOf(r).filter(x=>r.singleOkBy.includes(x));if(!ok.length)return false;r.approvedBy=[...new Set([...(r.approvedBy||[]),...ok])];return true};
+const restoreSingleOk=r=>{const nd=needsOf(r),past=[...(r.singleOkBy||[]),...Object.keys(r.approvedAt||{})]; /* approvedAt keeps approvals given before this was remembered */
+  if(!nd.includes('single')||nd.includes('exc')||(nd.includes('night')&&delegAll(r))||!past.length)return false;const ok=clientsOf(r).filter(x=>past.includes(x));if(!ok.length)return false;r.approvedBy=[...new Set([...(r.approvedBy||[]),...ok])];return true};
 const needBoss=r=>needsOf(r).some(k=>k==='single'||k==='exc'||(k==='night'&&delegAll(r)))&&!clientsOf(r).every(x=>(r.approvedBy||[]).includes(x));
 const needCeo=r=>needsOf(r).includes('night')&&!r.ceoOk&&!delegAll(r);
 /* princess may approve single-passenger exceptions on behalf of some units (e.g. יבא) */
