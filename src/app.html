@@ -65,6 +65,12 @@ input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid 
 .bar>i{position:absolute;inset-block:0;inset-inline-start:0;background:var(--ok);border-radius:6px}
 .bar>i.warn{background:var(--warn)} .bar>i.bad{background:var(--bad)}
 .bar>b{position:absolute;inset-block:-2px;inset-inline-start:90%;width:2px;background:var(--muted)}
+.smeter{display:grid;gap:6px;margin-top:6px;padding-top:12px;border-top:1px dashed var(--line)}
+.mid{font-family:var(--font-display);font-size:1.4rem;font-weight:700;line-height:1.1}
+.pct{display:inline-block;font-size:.85rem;font-weight:700;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok);vertical-align:middle}
+.pct.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}.pct.bad{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
+.bar.thin{height:8px}
+.scale{position:relative;height:14px;font-size:.72rem;color:var(--muted)}.scale span{position:absolute;transform:translateX(50%)}.scale span:first-child{inset-inline-start:0;transform:none}.scale span:last-child{transform:none}
 /* passengers */
 .pax{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
 .pax label{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--ink);font-weight:400;cursor:pointer}
@@ -731,8 +737,18 @@ function meter(c,extra=0){if(hideQ(c))return '';
       <div class="big num">${fmt(u)} <span style="font-size:1rem;color:var(--muted)">מתוך ${L} מוניות</span></div></div>
       <div class="note num">${u>L?`<b style="color:var(--bad)">חריגה של ${fmt(u-L)} מוניות</b> · תרד מהסל של החודש הבא`:`נשארו ${fmt(L-u)} מוניות`}${carryOf(c)?` · ירדו ${carryOf(c)} מהחודש הקודם`:''}</div></div>
     <div class="bar" role="img" aria-label="ניצול ${Math.round(pct*100)} אחוז"><i class="${cls}" style="width:${Math.min(100,pct*100)}%"></i><b title="90%"></b></div>
+    ${isP(c.id)?'':singleMeter(c)}
   </div>`;
 }
+/* the unit's single-passenger share this month (taxis that already went, on-the-house not counted), against the 25% limit */
+function singleMeter(c){const x=singleDebts(ymd(new Date()).slice(0,7)).find(y=>y.c.id===c.id);if(!x)return '';const p=x.p,P=Math.round(p*100),LIM=25,SC=50;
+  const cls=x.n&&p>LIM/100?'bad':x.n&&p>=.2?'warn':'';
+  const msg=!x.n?'עוד לא יצאו מוניות החודש':x.few?`פחות מ־${DEBTMIN()} מוניות החודש, אין חוב גם מעל 25%`:p>LIM/100?`<b style="color:var(--bad)">מעל 25%: חוב של ${money(FINE())} למנכ״ל</b>`:`עד 25% מותר${p>=.2?' · קרוב לגבול':''}`;
+  return `<div class="smeter"><div class="meter-top"><div><div class="eyebrow">👤 נוסע בודד החודש</div>
+      <div class="mid num">${fmt(x.s1)} <span style="font-size:.9rem;color:var(--muted)">מתוך ${fmt(x.n)} מוניות</span> <span class="pct ${cls}">${x.n?P+'%':'—'}</span></div></div>
+      <div class="note">${msg}</div></div>
+    <div class="bar thin" role="img" aria-label="נוסע בודד ${P} אחוז מתוך גבול של 25 אחוז"><i class="${cls}" style="width:${Math.min(100,p*100/SC*100)}%"></i><b style="inset-inline-start:${LIM/SC*100}%" title="25%"></b></div>
+    <div class="scale num"><span>0%</span><span style="inset-inline-start:${LIM/SC*100}%">25%</span><span style="inset-inline-end:0">50%</span></div></div>`}
 function tag(t){return `<span class="tag t-${t}">${TYPE[t]}</span>`}
 function route(r){const s=(r.stops||[]).map(esc);return (r.dir==='to'?[esc(r.dest),...s,esc(baseOf(r))]:[esc(baseOf(r)),...s,esc(r.dest)]).join(' ← ')}
 const mergedStops=(a,b)=>[...new Set([...(a.stops||[]),...(b.dest!==a.dest?[b.dest]:[]),...(b.stops||[])])].filter(x=>x!==a.dest);
