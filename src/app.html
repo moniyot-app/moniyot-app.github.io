@@ -947,7 +947,7 @@ const driverTxt=r=>[r.driverName?`<b style="color:var(--ink)">${esc(r.driverName
 const points=r=>r.dir==='to'?[r.dest,...(r.stops||[])]:[...(r.stops||[]),r.dest];
 const ptOf=(r,p)=>{const pts=points(r),v=(r.ppt||{})[p];return pts.includes(v)?v:pts[0]};
 const leadOf=r=>r.pax.includes(r.lead)?r.lead:r.pax[0];
-const DWELL=3,SPARE=5;
+const DWELL=3,SPARE=0; /* no extra spare minutes (removed 16.11); stop times are still rounded to 5 minutes */
 /* travel times from real coordinates: road distance from air distance, speed by trip length (city ~35, regional ~60, highway ~95 km/h), adjusted for the hour */
 const BASEGEO=[30.776,34.667]; /* מחנה רמון = מחנה רמון בנגב */
 const geoOf=name=>{name=(name||'').trim();if(!name)return null;if(name===BASE||name.includes('רמון'))return BASEGEO;if(GEO[name])return GEO[name];
@@ -980,7 +980,7 @@ const ptAddrs=r=>{if(r.pts&&r.pts.length)return r.pts.map(x=>x.addr||'');const p
 function sched(r){const T=r.ts!=null?r.ts:at(r.date,r.time),P0=points(r);if(isNaN(T)||!P0.length)return null;
   const AD=ptAddrs(r),Z=P0.map((c,i)=>zoneOf(c,AD[i])),pts=P0;
   const B=baseOf(r),out=[];
-  /* 5 minutes spare on every ride, and every stop time rounded to 5 minutes (pickups earlier, drop-offs later) */
+  /* every stop time rounded to 5 minutes (pickups earlier, drop-offs later) */
   const R5=5*MIN,dn=x=>Math.floor(x/R5)*R5,up=x=>Math.ceil(x/R5)*R5;
   if(r.dir==='to'){let t=T-(tmin(Z[Z.length-1],B,T)+SPARE)*MIN;for(let i=pts.length-1;i>=0;i--){out.unshift({pt:pts[i],t:dn(t)});if(i)t-=(hop(Z[i-1],Z[i],t)+DWELL)*MIN}return {stops:out,start:out[0].t,end:T}}
   let t=T+(tmin(B,Z[0],T)+SPARE)*MIN;pts.forEach((pt,i)=>{if(i)t+=(DWELL+hop(Z[i-1],Z[i],t))*MIN;out.push({pt,t:up(t)})});return {stops:out,start:T,end:out[out.length-1].t}}
