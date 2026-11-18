@@ -2296,7 +2296,7 @@ function rescueMissing(){try{if(!dbOn)return [];const R=JSON.parse(localStorage.
 function rescueBar(){const m=rescueMissing();if(!m.length||!(MGR()||ui.role==='disp'||ui.role==='ops'||ui.role==='princess'))return '';
   return `<section class="panel" style="border:2px solid var(--warn);background:var(--warn-soft,#fff4e0)"><h3 style="margin:0">🛟 נמצאו במכשיר הזה ${m.length} נסיעות שחסרות בשרת</h3><div class="note" style="color:var(--ink)">המכשיר הזה שמר עותק של הנסיעות. ${MGR()?'אפשר להחזיר אותן לשרת בלחיצה, וכולם יראו אותן שוב.':'הורידו את הקובץ ושלחו אותו למנהלת, והיא תחזיר את הנסיעות.'}</div><div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap">${MGR()?`<button class="btn primary" data-rescue="1">↩ החזרת ${m.length} הנסיעות לשרת</button>`:''}<button class="btn" data-rescuedl="1">⬇ הורדת קובץ גיבוי</button></div></section>`}
 /* a city request the dispatcher approved must be in the list (also ones approved before, if the list lost them) */
-function reqCitiesFix(){try{if(!['disp','admin'].includes(ui.role)||(PROD&&!dbOn))return 0;let n=0;dispReq().forEach(q=>{const c=(q.city||'').trim();if(q.kind==='city'&&q.status==='ok'&&c&&!S.destinations.includes(c)){S.destinations.push(c);n++}});if(n)save();return n}catch(_){return 0}}
+function reqCitiesFix(){try{if(!['disp','admin'].includes(ui.role)||(PROD&&!dbOn))return 0;let n=0;dispReq().forEach(q=>{const c=(q.city||'').trim();if(q.kind!=='city'||q.status!=='ok'||!c||q.added)return;if(!S.destinations.includes(c))S.destinations.push(c);q.added=Date.now();n++});if(n)save();return n}catch(_){return 0}} /* each approved city is added once; a city removed later from the list stays removed */
 /* a taxi waiting for a big boss only because it is single again, when its unit's boss already approved it as single before: back to the dispatcher */
 function healSingle(){try{if(PROD&&!dbOn)return false;const staff=['disp','admin','princess'].includes(ui.role);let n=0;
   S.rides.forEach(r=>{if(r.status!=='pending'||r.ts<Date.now()||!needsOf(r).includes('single'))return;if(!staff&&!clientsOf(r).includes(ui.cid))return;
@@ -2588,7 +2588,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.drcity){ui.drCity=t.dataset.drcity;ui.sub='dreq';render();scrollTo(0,0);setTimeout(()=>document.getElementById('drt')?.focus(),50);return}
   if(t.dataset.drdel){S.dispReq=dispReq().filter(x=>x.id!==t.dataset.drdel);save();toast('הבקשה בוטלה');render();return}
   if(t.dataset.drok||t.dataset.drno){const id=t.dataset.drok||t.dataset.drno,q=dispReq().find(x=>x.id===id);if(!q)return;q.note=(document.getElementById('drn-'+id)?.value||'').trim();q.doneAt=Date.now();
-    if(t.dataset.drok){q.status='ok';if(q.kind==='city'&&!S.destinations.includes(q.city))S.destinations.push(q.city)}else q.status='no'; /* a city the dispatcher approves joins the list as "מרכז" */
+    if(t.dataset.drok){q.status='ok';if(q.kind==='city'){if(!S.destinations.includes(q.city))S.destinations.push(q.city);q.added=Date.now()}}else q.status='no'; /* a city the dispatcher approves joins the list as "מרכז" */
     save();toast(q.status==='ok'?(q.kind==='city'?`${q.city} נוספה לערים המותרות`:'סומן כבוצע'):'הבקשה לא אושרה');render();return}
   if(t.dataset.ask){ui.askR=t.dataset.ask;render();setTimeout(()=>document.getElementById('ask-'+t.dataset.ask)?.focus(),30);return}
   if(t.dataset.askx){ui.askR=null;render();return}
