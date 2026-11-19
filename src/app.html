@@ -182,7 +182,14 @@ input.bad,select.bad{border-color:var(--warn);background:var(--warn-soft)}
 .chart{margin:0;border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px;min-width:0;background:var(--surface)}
 .chart:first-child{grid-column:1/-1}
 .chart figcaption{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
-.chart-dl{padding:3px 9px;font-size:.78rem}.cap-foot{text-align:start;font-size:.75rem}
+.chart-dl{padding:3px 9px;font-size:.78rem}
+.cap-wrap{position:fixed;top:0;left:-10000px;width:920px;padding:32px 36px 22px;background:#fff;color:#1f2a44;display:grid;gap:14px;font-size:16px;color-scheme:light}
+.cap-wrap .cap-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:3px solid #f2c94c;padding-bottom:12px}
+.cap-wrap .cap-t{font-family:var(--font-display);font-size:30px;font-weight:800;line-height:1.15}.cap-wrap .cap-s{font-size:17px;color:#6b7280;margin-top:4px}
+.cap-wrap .cap-brand{background:#1f2a44;color:#fff;font-weight:800;padding:6px 14px;border-radius:10px;font-size:16px;white-space:nowrap}
+.cap-wrap .chart{border:0;padding:0;background:#fff;gap:12px}.cap-wrap figcaption{justify-content:flex-start}.cap-wrap figcaption:empty{display:none}
+.cap-wrap .hb{grid-template-columns:200px minmax(0,1fr);font-size:15px}.cap-wrap .hl{white-space:normal;overflow:visible}
+.cap-wrap .note{font-size:14px}.cap-wrap .cap-foot{font-size:13px;color:#6b7280;text-align:start;border-top:1px solid #e8ebf1;padding-top:8px}
 .chart svg{width:100%;height:auto;display:block}
 .chart .gl{stroke:var(--line);stroke-width:1}.chart .tday{fill:var(--accent)}.chart .ax{fill:var(--muted);font-size:11px;font-family:var(--font-body)}
 .chart .ln{fill:none;stroke:var(--s1);stroke-width:2;stroke-linejoin:round}.chart .area{fill:var(--s1);opacity:.1}
@@ -1843,13 +1850,17 @@ function trackPng(){const T=trkWeek();if(!T)return;const rows=T.rows.slice().sor
 const CDL=t=>`<button type="button" class="btn small chart-dl" data-chartdl="${esc(t)}" aria-label="הורדת הגרף כתמונה" title="הורדת הגרף כתמונה">⬇ תמונה</button>`;
 let h2i=null;const h2iLoad=()=>h2i||(h2i=new Promise((ok,no)=>{if(window.htmlToImage)return ok(window.htmlToImage);const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';sc.onload=()=>ok(window.htmlToImage);sc.onerror=()=>{h2i=null;no(new Error('load'))};document.head.appendChild(sc)}));
 async function chartDl(btn){const fig=btn.closest('figure');if(!fig)return;const title=btn.dataset.chartdl||'גרף';btn.disabled=true;
-  const foot=document.createElement('div');foot.className='note cap-foot';foot.textContent=`רמוניות · הופק ${dmy(Date.now())} ${hm(new Date())}`;fig.appendChild(foot);
-  try{const H=await h2iLoad(),bg=getComputedStyle(document.body).backgroundColor||'#fff';
-    const blob=await H.toBlob(fig,{pixelRatio:2,backgroundColor:bg,cacheBust:true,filter:n=>!(n.classList&&n.classList.contains('chart-dl'))});
+  /* a clean copy for the picture: wide, white, with a title and the app's name, so it looks the same from a phone or a computer */
+  const [h,sub]=title.split(' · '),wrap=document.createElement('div');wrap.className='cap-wrap';wrap.setAttribute('dir','rtl');
+  wrap.innerHTML=`<div class="cap-head"><div><div class="cap-t">${esc(h)}</div>${sub?`<div class="cap-s">${esc(sub)}</div>`:''}</div><div class="cap-brand">רמוניות</div></div>`;
+  const c=fig.cloneNode(true);c.querySelectorAll('.chart-dl').forEach(x=>x.remove());const fc=c.querySelector('figcaption');if(fc){const b=fc.querySelector(':scope>b');if(b)b.remove();fc.querySelectorAll('.note').forEach(x=>{if(x.textContent.trim()===(sub||''))x.remove()})}
+  wrap.appendChild(c);const ft=document.createElement('div');ft.className='cap-foot';ft.textContent=`הופק ${dmy(Date.now())} ${hm(new Date())}`;wrap.appendChild(ft);document.body.appendChild(wrap);
+  try{const H=await h2iLoad();await new Promise(r=>requestAnimationFrame(()=>r()));
+    const blob=await H.toBlob(wrap,{pixelRatio:2,backgroundColor:'#ffffff',cacheBust:true,style:{position:'static',left:'0',top:'0',margin:'0'}});
     const fn=title.replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim()+'.png';
     const u=URL.createObjectURL(blob),a=document.createElement('a');a.download=fn;a.href=u;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('הגרף ירד כתמונה')}
   catch(_){toast('לא הצלחתי להוריד את הגרף. בדקו את החיבור לאינטרנט ונסו שוב')}
-  finally{foot.remove();btn.disabled=false}}
+  finally{wrap.remove();btn.disabled=false}}
 function trackCharts(cur,inM,rows,tot,sum){
   const [y,m]=cur.split('-').map(Number),nd=new Date(y,m,0).getDate(),daily=Array(nd).fill(0),dspend=Array(nd).fill(0);
   inM.forEach(r=>{const i=new Date(r.ts).getDate()-1;daily[i]++;dspend[i]+=cost(r)});
