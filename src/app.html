@@ -185,7 +185,8 @@ input.bad,select.bad{border-color:var(--warn);background:var(--warn-soft)}
 .chart-dl{padding:3px 9px;font-size:.78rem}
 .cap-wrap{position:fixed;top:0;left:-10000px;width:920px;padding:32px 36px 22px;background:#fff;color:#1f2a44;display:grid;gap:14px;font-size:16px;color-scheme:light}
 .cap-wrap .cap-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:3px solid #f2c94c;padding-bottom:12px}
-.cap-wrap .cap-t{font-family:var(--font-display);font-size:30px;font-weight:800;line-height:1.15}.cap-wrap .cap-s{font-size:17px;color:#6b7280;margin-top:4px}
+.cap-wrap .cap-head>div:first-child{flex:1 1 auto;min-width:0}.cap-wrap .cap-t{font-family:var(--font-display);font-size:30px;font-weight:800;line-height:38px;white-space:nowrap}.cap-wrap .cap-s{font-size:17px;line-height:24px;color:#6b7280;margin-top:2px;white-space:nowrap}
+.cap-wrap .ologo{box-shadow:none}
 .cap-wrap .cap-brand{background:#1f2a44;color:#fff;font-weight:800;padding:6px 14px;border-radius:10px;font-size:16px;white-space:nowrap}
 .cap-wrap .chart{border:0;padding:0;background:#fff;gap:12px}.cap-wrap figcaption{justify-content:flex-start}.cap-wrap figcaption:empty{display:none}
 .cap-wrap .hb{grid-template-columns:200px minmax(0,1fr);font-size:15px}.cap-wrap .hl{white-space:normal;overflow:visible}
@@ -1853,7 +1854,9 @@ async function chartDl(btn){const fig=btn.closest('figure');if(!fig)return;const
   /* a clean copy for the picture: wide, white, with a title and the app's name, so it looks the same from a phone or a computer */
   const [h,sub]=title.split(' · '),wrap=document.createElement('div');wrap.className='cap-wrap';wrap.setAttribute('dir','rtl');
   wrap.innerHTML=`<div class="cap-head"><div><div class="cap-t">${esc(h)}</div>${sub?`<div class="cap-s">${esc(sub)}</div>`:''}</div><div class="cap-brand">רמוניות</div></div>`;
-  const c=fig.cloneNode(true);c.querySelectorAll('.chart-dl').forEach(x=>x.remove());const fc=c.querySelector('figcaption');if(fc){const b=fc.querySelector(':scope>b');if(b)b.remove();fc.querySelectorAll('.note').forEach(x=>{if(x.textContent.trim()===(sub||''))x.remove()})}
+  const c=fig.cloneNode(true);c.querySelectorAll('.chart-dl').forEach(x=>x.remove());
+  /* uploaded logos: as rounded backgrounds (some browsers draw a picture's corners square in the export) */
+  c.querySelectorAll('img.ologo').forEach(im=>{const sp=document.createElement('span');sp.className='ologo';sp.style.cssText=`width:${im.style.width};height:${im.style.height};background:url("${im.src}") center/cover no-repeat;display:inline-block;border-radius:6px`;im.replaceWith(sp)});const fc=c.querySelector('figcaption');if(fc){const b=fc.querySelector(':scope>b');if(b)b.remove();fc.querySelectorAll('.note').forEach(x=>{if(x.textContent.trim()===(sub||''))x.remove()})}
   wrap.appendChild(c);const ft=document.createElement('div');ft.className='cap-foot';ft.textContent=`הופק ${dmy(Date.now())} ${hm(new Date())}`;wrap.appendChild(ft);document.body.appendChild(wrap);
   try{const H=await h2iLoad();await new Promise(r=>requestAnimationFrame(()=>r()));
     const blob=await H.toBlob(wrap,{pixelRatio:2,backgroundColor:'#ffffff',cacheBust:true,style:{position:'static',left:'0',top:'0',margin:'0'}});
