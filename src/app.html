@@ -182,6 +182,7 @@ input.bad,select.bad{border-color:var(--warn);background:var(--warn-soft)}
 .chart{margin:0;border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px;min-width:0;background:var(--surface)}
 .chart:first-child{grid-column:1/-1}
 .chart figcaption{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+.chart-dl{padding:3px 9px;font-size:.78rem}.cap-foot{text-align:start;font-size:.75rem}
 .chart svg{width:100%;height:auto;display:block}
 .chart .gl{stroke:var(--line);stroke-width:1}.chart .tday{fill:var(--accent)}.chart .ax{fill:var(--muted);font-size:11px;font-family:var(--font-body)}
 .chart .ln{fill:none;stroke:var(--s1);stroke-width:2;stroke-linejoin:round}.chart .area{fill:var(--s1);opacity:.1}
@@ -819,10 +820,10 @@ function actPanel(mo){const E=actEvents(mo);if(!E.length)return `<h3 id="act">�
   const DN=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
   return `<h3 id="act">⏰ זמני פעילות</h3><div class="note">מתי המבצעים מזמינים, משנים ומבטלים, ומתי הסדרן מאשר, מזין נהגים ומטפל בשינויים. לפי החודש שנבחר.</div>
   <div class="kpis" style="margin:8px 0"><div class="kpi"><div class="eyebrow"><span style="color:${OC}">■</span> המבצעים</div><div class="kv num">${nO}</div><div class="note">פעולות · שיא: ${peak(ho)}<br>בשעות השינה (<span dir="ltr">22:00–07:00</span>): ${night(ho)}%</div></div><div class="kpi"><div class="eyebrow"><span style="color:${DC}">■</span> הסדרן</div><div class="kv num">${nD}</div><div class="note">פעולות · שיא: ${peak(hd)}<br>בשעות השינה (<span dir="ltr">22:00–07:00</span>): ${night(hd)}%</div></div></div>
-  <div class="eyebrow">לפי שעה ביום</div><div dir="ltr" style="display:grid;grid-template-columns:repeat(24,1fr);gap:2px;align-items:end;height:140px;padding:6px 0;border-bottom:1px solid var(--line)">${ho.map((v,i)=>`<div style="display:flex;gap:1px;align-items:end;justify-content:center;height:100%">${col(v,mx,OC,`${i}:00 · מבצעים ${v}`)}${col(hd[i],mx,DC,`${i}:00 · סדרן ${hd[i]}`)}</div>`).join('')}</div>
+  <figure class="chart"><figcaption><b>זמני פעילות</b><span class="row" style="gap:6px"><span class="legend"><i style="background:${OC}"></i>מבצעים <i style="background:${DC}"></i>סדרן</span>${CDL('זמני פעילות · '+mName(mo))}</span></figcaption><div class="eyebrow">לפי שעה ביום</div><div dir="ltr" style="display:grid;grid-template-columns:repeat(24,1fr);gap:2px;align-items:end;height:140px;padding:6px 0;border-bottom:1px solid var(--line)">${ho.map((v,i)=>`<div style="display:flex;gap:1px;align-items:end;justify-content:center;height:100%">${col(v,mx,OC,`${i}:00 · מבצעים ${v}`)}${col(hd[i],mx,DC,`${i}:00 · סדרן ${hd[i]}`)}</div>`).join('')}</div>
   <div dir="ltr" style="display:grid;grid-template-columns:repeat(24,1fr);gap:2px" class="note num">${ho.map((_,i)=>`<span style="text-align:center;font-size:.62rem">${i%3===0?String(i).padStart(2,'0'):''}</span>`).join('')}</div>
   <div class="eyebrow" style="margin-top:10px">לפי יום בשבוע</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:90px;padding:6px 0;border-bottom:1px solid var(--line)">${wo.map((v,i)=>`<div style="display:flex;gap:2px;align-items:end;justify-content:center;height:100%">${col(v,mw,OC,`${DN[i]} · מבצעים ${v}`)}${col(wd[i],mw,DC,`${DN[i]} · סדרן ${wd[i]}`)}</div>`).join('')}</div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px" class="note">${DN.map(d=>`<span style="text-align:center">${d}</span>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px" class="note">${DN.map(d=>`<span style="text-align:center">${d}</span>`).join('')}</div></figure>
   <div class="note" style="margin-top:4px">פעולות של הסדרן מתועדות במלואן מהיום. לפני כן נספר רק מועד האישור של כל הזמנה.</div>`}
 /* what this ride needs approved, and by whom: shown to the big boss, the CEO, the princesses and the dispatcher while it waits */
 function needBox(r,mode,DSP){if(!['pending','awaiting'].includes(r.status))return '';if(!(mode==='mgr'||mode==='pboss'||mode==='ceo'||DSP))return '';
@@ -1838,6 +1839,17 @@ function trackPng(){const T=trkWeek();if(!T)return;const rows=T.rows.slice().sor
       rr(cx-pw/2,y0,pw,30,15,'#fdeee6');g.fillStyle='#b4481a';g.fillText(t1,cx,y0+21);rr(cx-pw/2,y0+38,pw,30,15,'#f0ebfc');g.fillStyle='#5a3fb8';g.fillText(t2,cx,y0+59)}});
   g.textAlign='right';g.fillStyle=MUTE;g.font=`400 18px ${F}`;g.fillText(`הופק ב־${dmy(Date.now())} ${hm(new Date())} · מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים · מונית שעוברת צפונית לנתניה נספרת כצפון`,W-90,H-80);
   cv.toBlob(bl=>{const u=URL.createObjectURL(bl),a=document.createElement('a');a.download=`מוניות-לפי-מבצעים-${T.cur}.png`;a.href=u;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('הגרף ירד למכשיר')},'image/png')}
+/* download any chart as a picture (PNG), to show it elsewhere: the button sits in the chart's caption and is left out of the picture */
+const CDL=t=>`<button type="button" class="btn small chart-dl" data-chartdl="${esc(t)}" aria-label="הורדת הגרף כתמונה" title="הורדת הגרף כתמונה">⬇ תמונה</button>`;
+let h2i=null;const h2iLoad=()=>h2i||(h2i=new Promise((ok,no)=>{if(window.htmlToImage)return ok(window.htmlToImage);const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';sc.onload=()=>ok(window.htmlToImage);sc.onerror=()=>{h2i=null;no(new Error('load'))};document.head.appendChild(sc)}));
+async function chartDl(btn){const fig=btn.closest('figure');if(!fig)return;const title=btn.dataset.chartdl||'גרף';btn.disabled=true;
+  const foot=document.createElement('div');foot.className='note cap-foot';foot.textContent=`רמוניות · הופק ${dmy(Date.now())} ${hm(new Date())}`;fig.appendChild(foot);
+  try{const H=await h2iLoad(),bg=getComputedStyle(document.body).backgroundColor||'#fff';
+    const blob=await H.toBlob(fig,{pixelRatio:2,backgroundColor:bg,cacheBust:true,filter:n=>!(n.classList&&n.classList.contains('chart-dl'))});
+    const fn=title.replace(/[\\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim()+'.png';
+    const u=URL.createObjectURL(blob),a=document.createElement('a');a.download=fn;a.href=u;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);toast('הגרף ירד כתמונה')}
+  catch(_){toast('לא הצלחתי להוריד את הגרף. בדקו את החיבור לאינטרנט ונסו שוב')}
+  finally{foot.remove();btn.disabled=false}}
 function trackCharts(cur,inM,rows,tot,sum){
   const [y,m]=cur.split('-').map(Number),nd=new Date(y,m,0).getDate(),daily=Array(nd).fill(0),dspend=Array(nd).fill(0);
   inM.forEach(r=>{const i=new Date(r.ts).getDate()-1;daily[i]++;dspend[i]+=cost(r)});
@@ -1853,19 +1865,19 @@ function trackCharts(cur,inM,rows,tot,sum){
   const tdays=daily.map((v,i)=>DT(i)==='free'?`<rect x="${(X(i)-cw/2+1).toFixed(1)}" y="${H-24}" width="${(cw-2).toFixed(1)}" height="9" rx="3" class="tday"/>`:'').join('');
   const tdn=daily.filter((v,i)=>DT(i)==='free').length;
   const hits=daily.map((v,i)=>`<rect x="${(X(i)-(W-pl-pr)/(nd-1)/2).toFixed(1)}" y="${pt}" width="${((W-pl-pr)/(nd-1)).toFixed(1)}" height="${H-pt-pb}" class="hit" data-tip="${i+1}.${m} · ${DTL[DT(i)]||''} · ${v} מוניות · ${money(dspend[i])}"/>`).join('');
-  const line=`<figure class="chart"><figcaption><b>מוניות לפי יום</b><span class="note">${mName(cur)}</span></figcaption>
+  const line=`<figure class="chart"><figcaption><b>מוניות לפי יום</b><span class="row" style="gap:6px"><span class="note">${mName(cur)}</span>${CDL('מוניות לפי יום · '+mName(cur))}</span></figcaption>
     <svg viewBox="0 0 ${W} ${H}" role="img" style="direction:ltr" aria-label="מספר מוניות לפי יום בחודש">${grid}${xt}
       <path d="M${pts.join('L')}L${X(nd-1)},${Y(0)}L${X(0)},${Y(0)}Z" class="area"/><path d="M${pts.join('L')}" class="ln"/>
       <circle cx="${X(last)}" cy="${Y(daily[last])}" r="4.5" class="dot"/>${tdays}${hits}</svg>
     <div class="note" style="display:flex;align-items:center;gap:6px;margin-top:2px"><span style="display:inline-block;width:18px;height:9px;border-radius:3px;background:var(--accent)"></span>יום מוניות (${tdn} ימים החודש). בשאר הימים יש מענה אחר (אווירי או קרקעי)</div></figure>`;
   // stacked bars north/center per ops
   const maxN=Math.max(1,...rows.map(x=>x.n));
-  const stack=`<figure class="chart"><figcaption><b>מוניות לפי מבצעים</b><span class="legend"><i style="background:var(--s1)"></i>מרכז <i style="background:var(--s2)"></i>צפון</span></figcaption>
+  const stack=`<figure class="chart"><figcaption><b>מוניות לפי מבצעים</b><span class="row" style="gap:6px"><span class="legend"><i style="background:var(--s1)"></i>מרכז <i style="background:var(--s2)"></i>צפון</span>${CDL('מוניות לפי מבצעים · '+mName(cur))}</span></figcaption>
     <div class="hbars">${rows.map(x=>`<div class="hb" data-tip="${esc(x.c.name)} · ${fmt(x.n)} מוניות (מרכז ${fmt(x.ce)}, צפון ${fmt(x.no)}) · ${money(x.s)}"><span class="hl">${opsDot(x.c.id)}${esc(x.c.name)}</span>
       <span class="ht"><span class="seg" style="width:${x.ce/maxN*100}%;background:var(--s1)"></span>${x.no?`<span class="seg" style="width:${x.no/maxN*100}%;background:var(--s2)"></span>`:''}<span class="hv num">${fmt(x.n)} · ${money(x.s)}</span></span></div>`).join('')}</div></figure>`;
   // single-passenger share vs 25%
   const sp=rows.filter(x=>x.c.id!==PID).map(x=>({c:x.c,p:x.u?x.s1/x.u:0,n:x.s1})),sMax=Math.max(.5,...sp.map(x=>x.p));
-  const single=`<figure class="chart"><figcaption><b>נוסע בודד לפי מבצעים</b><span class="legend"><i class="tgt"></i>יעד 25%</span></figcaption>
+  const single=`<figure class="chart"><figcaption><b>נוסע בודד לפי מבצעים</b><span class="row" style="gap:6px"><span class="legend"><i class="tgt"></i>יעד 25%</span>${CDL('נוסע בודד לפי מבצעים · '+mName(cur))}</span></figcaption>
     <div class="hbars">${sp.map(x=>`<div class="hb" data-tip="${esc(x.c.name)} · ${Math.round(x.p*100)}% (${fmt(x.n)} נסיעות עם נוסע בודד)"><span class="hl">${opsDot(x.c.id)}${esc(x.c.name)}</span>
       <span class="ht"><span class="tgtl" style="inset-inline-start:${25/sMax}%"></span><span class="seg" style="width:${x.p/sMax*100}%;background:${x.p>.25?'var(--bad)':'var(--s1)'}"></span><span class="hv num">${Math.round(x.p*100)}%${x.p>.25?' ⚠ מעל היעד':''}</span></span></div>`).join('')}</div></figure>`;
   return tiles+`<div class="charts">${line}${stack}${single}</div>`;
@@ -1895,7 +1907,7 @@ function ceoTrack(){const now=new Date(),cur=ui.ceoMonth||ymd(now).slice(0,7),mk
   const box=(l,v,n)=>`<div class="kpi"><div class="eyebrow">${l}</div><div class="kv num">${v}</div><div class="note">${n||''}</div></div>`;
   return `<section class="panel"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h3 style="margin:0">🌙 מעקב נסיעות לילה</h3><label>חודש<select id="ceomonth">${months.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${mName(k)}</option>`).join('')}</select></label></div>
     <div class="kpis" style="margin-top:8px">${box('נסיעות לילה שהוזמנו',went.length,'לא כולל ביטולים')}${box('אישר המנכ״ל',cnt('ceo'),'')}${box('אישר בוס גדול',cnt('boss'),'בהאצלת סמכות')}${box('ממתינות',cnt('wait'),'')}${box('נדחו',cnt('no'),'')}</div>
-    ${per.length?`<h4 style="margin:10px 0 4px">לפי מבצעים</h4><div class="hbars">${per.map(x=>`<div class="hb" data-tip="${esc(x.c.name)} · ${r1(x.n)} נסיעות לילה"><span class="hl">${opsDot(x.c.id)}${esc(x.c.name)}</span><span class="ht"><span class="seg" style="width:${x.n/mx*100}%;background:${opsColor(x.c.id)}"></span><span class="hv num">${fmt(r1(x.n))}</span></span></div>`).join('')}</div><div class="note">מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים.</div>`:''}
+    ${per.length?`<figure class="chart" style="margin-top:10px"><figcaption><b>נסיעות לילה לפי מבצעים</b>${CDL('נסיעות לילה לפי מבצעים')}</figcaption><div class="hbars">${per.map(x=>`<div class="hb" data-tip="${esc(x.c.name)} · ${r1(x.n)} נסיעות לילה"><span class="hl">${opsDot(x.c.id)}${esc(x.c.name)}</span><span class="ht"><span class="seg" style="width:${x.n/mx*100}%;background:${opsColor(x.c.id)}"></span><span class="hv num">${fmt(r1(x.n))}</span></span></div>`).join('')}</div><div class="note">מונית משותפת מתחלקת בין המבצעים לפי מספר הנוסעים.</div></figure>`:''}
     ${st.length?`<div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>איסוף</th><th>כיוון ומסלול</th><th>מבצעים</th><th>נוסעים</th><th>אישור</th></tr></thead><tbody>${st.map(([r,x])=>`<tr${['no','cx'].includes(x[0])?' style="opacity:.55"':''}><td class="num"><b>${dmy(startTs(r)||r.ts)} ${hm(new Date(startTs(r)||r.ts))}</b></td><td>${r.dir==='to'?'למחנה':'מהמחנה'} · ${esc(route(r))}</td><td>${clientsOf(r).map(c=>opsDot(c)+esc(client(c)?.name||'')).join('<br>')}${r.by===PID?'<br><span class="note">ע״י הנסיכות</span>':''}</td><td>${r.pax.length}</td><td><b style="color:${x[0]==='ceo'||x[0]==='boss'?'var(--ok)':x[0]==='wait'||x[0]==='none'?'var(--warn)':'var(--bad)'}">${x[1]}</b>${r.reason?`<div class="note">${esc(r.reason)}</div>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">אין נסיעות לילה בחודש הזה.</div>'}
     <div class="note">מוצגות נסיעות שסומנו כנסיעות לילה, לפי ההזמנה או לפי העריכה של המנהלת בהיסטוריה. החודש נקבע לפי שעת האיסוף.</div></section>`}
 function renderCeo(){const list=ceoPending();
@@ -2465,6 +2477,7 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
     save();toast('המוניות חוברו: אותו רכב, עלות של מונית אחת'+(src?'. פרטי הנהג הועתקו למונית השנייה':''));render();return}
   if(t.dataset.early){const[id,on]=t.dataset.early.split('|'),r=S.rides.find(x=>x.id===id);if(!r)return;if(on==='1')r.allowEarly={at:Date.now()};else delete r.allowEarly;mark(r,'changed');save();toast(on==='1'?'המבצעים יכולים עכשיו להקדים את השעה (עד שעה)':'ההיתר להקדים בוטל');render();return}
   if(t.dataset.unlink){const a=S.rides.find(x=>x.id===t.dataset.unlink),b=a&&S.rides.find(x=>x.id===a.link);if(a)delete a.link;if(b&&b.link===a.id)delete b.link;save();toast('החיבור בוטל');render();return}
+  if(t.dataset.chartdl!==undefined){chartDl(t);return}
   if(t.dataset.paxmin){const v=!paxMin();ui.paxMin=v;try{localStorage.setItem('ram-paxmin',v?'1':'0')}catch(_){}render();return}
   if(t.dataset.editx){ui.editRide=null;const d=ui.draft;d.pax=[];d.lead=null;d.pts=[{city:S.destinations[0]||'',addr:''}];d.pidx={};d.reason='';d.base='';d.baseOn=false;render();return}
   if(t.dataset.sdpaid){if(!(ui.role==='admin'&&ui.page==='admin'))return;const k=t.dataset.sdpaid;S.singlePaid={...(S.singlePaid||{})};if(S.singlePaid[k])delete S.singlePaid[k];else S.singlePaid[k]=Date.now();save();toast(S.singlePaid[k]?'סומן כשולם':'הסימון בוטל');render();return}
