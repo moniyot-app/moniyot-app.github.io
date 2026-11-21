@@ -672,7 +672,7 @@ function check0(d){ // d: {date,time,dir,dest,pax[]}
   const PR=isP(ui.cid)&&!!d.house; /* princess, on the house only: may order even when a flight or minibus is the alternative, for any passenger type */
   if(PR)add('ok','על חשבון הבית: אין הגבלה של שעות טיסה או מיניבוס');
   else if(perk('win')&&rideBlock(d))add('ok','ההקלה של המבצעים שלכם: מותר להזמין גם בשעות טיסה או מיניבוס');
-  else if(relaxOn(sD,ui.cid)&&rideBlock(d))add('ok','🔓 המנהלת שחררה את המגבלות ליום הזה: מותר להזמין גם בשעות טיסה או מיניבוס');
+  else if(relaxOn(sD,ui.cid,relaxT(d))&&rideBlock(d))add('ok','🔓 המנהלת שחררה את המגבלות ליום הזה: מותר להזמין גם בשעות טיסה או מיניבוס');
   else{const b=rideBlock(d);
     if(b){const nm=b.kind==='bus'?'מיניבוס'+(b.line?' קו '+LINEN[b.line]:''):b.x?KN[b.kind].n:'טיסה',dr=wDir(b),note=b.note&&!/^(טיסה|הגעה|יציאה)$/.test(b.note)?` · ${b.note}`:'';
       const what=b._dep?`יש ${nm} שיוצא מהמחנה ב־${b.from}`:b.kind==='bus'?`יש ${nm} שמגיע למחנה ב־${b.from}`:`יש ${nm} ב־${winTxt({...b,line:''})}${dr?` (${DIRN[dr]})`:''}`;
@@ -683,7 +683,7 @@ function check0(d){ // d: {date,time,dir,dest,pax[]}
   if(dty==='free')add('ok','יום מוניות: כל סוגי הנוסעים זכאים');
   else if(PR)add('ok',`${dty==='restricted'?'יום אווירי':'יום קרקעי'}, על חשבון הבית: כל סוגי הנוסעים זכאים`);
   else if(perk('types'))add('ok',`${dty==='restricted'?'יום אווירי':'יום קרקעי'}: לפי ההקלה של המבצעים שלכם, כל סוגי הנוסעים זכאים`);
-  else if(relaxOn(sD,ui.cid))add('ok','🔓 המנהלת שחררה את המגבלות ליום הזה: כל סוגי הנוסעים זכאים');
+  else if(relaxOn(sD,ui.cid,relaxT(d)))add('ok','🔓 המנהלת שחררה את המגבלות ליום הזה: כל סוגי הנוסעים זכאים');
   else if(dty==='restricted'){if(!types.some(t=>t==='business'||t==='premium'))add('block','יום אווירי: נוסע מסוג תיירים יכול לנסוע רק יחד עם נוסע ביזנס או פרימיום');else add('ok','יום אווירי: הרכב הנוסעים תקין');}
   else{if(!types.includes('business'))add('block','יום קרקעי: חייב להיות במונית לפחות נוסע ביזנס אחד. פרימיום ותיירים יכולים רק להצטרף אליו');else add('ok','יום קרקעי: יש במונית נוסע ביזנס');}
   if(isNight(d)&&!(d.reason||'').trim())add('block','נסיעת לילה: כתבו פירוט של הבקשה, כדי שהמאשר/ת יוכלו להחליט');
@@ -1990,9 +1990,16 @@ function renderCeo(){const list=ceoPending();
 /* the manager frees units from the flight/minibus and passenger-type limits for one day (from the calendar). 3 hours ahead, night, north and single still apply */
 /* kept on each unit (c.relax: days), inside the units list that only the manager may change on the server */
 const relaxUnits=()=>S.clients.filter(c=>!c.hidden&&!isP(c.id));
-const relaxOf=ds=>{const on=relaxUnits().filter(c=>(c.relax||[]).includes(ds)).map(c=>c.id);return on.length&&on.length===relaxUnits().length?['all']:on};
-const relaxOn=(ds,cid)=>!!ds&&!!cid&&!isP(cid)&&(client(cid)?.relax||[]).includes(ds);
-const relaxTxt=ds=>{const L=relaxOf(ds);return !L.length?'':L.includes('all')?'כל המבצעים':L.map(c=>client(c)?.name||'').filter(Boolean).join(', ')};
+/* an entry is "YYYY-MM-DD" (all day) or "YYYY-MM-DD|HH:MM-HH:MM" (only for taxis whose time at the camp is in those hours) */
+const relaxEnt=(c,ds)=>(c&&c.relax||[]).find(x=>x.split('|')[0]===ds);
+const relaxHrs=ds=>{const c=relaxUnits().find(c=>relaxEnt(c,ds));const e=c&&relaxEnt(c,ds);const h=e&&e.split('|')[1];return h?{from:h.split('-')[0],to:h.split('-')[1]}:null};
+const relaxOf=ds=>{const on=relaxUnits().filter(c=>relaxEnt(c,ds)).map(c=>c.id);return on.length&&on.length===relaxUnits().length?['all']:on};
+const relaxOn=(ds,cid,t)=>{if(!ds||!cid||isP(cid))return false;const e=relaxEnt(client(cid),ds);if(!e)return false;const h=e.split('|')[1];if(!h||t==null)return !h||t==null;
+  const m=new Date(t).getHours()*60+new Date(t).getMinutes(),[a,b]=h.split('-').map(toM);return a<=b?m>=a&&m<=b:(m>=a||m<=b)};
+const relaxHrsUI=ds=>relaxHrs(ds)||(ui.relaxPend&&ui.relaxPend.ds===ds?ui.relaxPend.hrs:null);
+const relaxTxt=ds=>{const L=relaxOf(ds),h=relaxHrs(ds);return !L.length?'':(L.includes('all')?'כל המבצעים':L.map(c=>client(c)?.name||'').filter(Boolean).join(', '))+(h?` · ${h.from}–${h.to}`:' · כל היום')};
+/* the taxi's time at the camp (arrival when coming, departure when leaving), as the flight/minibus check uses */
+const relaxT=d=>{try{const s=sched(d);return s?(d.dir==='to'?s.end:s.start):null}catch(_){return null}};
 function calGrid(ro,fixed){const cm=fixed||ui.calMonth||ymd(new Date()).slice(0,7),[y,m]=cm.split('-').map(Number);
     const nDays=new Date(y,m,0).getDate(),lead=new Date(y,m-1,1).getDay(),today=ymd(new Date()),sel=ui.calSel||today;
     const cells=[];for(let i=0;i<lead;i++)cells.push('<div aria-hidden="true"></div>');
@@ -2069,8 +2076,13 @@ function renderDispatcher(){
       <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><span class="note" style="font-weight:700">⬆ צפון:</span>${[['','רגיל (בלי צפון)'],['air','אווירי צפון']].map(([k,l])=>`<button class="btn small${(northDay(sel)?'air':'')===k?' primary':''}" data-nday="${k||'-'}" aria-pressed="${(northDay(sel)?'air':'')===k}">${l}</button>`).join('')}</div>${northDay(sel)?`<div class="note">${NK(sel)}: סימון בלוח השנה בלבד. הזמנה מהצפון אפשרית מכל המבצעים, עם הסבר ובאישור הסדרן.</div>`:''}
       ${sty!=='free'?`<div style="display:grid;gap:6px;background:var(--surface);border:1px solid ${relaxOf(sel).length?'var(--ok)':'var(--line)'};border-radius:10px;padding:8px 12px">
         <b style="font-size:.9rem">🔓 שחרור מגבלות ליום הזה${relaxOf(sel).length?` · <span style="color:var(--ok)">${esc(relaxTxt(sel))}</span>`:''}</b>
-        <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn small${!relaxOf(sel).length?' primary':''}" data-relax="-">בלי שחרור</button><button class="btn small${relaxOf(sel).includes('all')?' primary':''}" data-relax="all">כל המבצעים</button>${S.clients.filter(c=>!c.hidden).map(c=>`<button class="btn small${relaxOf(sel).includes(c.id)?' primary':''}" data-relax="${c.id}" aria-pressed="${relaxOf(sel).includes(c.id)}">${opsTag(c.id,16)}</button>`).join('')}</div>
-        <div class="note">ביום הזה המבצעים שנבחרו יכולים להזמין גם בשעות טיסה או מיניבוס, ובלי מגבלת סוג הנוסעים. מזמינים עדיין 3 שעות מראש, ונסיעות לילה, צפון ונוסע בודד צריכים אישור כרגיל.</div></div>`:''}
+        <div class="eyebrow">אילו מבצעים? (לוחצים כדי לבחור או להוריד)</div>
+        <div class="row" style="gap:6px;flex-wrap:wrap">${relaxUnits().map(c=>{const on=!!relaxEnt(c,sel);return `<button class="btn small${on?' primary':''}" data-relax="${c.id}" aria-pressed="${on}">${on?'✓ ':''}${opsTag(c.id,16)}</button>`}).join('')}</div>
+        <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn small" data-relax="all">${relaxOf(sel).includes('all')?'להוריד את כולם':'לבחור את כולם'}</button>${relaxOf(sel).length?'<button class="btn small" data-relax="-">ביטול השחרור ביום הזה</button>':''}</div>
+        <div class="eyebrow" style="margin-top:4px">באילו שעות?</div>
+        <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><label class="row" style="gap:4px;font-weight:400"><input type="radio" name="rlx-h" data-relaxall="1"${relaxHrsUI(sel)?'':' checked'}> כל היום</label>
+          <label class="row" style="gap:4px;font-weight:400"><input type="radio" name="rlx-h" id="rlx-part"${relaxHrsUI(sel)?' checked':''}> רק בין</label><input type="time" id="rlx-from" value="${relaxHrsUI(sel)?.from||'07:00'}" aria-label="משעה" style="width:110px"> ל־<input type="time" id="rlx-to" value="${relaxHrsUI(sel)?.to||'12:00'}" aria-label="עד שעה" style="width:110px"><button class="btn small" data-relaxhrs="1">שמירת השעות</button></div>
+        <div class="note">השעה נבדקת לפי שעת המונית במחנה: שעת ההגעה בנסיעה למחנה, ושעת היציאה בנסיעה מהמחנה. בזמן השחרור המבצעים שנבחרו יכולים להזמין גם בשעות טיסה או מיניבוס, ובלי מגבלת סוג הנוסעים. מזמינים עדיין 3 שעות מראש, ונסיעות לילה, צפון ונוסע בודד צריכים אישור כרגיל.</div></div>`:''}
       ${sty==='normal'?'<div class="note">יום קרקעי (אוטומטי בשישי–שבת): יש מענה במיניבוסים. מונית רק עם נוסע ביזנס. פרימיום ותיירים יכולים להצטרף אליו.</div>':''}${xWinsOf(sel).length&&!xGen(sel)||sty==='free'?`<div style="display:grid;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px">
         <b style="font-size:.9rem">תוספות: ${xKinds(sel).map(k=>KN[k].i+' '+(k==='bus'?'מיניבוסים':'טיסות תובלה')).join(' · ')}</b>
         <div class="note">${sty==='free'?'ביום מוניות התוספות לא חוסמות מוניות.':'חוסמות מוניות כמו המיניבוסים הרגילים, באותו כיוון. הזכאות לפי סוג היום.'}</div>
@@ -2503,10 +2515,15 @@ document.addEventListener('click',e=>{if(TRAIN&&e.target.id==='trainreset'){try{
   if(t.dataset.smedit){const x=ui.smart.plan[+t.dataset.smedit];ui.editRide=null;ui.draft={...ui.draft,...JSON.parse(JSON.stringify(x.d))};ui.sub='orders';render();scrollTo(0,0);toast('המונית נטענה לטופס ההזמנה. תקנו ושלחו');return}
   if(t.dataset.smbook){const c=client(ui.cid);let n=0;ui.smart.plan.forEach(x=>{if(x.booked||x.block)return;const res=check(x.d);if(res.some(z=>z.k==='block')){x.block=true;return}ui.secOk=false;mergeAlertR(createRide(x.d,c));x.booked=true;n++});
     save();toast(n?`הוזמנו ${n} מוניות. אפשר לראות אותן ב"הזמנות"`:'אין מוניות תקינות להזמנה');render();return}
-  if(t.dataset.relax){const ds=ui.calSel||ymd(new Date()),k=t.dataset.relax,U=relaxUnits(),cur=relaxOf(ds),allOn=cur.includes('all');
-    const set=(c,on)=>{const L=(c.relax||[]).filter(x=>x!==ds&&x>=ymd(new Date(Date.now()-40*DAY)));c.relax=on?[...L,ds]:L;if(!c.relax.length)delete c.relax};
-    if(k==='-')U.forEach(c=>set(c,false));else if(k==='all')U.forEach(c=>set(c,!allOn));else{const c=client(k);if(c)set(c,!(c.relax||[]).includes(ds))}
-    save();toast(L.length?`שחרור מגבלות ב־${dayLabel(ds)}: ${relaxTxt(ds)}`:'השחרור בוטל');render();return}
+  if(t.dataset.relax||t.dataset.relaxhrs||t.dataset.relaxall){const ds=ui.calSel||ymd(new Date()),U=relaxUnits(),old=ymd(new Date(Date.now()-40*DAY));
+    let hrs=relaxHrs(ds)||(ui.relaxPend&&ui.relaxPend.ds===ds?ui.relaxPend.hrs:null);if(t.dataset.relaxhrs){const a=document.getElementById('rlx-from')?.value,b=document.getElementById('rlx-to')?.value;if(!a||!b){toast('בחרו שעת התחלה ושעת סיום');return}hrs={from:a,to:b}}if(t.dataset.relaxall)hrs=null;
+    const ent=()=>hrs?`${ds}|${hrs.from}-${hrs.to}`:ds;
+    const set=(c,on)=>{const L=(c.relax||[]).filter(x=>x.split('|')[0]!==ds&&x.split('|')[0]>=old);c.relax=on?[...L,ent()]:L;if(!c.relax.length)delete c.relax};
+    const k=t.dataset.relax,cur=relaxOf(ds),allOn=cur.includes('all');
+    if(k==='-')U.forEach(c=>set(c,false));else if(k==='all')U.forEach(c=>set(c,!allOn));else if(k){const c=client(k);if(c)set(c,!relaxEnt(c,ds))}
+    else U.forEach(c=>{if(relaxEnt(c,ds))set(c,true)}); /* hours changed: apply to the units already chosen */
+    if((t.dataset.relaxhrs||t.dataset.relaxall)&&!relaxOf(ds).length){toast(hrs?`השעות נשמרו (${hrs.from}–${hrs.to}). עכשיו בחרו מבצעים`:'בחרו מבצעים');ui.relaxPend={ds,hrs};render();return}
+    save();toast(relaxOf(ds).length?`שחרור מגבלות ב־${dayLabel(ds)}: ${relaxTxt(ds)}`:'השחרור בוטל');render();return}
   if(t.dataset.nday){const ds=ui.calSel||ymd(new Date()),k=t.dataset.nday;S.northDays={...(S.northDays||{})};if(k==='-')delete S.northDays[ds];else S.northDays[ds]=k;save();toast(k==='-'?'ביום הזה אין הזמנות מהצפון':`סומן ${NDK[k]}: הנסיכות יכולות להזמין מהצפון ביום הזה`);render();return}
   if(t.dataset.rescue){if(!MGR())return;const m=rescueMissing();m.forEach(r=>S.rides.push(r));save();toast(`${m.length} נסיעות הוחזרו לשרת`);render();return}
   if(t.dataset.rescuedl){let R=null;try{R=JSON.parse(localStorage.getItem(RESK)||'null')}catch(_){}if(!R){toast('אין גיבוי במכשיר הזה');return}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({ramoniyot:1,at:Date.now(),rides:R.rides})],{type:'application/json'}));a.download=`גיבוי-נסיעות-${ymd(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();toast('קובץ הגיבוי ירד. שלחו אותו למנהלת');return}
