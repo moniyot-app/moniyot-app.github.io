@@ -966,31 +966,45 @@ const driverTxt=r=>[r.driverName?`<b style="color:var(--ink)">${esc(r.driverName
 const points=r=>r.dir==='to'?[r.dest,...(r.stops||[])]:[...(r.stops||[]),r.dest];
 const ptOf=(r,p)=>{const pts=points(r),v=(r.ppt||{})[p];return pts.includes(v)?v:pts[0]};
 const leadOf=r=>r.pax.includes(r.lead)?r.lead:r.pax[0];
-const DWELL=3,SPARE=0; /* no extra spare minutes (removed 16.11); stop times are still rounded to 5 minutes */
+const DWELL=2,SPARE=0; /* 2 minutes at each stop to get in */ /* no extra spare minutes (removed 16.11); stop times are still rounded to 5 minutes */
 /* travel times from real coordinates: road distance from air distance, speed by trip length (city ~35, regional ~60, highway ~95 km/h), adjusted for the hour */
 const BASEGEO=[30.776,34.667]; /* מחנה רמון = מחנה רמון בנגב */
 const geoOf=name=>{name=(name||'').trim();if(!name)return null;if(name===BASE||name.includes('רמון'))return BASEGEO;if(GEO[name])return GEO[name];
   const k=Object.keys(GEO).sort((a,b)=>b.length-a.length).find(k=>name.includes(k));if(k)return GEO[k];
-  if(PG[name])return PG[name].g||null;pgAsk(name);return null};
+  const X=(S.geoX||{})[name];if(X)return X; /* found on the map by any device, shared */
+  if(PG[name]&&PG[name].g)return PG[name].g;if(!PG[name])pgAsk(name);return null};
 /* a place we don't know (a base, a junction…): look it up once on the map, keep it on the device */
 const PG=(()=>{try{return JSON.parse(localStorage.getItem('pgeo-v1')||'{}')}catch(_){return {}}})();let pgT=null,pgWant='';
-function pgAsk(n){if(n.length<3||typeof fetch!=='function')return;pgWant=n;clearTimeout(pgT);pgT=setTimeout(async()=>{const q=pgWant;if(PG[q])return;
+/* unknown places are looked up one by one (the map service allows about one request a second), kept on the device and shared with all devices */
+const pgQ=new Set();let pgBusy=false;
+function pgAsk(n){if(!n||n.length<3||typeof fetch!=='function'||PG[n])return;pgQ.add(n);if(!pgBusy)pgRun()}
+async function pgRun(){pgBusy=true;while(pgQ.size){const q=pgQ.values().next().value;pgQ.delete(q);if(PG[q])continue;
   try{const r=await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=il&accept-language=he&q='+encodeURIComponent(q))).json();
     PG[q]=r&&r[0]?{g:[+r[0].lat,+r[0].lon]}:{none:1};try{localStorage.setItem('pgeo-v1',JSON.stringify(PG))}catch(_){}
-    if(document.getElementById('checkpanel')){renderRoute();renderCheck()}}catch(_){}},900)}
+    if(PG[q].g&&S.destinations.includes(q)){S.geoX={...(S.geoX||{}),[q]:PG[q].g};save()}
+    if(document.getElementById('checkpanel')){renderRoute();renderCheck()}else render()}catch(_){}
+  await new Promise(r=>setTimeout(r,1100))}pgBusy=false}
 const hav=(A,B)=>{const R=6371,r=Math.PI/180,dp=(B[0]-A[0])*r,dl=(B[1]-A[1])*r,h=Math.sin(dp/2)**2+Math.cos(A[0]*r)*Math.cos(B[0]*r)*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
+/* traffic factor by day of the week and hour (Israel): Sunday morning and Thursday afternoon are the heaviest; Friday after noon, Saturday and nights are light; Saturday evening has the return traffic */
 const traffic=ts=>{if(ts==null||isNaN(ts))return 1;const d=new Date(ts),w=d.getDay(),m=d.getHours()*60+d.getMinutes();
-  if(m>=1320||m<360)return .8;if(w===5||w===6)return 1;if((m>=390&&m<=570)||(m>=930&&m<=1140))return 1.45;return 1.1};
-/* drive time in minutes. Road ≈ air distance × 1.2 (×1.35 inside a city); average speed by trip length.
-   Rush hour slows only the city part of the trip (leaving Gush Dan / a big city), not the whole highway:
-   e.g. Tel Aviv → מחנה רמון ≈ 2:05 off-peak, ≈ 2:15 in the morning rush (+5 min spare) */
-const tmin=(a,b,ts)=>{if(a===b)return 0;const A=geoOf(a),B=geoOf(b);if(!A||!B)return 20;const air=hav(A,B),road=air<20?air*1.35+1:air*1.2+3,
-  /* speed rises with distance, but a longer drive never comes out shorter than a nearer one (no jumps between the speed bands) */
-  drv=road<15?road/35*60:road<50?Math.max(road,15/35*60):Math.max(road/90*60,50),base=5+drv,busy=Math.min(base,Math.max(A[0],B[0])>31.6?25:10);return Math.max(5,Math.round(base+(traffic(ts)-1)*busy))};
+  if(m>=1290||m<360)return .9;                       /* 21:30–06:00 */
+  if(w===6)return m>=1050?1.2:.9;                     /* Saturday: light, evening return 17:30–21:30 */
+  if(w===5)return m<780?1.05:.9;                      /* Friday: light morning, empty afternoon */
+  if(m>=390&&m<=555)return w===0?1.45:1.35;           /* morning rush 06:30–09:15 */
+  if(m>=930&&m<=1110)return w===4?1.45:1.35;          /* afternoon rush 15:30–18:30 */
+  return 1.05};
+/* drive time in minutes between two places.
+   Road ≈ air distance × 1.35 inside a region (<20 km), × 1.2 further; the Jerusalem / Judea hills wind more (× 1.25 on top).
+   Average speed rises smoothly with the trip length (≈60 km/h for 20 km, ≈90 km/h for 90 km, ≈95 km/h for long trips), so a longer drive is never shorter.
+   Traffic slows only the part leaving the city: up to 15 minutes from Gush Dan and the north, 6 minutes from the south.
+   Off-peak: Tel Aviv → מחנה רמון ≈ 2:08, באר שבע → ≈ 1:00, רעננה → תל אביב ≈ 0:21 (calibrated 25.11 after drivers arrived 20–30 minutes early) */
+const hills=P=>P[1]>34.98&&P[0]>31.3&&P[0]<32.3;
+const tmin=(a,b,ts)=>{if(a===b)return 0;const A=geoOf(a),B=geoOf(b);if(!A||!B)return (A||B)===BASEGEO?100:20; /* not on the map yet: a careful guess (to/from the camp ≈ 1:40) until it is found */const air=hav(A,B);let road=air<20?air*1.35+1:air*1.2+3;if(hills(A)||hills(B))road*=1.25;
+  const v=40+55*(1-Math.exp(-road/40)),base=2+road/v*60,busy=Math.min(base*.4,Math.max(A[0],B[0])>31.6?15:6);return Math.max(4,Math.round(base+(traffic(ts)-1)/.45*busy))};
 const minsOf=x=>tmin(x,BASE,null);
 /* driving between two stations; two stations in the same city still take a city drive (longer in the big cities) */
 const BIGC=new Set(['תל אביב','ירושלים','חיפה','ראשון לציון','פתח תקווה','אשדוד','באר שבע','נתניה','חולון','בני ברק','רמת גן','רחובות','אשקלון','בת ים','הרצליה','כפר סבא','רעננה']);
-const hop=(a,b,ts)=>a===b?(BIGC.has(String(a).replace(/\s*[–—-].*$/,'').trim())?12:7):tmin(a,b,ts);
+const hop=(a,b,ts)=>a===b?(BIGC.has(String(a).replace(/\s*[–—-].*$/,'').trim())?6:4):tmin(a,b,ts); /* another pickup in the same city: 6 minutes in a big city, 4 elsewhere */
 /* Tel Aviv is long: the north (Ramat Aviv, Bavli, Afeka…) and the south (Jaffa, Florentin, Shapira…) are timed as separate places, by the street address */
 const TAN=/רמת אביב|אוניברסיט|בבלי|צהלה|אפקה|נווה אביבים|הדר יוסף|תל ברוך|קרית שאול|רביבים|ל[ -]?ה?צפון|הצפון הישן|הצפון החדש|נמל תל אביב|כוכב הצפון|איינשטיין|ברודצקי|קהילת ונציה|פנחס רוזן|לבנון|מבצע קדש|יהודה המכבי|ויצמן|רוקח|ז[׳']?בוטינסקי|נורדאו|ארלוזורוב|פנקס|ירמיהו|דיזנגוף צפון|בני דן/,
   TAS=/יפו|פלורנטין|נווה צדק|שפירא|התקווה|כפר שלם|נווה עופר|יד אליהו|קיבוץ גלויות|שלמה|סלמה|אילת|הרצל|העלייה|לוינסקי|נווה שאנן|עג[׳']?מי|גבעת עלייה|תל כביר|צהלון|שיכון ל|קריית שלום|ביאליק(?! )|התחנה המרכזית|דרום/;
@@ -1005,8 +1019,10 @@ function sched(r){const T=r.ts!=null?r.ts:at(r.date,r.time),P0=points(r);if(isNa
   let t=T+(tmin(B,Z[0],T)+SPARE)*MIN;pts.forEach((pt,i)=>{if(i)t+=(DWELL+hop(Z[i-1],Z[i],t))*MIN;out.push({pt,t:up(t)})});return {stops:out,start:T,end:out[out.length-1].t}}
 const startTs=r=>{const s=sched(r);return s?s.start:NaN};
 const isNight=r=>{const s=sched(r);return !!s&&[s.start,s.end].some(x=>{const h=new Date(x).getHours();return h>=23||h<5})}; /* night = 23:00–05:00: needs the CEO */
-const schedTxt=r=>{const s=sched(r);if(!s)return '';const p=s.stops.map(x=>`${esc(x.pt)} <b class="num">${hm(new Date(x.t))}</b>`).join(' · ');
-  return r.dir==='to'?`איסוף: ${p} · הגעה ל${esc(baseOf(r))} <b class="num">${hm(new Date(s.end))}</b>`:`יציאה מ${esc(baseOf(r))} <b class="num">${hm(new Date(s.start))}</b> · הורדה: ${p}`};
+/* the card shows only when the taxi starts and when it ends; the stops are listed without their own times (the times still count every stop) */
+const schedTxt=r=>{const s=sched(r);if(!s)return '';const P=s.stops.map(x=>esc(x.pt)),T=t=>`<b class="num">${hm(new Date(t))}</b>`;
+  return r.dir==='to'?`איסוף ראשון: ${P[0]} ${T(s.start)}${P.length>1?` · דרך ${P.slice(1).join(', ')}`:''} · הגעה ל${esc(baseOf(r))} ${T(s.end)}`
+    :`יציאה מ${esc(baseOf(r))} ${T(s.start)} · הורדה: ${P.join(', ')} · סיום ${T(s.end)}`};
 function paxTimes(r,p){const s=sched(r);if(!s)return null;const st=s.stops.find(x=>x.pt===ptOf(r,p));const t=st?st.t:s.start;
   return r.dir==='to'?{start:t,end:s.end}:{start:s.start,end:t}}
 const gUTC=ms=>new Date(ms).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
@@ -1662,7 +1678,7 @@ function rideRow(r,mode,cid){if(mode==='disp'&&RO())mode='dview';
   const wait=DSP&&live&&r.status==='pending'&&ui.tab!=='approvals'; /* still waiting for the big boss / CEO: faded, so nobody books it by mistake */
   return `<div class="ride ${dead||past?'dim':''}"${wait?' style="opacity:.5;filter:grayscale(.6)" title="ממתינה לאישור. לא להזמין מונית עדיין"':''}>${wait?'<div style="grid-column:1/-1;font-weight:700;color:var(--warn)">⏳ ממתינה לאישור בוס גדול / מנכ״ל. לא להזמין מונית עדיין</div>':''}${stripe(cls)}<div class="t num">${SHOWD?`<div style="font-family:var(--font-body);font-size:.72rem;font-weight:700;color:var(--accent-ink,var(--ink));margin-bottom:2px;white-space:nowrap">${dayLabel(ymd(new Date(DSP&&s?s.start:r.ts)))}</div>`:''}${hm(new Date(DSP&&s?s.start:r.ts))}<div class="note" style="font-family:var(--font-body);font-weight:400;font-size:.72rem">${DSP&&s?'איסוף':r.dir==='to'?'הגעה':'יציאה'}</div>${DSP&&s?`<div class="note num" title="שעת ההגעה ליעד" style="font-weight:400;font-size:.72rem;margin-top:4px;opacity:.8">הגעה ${hm(new Date(s.end))}</div>`:''}</div>
     <div style="min-width:0;display:grid;gap:3px"><div class="row" style="gap:6px"><span class="logos">${cls.map(c=>opsTag(c,22)).join('')}</span><span class="route">${route(r)}</span>${isUrgent(r)&&!dead?'<span class="st st-late">⚡</span>':''}${statusOf(r)}${linkOf(r)?`<span class="st st-active">🔗 מחוברת ${linkOf(r).dir==='from'?'ליציאה מרמון':'להגעה לרמון'} ${hm(new Date(linkOf(r).ts))}${linkHalf(r)?' · חצי מונית בסל':''}</span>`:DSP&&mode==='disp'&&!dead&&linkCands(r).length?'<span class="st st-new">🔗 אפשר לחבר</span>':''}${mode==='disp'&&!(dead&&r.status!=='late')?`<span class="note num">${money(cost(r))}</span>`:''}</div>
-      ${r.house?'<span class="st st-active" style="justify-self:start">🏠 על חשבון הבית · לא יורדת מאף סל</span>':''}${DSP&&s?`<div class="r2" style="font-weight:700">🚕 ${r.dir==='to'?`איסוף: ${s.stops.map(x=>`${esc(x.pt)} <span class="num" style="background:var(--accent-soft);padding:1px 6px;border-radius:6px">${hm(new Date(x.t))}</span>`).join(' ← ')}`:`איסוף מ${esc(baseOf(r))} <span class="num" style="background:var(--accent-soft);padding:1px 6px;border-radius:6px">${hm(new Date(s.start))}</span>`}</div>`:''}${r.northWhy&&!needBox(r,mode,DSP)?`<div class="r2" style="color:var(--biz);font-weight:600">⬆ נסיעה מהצפון: ${esc(r.northWhy)}</div>`:''}${DSP&&['awaiting','pending'].includes(r.status)&&(r.northWhy||hasNorth(r))&&!needBox(r,mode,DSP)?(w=>`<div class="r2 ncard" role="alert"><b>⚠ לבדוק שזו לא מונית במקום תובלה</b>${w?` · יש ${w.kind==='bus'?'מיניבוס':'טיסה'} ב־${w.from} באותו יום`:''}</div>`)(northWinHit(r)):''}${expSoon(r)?`<div class="r2" style="color:var(--bad);font-weight:700">⏰ נשארה פחות משעה לאשר: בלי אישור עד ${hm(new Date(startTs(r)-EXPH*H))} ההזמנה תידחה אוטומטית</div>`:r.status==='pending'?`<div class="r2 note">אפשר לאשר עד ${dmy(startTs(r)-EXPH*H)} ${hm(new Date(startTs(r)-EXPH*H))} (3 שעות לפני האיסוף)</div>`:''}${(r.reconfirm||paxNew(r))&&(r.changes||[]).length&&(mode==='disp'||mode==='dview'||mode==='client')&&!dead?chgBox(r,mode):''}${needBox(r,mode,DSP)?needBox(r,mode,DSP):r.excWhy&&r.excWhy.length?`<div class="r2" style="color:var(--warn);font-weight:600">⚡ חריגה מהמגבלות${r.status==='pending'?' · ממתינה לאישור הבוס הגדול':''}: ${r.excWhy.map(esc).join(' · ')}</div>`:''}<div class="note r2">👥 ${names}${s&&!DSP?` · ${r.dir==='to'?'איסוף':'יציאה'} <b class="num">${hm(new Date(s.start))}</b>`:''}${drv?` · 🚕 ${driverTxt(r)}`:''}</div>
+      ${r.house?'<span class="st st-active" style="justify-self:start">🏠 על חשבון הבית · לא יורדת מאף סל</span>':''}${DSP&&s?`<div class="r2" style="font-weight:700">🚕 ${r.dir==='to'?`איסוף: ${esc(s.stops[0].pt)} <span class="num" style="background:var(--accent-soft);padding:1px 6px;border-radius:6px">${hm(new Date(s.start))}</span>${s.stops.length>1?` <span style="font-weight:400">← ${s.stops.slice(1).map(x=>esc(x.pt)).join(' ← ')}</span>`:''}`:`איסוף מ${esc(baseOf(r))} <span class="num" style="background:var(--accent-soft);padding:1px 6px;border-radius:6px">${hm(new Date(s.start))}</span>`}</div>`:''}${r.northWhy&&!needBox(r,mode,DSP)?`<div class="r2" style="color:var(--biz);font-weight:600">⬆ נסיעה מהצפון: ${esc(r.northWhy)}</div>`:''}${DSP&&['awaiting','pending'].includes(r.status)&&(r.northWhy||hasNorth(r))&&!needBox(r,mode,DSP)?(w=>`<div class="r2 ncard" role="alert"><b>⚠ לבדוק שזו לא מונית במקום תובלה</b>${w?` · יש ${w.kind==='bus'?'מיניבוס':'טיסה'} ב־${w.from} באותו יום`:''}</div>`)(northWinHit(r)):''}${expSoon(r)?`<div class="r2" style="color:var(--bad);font-weight:700">⏰ נשארה פחות משעה לאשר: בלי אישור עד ${hm(new Date(startTs(r)-EXPH*H))} ההזמנה תידחה אוטומטית</div>`:r.status==='pending'?`<div class="r2 note">אפשר לאשר עד ${dmy(startTs(r)-EXPH*H)} ${hm(new Date(startTs(r)-EXPH*H))} (3 שעות לפני האיסוף)</div>`:''}${(r.reconfirm||paxNew(r))&&(r.changes||[]).length&&(mode==='disp'||mode==='dview'||mode==='client')&&!dead?chgBox(r,mode):''}${needBox(r,mode,DSP)?needBox(r,mode,DSP):r.excWhy&&r.excWhy.length?`<div class="r2" style="color:var(--warn);font-weight:600">⚡ חריגה מהמגבלות${r.status==='pending'?' · ממתינה לאישור הבוס הגדול':''}: ${r.excWhy.map(esc).join(' · ')}</div>`:''}<div class="note r2">👥 ${names}${s&&!DSP?` · ${r.dir==='to'?'איסוף':'יציאה'} <b class="num">${hm(new Date(s.start))}</b>`:''}${drv?` · 🚕 ${driverTxt(r)}`:''}</div>
       ${askBox(r,mode,dead)}${r.reason&&(mode==='ceo'||mode==='mgr')?`<div class="reason">📝 ${esc(r.reason)}</div>`:''}${live&&(mode==='disp'||mode==='client')?earlyBox(r,mode):''}${drvForm}${more}</div>
     <div class="acts">${acts}</div>${late}</div>`;
 }
