@@ -782,7 +782,7 @@ const lateNow=r=>lateKind(r)!=='';
 const lineCut=r=>{const d=new Date(depOf(r));d.setDate(d.getDate()-1);d.setHours(22,0,0,0);return d.getTime()}; /* free cancellation and changes until 22:00 the evening before */
 const lateKind=r=>depOf(r)-Date.now()<3*H?'3h':''; /* after 22:00 the evening before is not late (it only needs a phone call to the dispatcher); late = less than 3 hours before */
 const FINE=()=>S.prices&&S.prices.fine!=null?S.prices.fine:1000;
-const DEBTMIN=()=>S.prices&&S.prices.debtMin!=null?S.prices.debtMin:5; /* fewer taxis than this in a month: no single-passenger debt */
+const DEBTMIN=()=>2; /* the 25% single-passenger debt applies only to a unit with at least 2 taxis in the month (25.11) */ /* fewer taxis than this in a month: no single-passenger debt */
 const fineOf=r=>r.fineAmt!=null?r.fineAmt:FINE();
 const lateWhy=r=>lateKind(r)==='line'?'אחרי 22:00 בערב שלפני הנסיעה':r.status==='active'?'פחות מ־3 שעות לפני היציאה, והמונית כבר הוזמנה':'פחות מ־3 שעות לפני היציאה';
 const dmy=ms=>{const d=new Date(ms);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`};
