@@ -985,22 +985,27 @@ async function pgRun(){pgBusy=true;while(pgQ.size){const q=pgQ.values().next().v
     if(document.getElementById('checkpanel')){renderRoute();renderCheck()}else render()}catch(_){}
   await new Promise(r=>setTimeout(r,1100))}pgBusy=false}
 const hav=(A,B)=>{const R=6371,r=Math.PI/180,dp=(B[0]-A[0])*r,dl=(B[1]-A[1])*r,h=Math.sin(dp/2)**2+Math.cos(A[0]*r)*Math.cos(B[0]*r)*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
-/* traffic factor by day of the week and hour (Israel): Sunday morning and Thursday afternoon are the heaviest; Friday after noon, Saturday and nights are light; Saturday evening has the return traffic */
-const traffic=ts=>{if(ts==null||isNaN(ts))return 1;const d=new Date(ts),w=d.getDay(),m=d.getHours()*60+d.getMinutes();
-  if(m>=1290||m<360)return .9;                       /* 21:30–06:00 */
-  if(w===6)return m>=1050?1.2:.9;                     /* Saturday: light, evening return 17:30–21:30 */
-  if(w===5)return m<780?1.05:.9;                      /* Friday: light morning, empty afternoon */
-  if(m>=390&&m<=555)return w===0?1.45:1.35;           /* morning rush 06:30–09:15 */
-  if(m>=930&&m<=1110)return w===4?1.45:1.35;          /* afternoon rush 15:30–18:30 */
-  return 1.05};
-/* drive time in minutes between two places.
+/* traffic: how much of the possible delay applies at a given time (0 = empty roads, 1 = the worst), by day of the week and hour.
+   Calibrated 25.11 from a navigation app, Tel Aviv → מחנה רמון on a Sunday: 1:50 at night, 2:09 leaving 07:00, 2:00 at 13:00, 2:29 leaving 16:00, 1:59 at 19:00.
+   The time is when the taxi is in the city (leaving it on the way to the camp, entering it on the way back) */
+/* Jerusalem (from its own navigation data, Sunday: 2:32 leaving 07:13, 2:06 at 13:09, 2:36 at 15:54, 2:08 at 19:07): a much heavier morning, and the evening stays busy */
+const traffic=(ts,jlm)=>{if(ts==null||isNaN(ts))return .25;const d=new Date(ts),w=d.getDay(),m=d.getHours()*60+d.getMinutes();
+  if(m>=1230||m<360)return 0;                          /* 20:30–06:00 */
+  if(w===6)return m>=1050?.35:0;                         /* Saturday: empty; evening return 17:30–21:30 */
+  if(w===5)return m<780?.2:0;                            /* Friday: light morning, empty afternoon */
+  if(m>=390&&m<555)return jlm?(w===0?.9:.85):(w===0?.5:.45); /* morning rush 06:30–09:15 */
+  if(m>=900&&m<1110)return w===4?1:w===0?.95:.9;         /* afternoon rush 15:00–18:30 (Thursday the worst) */
+  if(m>=1110)return jlm?.3:.22;                          /* evening 18:30–20:30 */
+  if(m<390)return .1;                                    /* 06:00–06:30 */
+  return .25};                                           /* middle of the day */
+/* drive time in minutes between two places, on empty roads plus traffic.
    Road ≈ air distance × 1.35 inside a region (<20 km), × 1.2 further; the Jerusalem / Judea hills wind more (× 1.25 on top).
-   Average speed rises smoothly with the trip length (≈60 km/h for 20 km, ≈90 km/h for 90 km, ≈95 km/h for long trips), so a longer drive is never shorter.
-   Traffic slows only the part leaving the city: up to 15 minutes from Gush Dan and the north, 6 minutes from the south.
-   Off-peak: Tel Aviv → מחנה רמון ≈ 2:08, באר שבע → ≈ 1:00, רעננה → תל אביב ≈ 0:21 (calibrated 25.11 after drivers arrived 20–30 minutes early) */
+   Average speed rises smoothly with the trip length (≈63 km/h for 20 km, ≈90 km/h for 70 km, ≈99 km/h for long trips), so a longer drive is never shorter.
+   Traffic adds up to 35% of the drive (at most 40 minutes) from Gush Dan and the north, up to 15% (at most 12) from the south */
 const hills=P=>P[1]>34.98&&P[0]>31.3&&P[0]<32.3;
-const tmin=(a,b,ts)=>{if(a===b)return 0;const A=geoOf(a),B=geoOf(b);if(!A||!B)return (A||B)===BASEGEO?100:20; /* not on the map yet: a careful guess (to/from the camp ≈ 1:40) until it is found */const air=hav(A,B);let road=air<20?air*1.35+1:air*1.2+3;if(hills(A)||hills(B))road*=1.25;
-  const v=40+55*(1-Math.exp(-road/40)),base=2+road/v*60,busy=Math.min(base*.4,Math.max(A[0],B[0])>31.6?15:6);return Math.max(4,Math.round(base+(traffic(ts)-1)/.45*busy))};
+const tmin=(a,b,ts)=>{if(a===b)return 0;const A=geoOf(a),B=geoOf(b);if(!A||!B)return (A||B)===BASEGEO?100:20; /* not on the map yet: a careful guess (to/from the camp ≈ 1:40) until it is found */
+  const air=hav(A,B);let road=air<20?air*1.35+1:air*1.2+3;if(hills(A)||hills(B))road*=1.25;
+  const v=40+60*(1-Math.exp(-road/40)),free=2+road/v*60,cap=Math.max(A[0],B[0])>31.6?Math.min(40,free*.35):Math.min(12,free*.15);return Math.max(4,Math.round(free+traffic(ts,hills(A)||hills(B))*cap))};
 const minsOf=x=>tmin(x,BASE,null);
 /* driving between two stations; two stations in the same city still take a city drive (longer in the big cities) */
 const BIGC=new Set(['תל אביב','ירושלים','חיפה','ראשון לציון','פתח תקווה','אשדוד','באר שבע','נתניה','חולון','בני ברק','רמת גן','רחובות','אשקלון','בת ים','הרצליה','כפר סבא','רעננה']);
@@ -1015,8 +1020,8 @@ function sched(r){const T=r.ts!=null?r.ts:at(r.date,r.time),P0=points(r);if(isNa
   const B=baseOf(r),out=[];
   /* every stop time rounded to 5 minutes (pickups earlier, drop-offs later) */
   const R5=5*MIN,dn=x=>Math.floor(x/R5)*R5,up=x=>Math.ceil(x/R5)*R5;
-  if(r.dir==='to'){let t=T-(tmin(Z[Z.length-1],B,T)+SPARE)*MIN;for(let i=pts.length-1;i>=0;i--){out.unshift({pt:pts[i],t:dn(t)});if(i)t-=(hop(Z[i-1],Z[i],t)+DWELL)*MIN}return {stops:out,start:out[0].t,end:T}}
-  let t=T+(tmin(B,Z[0],T)+SPARE)*MIN;pts.forEach((pt,i)=>{if(i)t+=(DWELL+hop(Z[i-1],Z[i],t))*MIN;out.push({pt,t:up(t)})});return {stops:out,start:T,end:out[out.length-1].t}}
+  if(r.dir==='to'){const L=Z[Z.length-1],t0=T-tmin(L,B,T-2*H)*MIN;let t=T-(tmin(L,B,t0)+SPARE)*MIN; /* traffic as it is when the taxi leaves the city */for(let i=pts.length-1;i>=0;i--){out.unshift({pt:pts[i],t:dn(t)});if(i)t-=(hop(Z[i-1],Z[i],t)+DWELL)*MIN}return {stops:out,start:out[0].t,end:T}}
+  const t1=T+tmin(B,Z[0],T+2*H)*MIN;let t=T+(tmin(B,Z[0],t1)+SPARE)*MIN; /* traffic as it is when the taxi reaches the city */pts.forEach((pt,i)=>{if(i)t+=(DWELL+hop(Z[i-1],Z[i],t))*MIN;out.push({pt,t:up(t)})});return {stops:out,start:T,end:out[out.length-1].t}}
 const startTs=r=>{const s=sched(r);return s?s.start:NaN};
 const isNight=r=>{const s=sched(r);return !!s&&[s.start,s.end].some(x=>{const h=new Date(x).getHours();return h>=23||h<5})}; /* night = 23:00–05:00: needs the CEO */
 /* the card shows only when the taxi starts and when it ends; the stops are listed without their own times (the times still count every stop) */
